@@ -1093,9 +1093,8 @@ function initMap() {
     attributionControl: true,
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
-  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png', {
+  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    detectRetina: true,
     attribution: '© OSM'
   }).addTo(map);
 
