@@ -1074,6 +1074,86 @@
     text-shadow: 0 0 3px rgba(240, 160, 64, 0.4);
     flex-shrink: 0;
   }
+
+  /* Stats grid */
+  .stats-section-label {
+    font-size: 8px;
+    letter-spacing: 0.3em;
+    color: #d68a3a;
+    font-weight: 700;
+    padding: 10px 0 4px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .stat-card {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 10px 12px;
+    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+  }
+  .stat-card .label {
+    font-size: 7px;
+    letter-spacing: 0.28em;
+    color: #6e6354;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: #f0a040;
+    text-shadow: 0 0 5px rgba(240, 160, 64, 0.5);
+    line-height: 1.1;
+  }
+  .stat-card .sub {
+    font-size: 8px;
+    color: #8c8170;
+    letter-spacing: 0.12em;
+    margin-top: 2px;
+  }
+  .stat-card.wide { grid-column: 1 / -1; }
+
+  /* Distance/bearing row in POI detail */
+  .nav-info-row {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+  }
+  .compass-rose {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .nav-info-data { flex: 1; }
+  .nav-info-data .pair {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 2px 0;
+  }
+  .nav-info-data .lbl {
+    font-size: 8px;
+    letter-spacing: 0.22em;
+    color: #6e6354;
+    font-weight: 700;
+  }
+  .nav-info-data .val {
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    color: #f0a040;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
+  }
   .visit-count {
     display: flex;
     flex-direction: column;
@@ -1336,6 +1416,38 @@
       </div>
     </div>
 
+    <div id="navInfoRow" style="display:none;">
+      <div class="field-label">DISTANCE / BEARING</div>
+      <div class="nav-info-row">
+        <div class="compass-rose">
+          <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
+            <circle cx="28" cy="28" r="25" fill="none" stroke="rgba(240, 160, 64, 0.3)" stroke-width="1"/>
+            <circle cx="28" cy="28" r="20" fill="none" stroke="rgba(240, 160, 64, 0.2)" stroke-width="0.5"/>
+            <!-- Cardinal markers -->
+            <text x="28" y="9" text-anchor="middle" fill="#6e6354" font-family="B612 Mono" font-size="6" font-weight="700">N</text>
+            <text x="28" y="53" text-anchor="middle" fill="#6e6354" font-family="B612 Mono" font-size="6" font-weight="700">S</text>
+            <text x="51" y="31" text-anchor="middle" fill="#6e6354" font-family="B612 Mono" font-size="6" font-weight="700">E</text>
+            <text x="5" y="31" text-anchor="middle" fill="#6e6354" font-family="B612 Mono" font-size="6" font-weight="700">W</text>
+            <!-- Pointer to POI -->
+            <g id="compassPointer" transform="rotate(0 28 28)">
+              <polygon points="28,7 32,28 28,24 24,28" fill="#f0a040" stroke="#3a1a08" stroke-width="0.5" filter="drop-shadow(0 0 3px rgba(240, 160, 64, 0.6))"/>
+            </g>
+            <circle cx="28" cy="28" r="2" fill="#3a1a08"/>
+          </svg>
+        </div>
+        <div class="nav-info-data">
+          <div class="pair">
+            <span class="lbl">DIST</span>
+            <span class="val" id="navDistance">—</span>
+          </div>
+          <div class="pair">
+            <span class="lbl">BEARING</span>
+            <span class="val" id="navBearing">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="navRow" style="display:none;">
       <div class="field-label">NAVIGATION</div>
       <div class="visit-row" style="justify-content: stretch;">
@@ -1455,6 +1567,34 @@
       <div class="settings-action" style="color: #d96850;">→</div>
     </div>
 
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ TODAY'S TRAIL</div>
+
+    <div class="settings-row" onclick="toggleTrail()">
+      <div>
+        <div class="settings-name">SHOW TRAIL ON MAP</div>
+        <div class="settings-desc" id="trailToggleDesc">Trail visible</div>
+      </div>
+      <div class="settings-action" id="trailToggleIndicator">●</div>
+    </div>
+
+    <div class="settings-row" onclick="clearTrail()">
+      <div>
+        <div class="settings-name">CLEAR TODAY'S TRAIL</div>
+        <div class="settings-desc" id="trailPointCount">0 points</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ STATS</div>
+
+    <div class="settings-row" onclick="showStatsSheet()">
+      <div>
+        <div class="settings-name">VIEW LIFETIME STATS</div>
+        <div class="settings-desc">POIs, visits, sectors, fog coverage</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
     <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ DANGER ZONE</div>
 
     <div class="settings-row danger" onclick="resetAllPOIs()">
@@ -1500,6 +1640,19 @@
   </div>
 </div>
 
+<!-- STATS SHEET -->
+<div class="sheet" id="statsSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">LIFETIME STATS</div>
+  <div class="sheet-body" id="statsBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden file input for imports -->
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 
@@ -1527,6 +1680,9 @@ let revealedCells = new Set();  // set of "lat_lng" cell IDs that are revealed
 let regions = [];               // array of region objects
 let currentRegionId = null;     // id of region user is currently inside
 let journalEntries = [];        // chronological event log
+let todayTrail = [];            // array of {lat, lng, ts} — today's GPS samples only
+let trailLayer = null;          // Leaflet polyline for today's trail
+let showTrail = true;           // user toggle, default on
 let map = null;
 let userMarker = null;
 let markerLayer = null;
@@ -1689,6 +1845,61 @@ function logEvent(type, poiId, summary, meta) {
     meta: meta || '',
   });
   saveJournal();
+}
+
+// ===== TODAY'S TRAIL =====
+function loadTrail() {
+  try {
+    const raw = localStorage.getItem('recon.os.trail');
+    todayTrail = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    todayTrail = [];
+  }
+  pruneTrailToToday();
+}
+
+function saveTrail() {
+  if (saveTrail._timer) clearTimeout(saveTrail._timer);
+  saveTrail._timer = setTimeout(() => {
+    localStorage.setItem('recon.os.trail', JSON.stringify(todayTrail));
+  }, 2000);
+}
+
+function pruneTrailToToday() {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  todayTrail = todayTrail.filter(pt => pt.ts >= startOfDay);
+  saveTrail();
+}
+
+function recordTrailPoint(lat, lng) {
+  pruneTrailToToday();  // cheap, ensures yesterday's points get cleared at midnight
+  // Don't record if we haven't moved much from last point
+  if (todayTrail.length > 0) {
+    const last = todayTrail[todayTrail.length - 1];
+    if (metersBetween(last.lat, last.lng, lat, lng) < 15) return;  // 15m noise floor
+  }
+  todayTrail.push({ lat, lng, ts: Date.now() });
+  saveTrail();
+  renderTrail();
+}
+
+function renderTrail() {
+  if (trailLayer) {
+    map.removeLayer(trailLayer);
+    trailLayer = null;
+  }
+  if (!showTrail || todayTrail.length < 2) return;
+  const latlngs = todayTrail.map(pt => [pt.lat, pt.lng]);
+  trailLayer = L.polyline(latlngs, {
+    color: '#f0a040',
+    weight: 2.5,
+    opacity: 0.85,
+    dashArray: '4 3',
+    lineCap: 'round',
+    interactive: false,
+    pane: 'overlayPane',
+  }).addTo(map);
 }
 
 // ===== CLUSTER DETECTION =====
@@ -2292,6 +2503,9 @@ function startGPS() {
         if (newReveal) renderFog();
       }
 
+      // TRAIL: record today's GPS sample
+      recordTrailPoint(latitude, longitude);
+
       // VISITS: check proximity-based auto-visits
       checkVisits(latitude, longitude);
 
@@ -2453,12 +2667,180 @@ function openClassifySheet(poiId) {
     visitRow.style.display = 'none';
   }
 
+  // Distance + bearing
+  updateNavInfo(poi);
+
   // Always show navigation row
   document.getElementById('navRow').style.display = 'block';
 
   buildCatGrid();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('classifySheet').classList.add('open');
+}
+
+function updateNavInfo(poi) {
+  const row = document.getElementById('navInfoRow');
+  if (!userPos) {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = 'block';
+  const distM = metersBetween(userPos.lat, userPos.lng, poi.lat, poi.lng);
+  const distFt = distM * 3.28084;
+  let distLabel;
+  if (distFt < 528) distLabel = Math.round(distFt) + 'FT';
+  else distLabel = (distM / 1609.34).toFixed(2) + 'MI';
+  const bearing = bearingDeg(userPos.lat, userPos.lng, poi.lat, poi.lng);
+  document.getElementById('navDistance').textContent = distLabel;
+  document.getElementById('navBearing').textContent = Math.round(bearing) + '° ' + cardinal(bearing);
+  document.getElementById('compassPointer').setAttribute('transform', `rotate(${bearing} 28 28)`);
+}
+
+function bearingDeg(lat1, lng1, lat2, lng2) {
+  const toRad = x => x * Math.PI / 180;
+  const toDeg = x => x * 180 / Math.PI;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const λ1 = toRad(lng1);
+  const λ2 = toRad(lng2);
+  const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+  const θ = Math.atan2(y, x);
+  return (toDeg(θ) + 360) % 360;
+}
+
+function cardinal(deg) {
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+// ===== TRAIL TOGGLE/CLEAR =====
+function toggleTrail() {
+  showTrail = !showTrail;
+  document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
+  document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
+  renderTrail();
+}
+
+function clearTrail() {
+  if (!confirm('Clear today\'s trail?')) return;
+  todayTrail = [];
+  saveTrail();
+  renderTrail();
+  document.getElementById('trailPointCount').textContent = '0 points';
+  showToast('TRAIL CLEARED');
+}
+
+// ===== STATS SHEET =====
+function showStatsSheet() {
+  const body = document.getElementById('statsBody');
+  const classified = pois.filter(p => p.category);
+  const totalVisits = pois.reduce((sum, p) => sum + (p.visits || 0), 0);
+  const hvaCount = pois.filter(p => p.hva).length;
+
+  // Per-category breakdown
+  const byCategory = {};
+  CATEGORIES.forEach(c => byCategory[c.id] = 0);
+  classified.forEach(p => { byCategory[p.category] = (byCategory[p.category] || 0) + 1; });
+
+  // Most-visited POI
+  let mostVisited = null;
+  pois.forEach(p => {
+    if ((p.visits || 0) > 0 && (!mostVisited || p.visits > mostVisited.visits)) {
+      mostVisited = p;
+    }
+  });
+
+  // Total sectors across all regions
+  const totalSectors = regions.reduce((sum, r) => sum + (r.revealedSectors ? r.revealedSectors.length : 0), 0);
+
+  // Approximate area: cells × cell area
+  const cellM2 = 150 * 150;  // 150m × 150m
+  const totalM2 = revealedCells.size * cellM2;
+  const totalMi2 = totalM2 / 2589988;  // m² per mile²
+
+  // First and last activity
+  const firstDay = journalEntries.length ? new Date(Math.min(...journalEntries.map(e => e.ts))) : null;
+
+  body.innerHTML = `
+    <div class="stats-section-label">▸ POIs</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">TOTAL</div>
+        <div class="value">${String(classified.length).padStart(3, '0')}</div>
+        <div class="sub">${pois.filter(p => !p.category).length} pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">HVA</div>
+        <div class="value">${String(hvaCount).padStart(3, '0')}</div>
+        <div class="sub">manual</div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      ${CATEGORIES.map(c => `
+        <div class="stat-card">
+          <div class="label" style="color:${c.color};">${c.id}</div>
+          <div class="value">${String(byCategory[c.id] || 0).padStart(2, '0')}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="stats-section-label">▸ ACTIVITY</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">VISITS</div>
+        <div class="value">${String(totalVisits).padStart(3, '0')}</div>
+        <div class="sub">all-time</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">EVENTS</div>
+        <div class="value">${journalEntries.length}</div>
+        <div class="sub">in journal</div>
+      </div>
+    </div>
+    ${mostVisited ? `
+      <div class="stat-card wide">
+        <div class="label">MOST VISITED</div>
+        <div class="value" style="font-size:14px;">${escapeHtml(mostVisited.name || 'UNTITLED')}</div>
+        <div class="sub">×${mostVisited.visits} · ${mostVisited.category}</div>
+      </div>
+    ` : ''}
+
+    <div class="stats-section-label">▸ TERRITORY</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">REGIONS</div>
+        <div class="value">${regions.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">SECTORS</div>
+        <div class="value">${totalSectors}</div>
+        <div class="sub">across regions</div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">FOG CELLS</div>
+        <div class="value">${revealedCells.size}</div>
+        <div class="sub">~150m each</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">AREA</div>
+        <div class="value">${totalMi2.toFixed(2)}</div>
+        <div class="sub">sq mi</div>
+      </div>
+    </div>
+
+    ${firstDay ? `
+      <div class="stat-card wide">
+        <div class="label">FIELD TIME</div>
+        <div class="value" style="font-size:14px;">${Math.ceil((Date.now() - firstDay.getTime()) / (1000 * 60 * 60 * 24))} DAYS</div>
+        <div class="sub">since first activity</div>
+      </div>
+    ` : ''}
+  `;
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('statsSheet').classList.add('open');
 }
 
 function navigateToPOI() {
@@ -2816,6 +3198,7 @@ function closeSheet() {
   document.getElementById('pendingSheet').classList.remove('open');
   document.getElementById('settingsSheet').classList.remove('open');
   document.getElementById('journalSheet').classList.remove('open');
+  document.getElementById('statsSheet').classList.remove('open');
   editingId = null;
   deselectPOI();
 }
@@ -2857,6 +3240,9 @@ function openSettingsSheet() {
     revealedCells.size + ' cells revealed';
   document.getElementById('regionCountDesc').textContent =
     regions.length + (regions.length === 1 ? ' region' : ' regions');
+  document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
+  document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
+  document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('settingsSheet').classList.add('open');
 }
@@ -2966,12 +3352,13 @@ function resetAllPOIs() {
 }
 
 function hardReset() {
-  if (!confirm('FULL RESET — wipe POIs, fog, regions, journal, everything?\n\nThis cannot be undone.')) return;
+  if (!confirm('FULL RESET — wipe POIs, fog, regions, journal, trail, everything?\n\nThis cannot be undone.')) return;
   if (!confirm('Last chance. Erase everything?')) return;
   localStorage.removeItem('recon.os.pois');
   localStorage.removeItem('recon.os.fog');
   localStorage.removeItem('recon.os.regions');
   localStorage.removeItem('recon.os.journal');
+  localStorage.removeItem('recon.os.trail');
   location.reload();
 }
 
@@ -3007,9 +3394,11 @@ loadPOIs();
 loadFog();
 loadRegions();
 loadJournal();
+loadTrail();
 initMap();
 startGPS();
 updatePendingCount();
+renderTrail();
 </script>
 
 </body>
