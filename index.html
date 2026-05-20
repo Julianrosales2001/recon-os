@@ -1902,6 +1902,36 @@ function renderTrail() {
   }).addTo(map);
 }
 
+// ===== PREFERENCES =====
+// Persists UI state across sessions: trail toggle, filter, sort, search, legend.
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem('recon.os.prefs');
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (typeof p.showTrail === 'boolean') showTrail = p.showTrail;
+    if (typeof p.activeCategoryFilter === 'string') activeCategoryFilter = p.activeCategoryFilter;
+    if (typeof p.listSearchQuery === 'string') listSearchQuery = p.listSearchQuery;
+    if (typeof p.listSortMode === 'string') listSortMode = p.listSortMode;
+    if (typeof p.legendOpen === 'boolean') prefLegendOpen = p.legendOpen;
+  } catch (e) { /* ignore */ }
+}
+
+function savePrefs() {
+  if (savePrefs._timer) clearTimeout(savePrefs._timer);
+  savePrefs._timer = setTimeout(() => {
+    localStorage.setItem('recon.os.prefs', JSON.stringify({
+      showTrail: showTrail,
+      activeCategoryFilter: activeCategoryFilter,
+      listSearchQuery: listSearchQuery,
+      listSortMode: listSortMode,
+      legendOpen: prefLegendOpen,
+    }));
+  }, 500);
+}
+
+let prefLegendOpen = false;
+
 // ===== CLUSTER DETECTION =====
 // Find groups of 3+ classified POIs within CLUSTER_RADIUS_M of each other.
 // Uses a simple union-find approach: every pair within range gets merged into the same group.
@@ -2720,6 +2750,7 @@ function toggleTrail() {
   document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
   document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
   renderTrail();
+  savePrefs();
 }
 
 function clearTrail() {
@@ -2980,6 +3011,7 @@ function buildCatFilterRow() {
     chip.textContent = c.label;
     chip.onclick = () => {
       activeCategoryFilter = c.id;
+      savePrefs();
       buildCatFilterRow();
       renderListBody();
       renderAllMarkers();  // also re-render map so the filter affects flag visibility
@@ -3002,6 +3034,7 @@ function renderListBody() {
   const body = document.getElementById('listBody');
   listSearchQuery = document.getElementById('listSearch').value || '';
   listSortMode = document.getElementById('listSort').value;
+  savePrefs();
 
   let classified = pois.filter(p => p.category);
 
@@ -3228,9 +3261,22 @@ function toggleLegend() {
   if (panel.style.display === 'none' || !panel.style.display) {
     panel.style.display = 'block';
     btn.classList.add('active');
+    prefLegendOpen = true;
   } else {
     panel.style.display = 'none';
     btn.classList.remove('active');
+    prefLegendOpen = false;
+  }
+  savePrefs();
+}
+
+// Apply saved legend state on load
+function applyLegendPref() {
+  const panel = document.getElementById('legendPanel');
+  const btn = document.getElementById('legendBtn');
+  if (prefLegendOpen) {
+    panel.style.display = 'block';
+    btn.classList.add('active');
   }
 }
 
@@ -3263,12 +3309,15 @@ function showRegionsList() {
 
 function exportData() {
   const data = {
-    version: 3,
+    version: 4,
     exported: new Date().toISOString(),
     pois: pois,
     fog: [...revealedCells],
     regions: regions,
     journal: journalEntries,
+    prefs: {
+      showTrail, activeCategoryFilter, listSearchQuery, listSortMode, legendOpen: prefLegendOpen,
+    },
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -3319,6 +3368,14 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         journalEntries = data.journal;
         saveJournal();
       }
+      if (data.prefs) {
+        if (typeof data.prefs.showTrail === 'boolean') showTrail = data.prefs.showTrail;
+        if (typeof data.prefs.activeCategoryFilter === 'string') activeCategoryFilter = data.prefs.activeCategoryFilter;
+        if (typeof data.prefs.listSearchQuery === 'string') listSearchQuery = data.prefs.listSearchQuery;
+        if (typeof data.prefs.listSortMode === 'string') listSortMode = data.prefs.listSortMode;
+        if (typeof data.prefs.legendOpen === 'boolean') prefLegendOpen = data.prefs.legendOpen;
+        savePrefs();
+      }
       renderAllMarkers();
       updatePendingCount();
       closeSheet();
@@ -3352,13 +3409,14 @@ function resetAllPOIs() {
 }
 
 function hardReset() {
-  if (!confirm('FULL RESET — wipe POIs, fog, regions, journal, trail, everything?\n\nThis cannot be undone.')) return;
+  if (!confirm('FULL RESET — wipe POIs, fog, regions, journal, trail, prefs, everything?\n\nThis cannot be undone.')) return;
   if (!confirm('Last chance. Erase everything?')) return;
   localStorage.removeItem('recon.os.pois');
   localStorage.removeItem('recon.os.fog');
   localStorage.removeItem('recon.os.regions');
   localStorage.removeItem('recon.os.journal');
   localStorage.removeItem('recon.os.trail');
+  localStorage.removeItem('recon.os.prefs');
   location.reload();
 }
 
@@ -3390,6 +3448,7 @@ function formatTimestamp(ts) {
 }
 
 // ===== INIT =====
+loadPrefs();
 loadPOIs();
 loadFog();
 loadRegions();
@@ -3399,6 +3458,7 @@ initMap();
 startGPS();
 updatePendingCount();
 renderTrail();
+applyLegendPref();
 </script>
 
 </body>
