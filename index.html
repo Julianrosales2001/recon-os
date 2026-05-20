@@ -218,6 +218,17 @@
     gap: 8px;
     z-index: 40;
   }
+  .map-zoom-buttons {
+    position: absolute;
+    bottom: 160px;
+    left: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 40;
+  }
+  .map-zoom-buttons .map-overlay-btn { width: 32px; height: 32px; }
+  .map-zoom-buttons .map-overlay-btn .cap { font-size: 20px; }
   .map-overlay-btn {
     width: 40px; height: 40px;
     position: relative;
@@ -995,6 +1006,62 @@
     gap: 12px;
     box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
   }
+
+  /* List search + controls */
+  .list-search {
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+    margin-bottom: 6px;
+  }
+  .list-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .cat-filter-row {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .cat-filter-row::-webkit-scrollbar { display: none; }
+  .cat-chip {
+    background: linear-gradient(180deg, #2a2520 0%, #14110d 100%);
+    border: 1px solid #3a3128;
+    color: #8c8170;
+    font-family: 'B612 Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 5px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .cat-chip.active {
+    color: #f0a040;
+    border-color: #d68a3a;
+    background: linear-gradient(180deg, #322a18 0%, #1a1610 100%);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.4);
+  }
+  .list-sort {
+    background: #050403;
+    border: 1px solid #3a3128;
+    color: #f0a040;
+    font-family: 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 6px 8px;
+    border-radius: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    text-shadow: 0 0 3px rgba(240, 160, 64, 0.4);
+    flex-shrink: 0;
+  }
   .visit-count {
     display: flex;
     flex-direction: column;
@@ -1129,6 +1196,12 @@
     <div class="map-overlay-btn" onclick="openJournalSheet()"><div class="socket"></div><div class="cap">▤</div></div>
   </div>
 
+  <!-- ZOOM BUTTONS (bottom-left of map area) -->
+  <div class="map-zoom-buttons">
+    <div class="map-overlay-btn" onclick="map.zoomIn()"><div class="socket"></div><div class="cap">+</div></div>
+    <div class="map-overlay-btn" onclick="map.zoomOut()"><div class="socket"></div><div class="cap">−</div></div>
+  </div>
+
   <!-- LEGEND PANEL (hidden by default) -->
   <div id="legendPanel" style="
     position: absolute;
@@ -1239,6 +1312,13 @@
       </div>
     </div>
 
+    <div id="navRow" style="display:none;">
+      <div class="field-label">NAVIGATION</div>
+      <div class="visit-row" style="justify-content: stretch;">
+        <button type="button" class="visit-log-btn" style="flex:1;" onclick="navigateToPOI()">▸ OPEN IN APPLE MAPS</button>
+      </div>
+    </div>
+
   </div>
   <div class="sheet-actions">
     <div class="action-btn" onclick="deletePOI()" id="deleteBtn" style="display:none;">
@@ -1260,6 +1340,22 @@
 <div class="sheet" id="listSheet">
   <div class="grip"></div>
   <div class="sheet-title">ALL ASSETS · <span id="listCount">0</span></div>
+  <div style="padding: 0 0 8px;">
+    <input class="field-input list-search" id="listSearch" placeholder="SEARCH NAME, NOTES, CATEGORY..." oninput="renderListBody()" />
+    <div class="list-controls">
+      <div class="cat-filter-row" id="catFilterRow">
+        <!-- chips injected by JS -->
+      </div>
+      <select class="list-sort" id="listSort" onchange="renderListBody()">
+        <option value="created_desc">NEWEST</option>
+        <option value="created_asc">OLDEST</option>
+        <option value="name_asc">NAME A-Z</option>
+        <option value="distance_asc">NEAREST</option>
+        <option value="visits_desc">MOST VISITED</option>
+        <option value="category_asc">BY CATEGORY</option>
+      </select>
+    </div>
+  </div>
   <div class="sheet-body" id="listBody">
     <!-- POI list injected by JS -->
   </div>
@@ -1415,6 +1511,7 @@ let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
 let editorPhoto = null;         // base64 data URL for photo being edited
 let editorHVA = false;          // HVA state for POI being edited
+let selectedPoiId = null;       // currently selected on map (gets a halo)
 
 // ===== FOG OF WAR CONSTANTS =====
 const FOG_CELL_DEG = 0.0014;        // ~150m at Houston latitude
@@ -1986,9 +2083,14 @@ function injectFogHatch() {
   });
 }
 
-function makeFlagIcon(color) {
+function makeFlagIcon(color, selected) {
+  const haloSVG = selected ? `
+    <circle cx="0" cy="-21" r="28" fill="rgba(240, 160, 64, 0.18)" />
+    <circle cx="0" cy="-21" r="28" fill="none" stroke="rgba(240, 160, 64, 0.85)" stroke-width="1.5" stroke-dasharray="3 2" />
+  ` : '';
   const svg = `
-    <svg class="flag-svg" viewBox="-10 -50 50 60" xmlns="http://www.w3.org/2000/svg">
+    <svg class="flag-svg" viewBox="-30 -50 60 70" xmlns="http://www.w3.org/2000/svg">
+      ${haloSVG}
       <circle cx="0" cy="0" r="3" fill="#1a0f06"/>
       <line x1="0" y1="0" x2="0" y2="-42" stroke="#1a0f06" stroke-width="3" stroke-linecap="round"/>
       <path d="M 0 -42 L 28 -34 L 0 -25 Z" fill="${color}" stroke="#1a0f06" stroke-width="1.5" stroke-linejoin="round"/>
@@ -1997,9 +2099,21 @@ function makeFlagIcon(color) {
   return L.divIcon({
     html: `<div class="flag-marker">${svg}</div>`,
     className: '',
-    iconSize: [36, 48],
-    iconAnchor: [18, 48], // anchor at base of pole
+    iconSize: selected ? [60, 70] : [36, 48],
+    iconAnchor: selected ? [30, 60] : [18, 48],
   });
+}
+
+function selectPOI(poiId) {
+  if (selectedPoiId === poiId) return;
+  selectedPoiId = poiId;
+  renderAllMarkers();
+}
+
+function deselectPOI() {
+  if (!selectedPoiId) return;
+  selectedPoiId = null;
+  renderAllMarkers();
 }
 
 function userIcon() {
@@ -2014,13 +2128,37 @@ function userIcon() {
 function renderAllMarkers() {
   markerLayer.clearLayers();
   pois.forEach(p => {
+    // Apply category filter (also affects map — unclassified always show)
+    if (p.category && activeCategoryFilter !== 'ALL' && p.category !== activeCategoryFilter) return;
+
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
-    const m = L.marker([p.lat, p.lng], { icon: makeFlagIcon(cat.color) });
+    const m = L.marker([p.lat, p.lng], {
+      icon: makeFlagIcon(cat.color, p.id === selectedPoiId),
+      draggable: true,
+    });
     m._poiId = p.id;
-    m.on('click', () => openClassifySheet(p.id));
+    m.on('click', () => {
+      selectPOI(p.id);
+      openClassifySheet(p.id);
+    });
+    m.on('dragend', (e) => {
+      const newLatLng = e.target.getLatLng();
+      const poi = pois.find(x => x.id === p.id);
+      if (!poi) return;
+      poi.lat = newLatLng.lat;
+      poi.lng = newLatLng.lng;
+      const region = getCurrentRegion() || regions.find(r => r.id === poi.regionId);
+      if (region) {
+        poi.sector = sectorIdForRegion(region, poi.lat, poi.lng);
+      }
+      savePOIs();
+      renderClusters();
+      const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+      logEvent('edit', poi.id, 'Repositioned: ' + displayName, poi.sector || '');
+      showToast('PIN MOVED');
+    });
     m.addTo(markerLayer);
   });
-  // Recompute clusters when markers change
   if (map) renderClusters();
 }
 
@@ -2253,9 +2391,25 @@ function openClassifySheet(poiId) {
     visitRow.style.display = 'none';
   }
 
+  // Always show navigation row
+  document.getElementById('navRow').style.display = 'block';
+
   buildCatGrid();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('classifySheet').classList.add('open');
+}
+
+function navigateToPOI() {
+  const poi = pois.find(p => p.id === editingId);
+  if (!poi) return;
+  // Apple Maps URL scheme: maps://?daddr=lat,lng — falls back to Google Maps web on non-iOS
+  const label = encodeURIComponent(poi.name || 'POI');
+  const url = `maps://?daddr=${poi.lat},${poi.lng}&q=${label}`;
+  // For non-iOS fallback, also build a https Maps URL
+  const fallback = `https://maps.apple.com/?daddr=${poi.lat},${poi.lng}&q=${label}`;
+  // Try the native URL scheme, fall back to https
+  window.location.href = url;
+  setTimeout(() => { window.location.href = fallback; }, 250);
 }
 
 function manualLogVisit() {
@@ -2367,41 +2521,113 @@ function deletePOI() {
   showToast('POI DELETED');
 }
 
+// ===== LIST FILTER STATE (also used for map filtering) =====
+let activeCategoryFilter = 'ALL';  // 'ALL' or a category ID
+let listSearchQuery = '';
+let listSortMode = 'created_desc';
+
+function buildCatFilterRow() {
+  const row = document.getElementById('catFilterRow');
+  row.innerHTML = '';
+  const chips = [{ id: 'ALL', label: 'ALL' }, ...CATEGORIES.map(c => ({ id: c.id, label: c.label }))];
+  chips.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'cat-chip' + (activeCategoryFilter === c.id ? ' active' : '');
+    chip.textContent = c.label;
+    chip.onclick = () => {
+      activeCategoryFilter = c.id;
+      buildCatFilterRow();
+      renderListBody();
+      renderAllMarkers();  // also re-render map so the filter affects flag visibility
+    };
+    row.appendChild(chip);
+  });
+}
+
 // ===== LIST SHEET =====
 function openListSheet() {
-  const body = document.getElementById('listBody');
-  document.getElementById('listCount').textContent = pois.filter(p => p.category).length;
-  body.innerHTML = '';
-
-  const classified = pois.filter(p => p.category);
-  if (classified.length === 0) {
-    body.innerHTML = '<div class="empty-state"><div class="big">NO ASSETS YET</div>Drop pins to start your survey.</div>';
-  } else {
-    classified.forEach(p => {
-      const cat = CATEGORIES.find(c => c.id === p.category);
-      const row = document.createElement('div');
-      row.className = 'list-row' + (p.hva ? ' hva' : '');
-      const starHTML = p.hva ? '<span class="hva-star">★</span>' : '';
-      row.innerHTML = `
-        <div class="flag-icon" style="color:${cat.color};"><div class="pole"></div><div class="pen"></div></div>
-        <div class="info">
-          <div class="name">${starHTML}${p.name || 'UNTITLED'}</div>
-          <div class="meta">${p.category} · ${distanceLabel(p)}</div>
-        </div>
-      `;
-      row.onclick = () => {
-        closeSheet();
-        setTimeout(() => {
-          map.setView([p.lat, p.lng], 18);
-          openClassifySheet(p.id);
-        }, 350);
-      };
-      body.appendChild(row);
-    });
-  }
-
+  document.getElementById('listSearch').value = listSearchQuery;
+  document.getElementById('listSort').value = listSortMode;
+  buildCatFilterRow();
+  renderListBody();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('listSheet').classList.add('open');
+}
+
+function renderListBody() {
+  const body = document.getElementById('listBody');
+  listSearchQuery = document.getElementById('listSearch').value || '';
+  listSortMode = document.getElementById('listSort').value;
+
+  let classified = pois.filter(p => p.category);
+
+  // Filter by category
+  if (activeCategoryFilter !== 'ALL') {
+    classified = classified.filter(p => p.category === activeCategoryFilter);
+  }
+
+  // Filter by search text
+  const q = listSearchQuery.trim().toLowerCase();
+  if (q) {
+    classified = classified.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.notes || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  classified.sort((a, b) => {
+    switch (listSortMode) {
+      case 'created_asc':   return a.created - b.created;
+      case 'created_desc':  return b.created - a.created;
+      case 'name_asc':      return (a.name || 'ZZZ').localeCompare(b.name || 'ZZZ');
+      case 'distance_asc':
+        if (!userPos) return 0;
+        return metersBetween(userPos.lat, userPos.lng, a.lat, a.lng) -
+               metersBetween(userPos.lat, userPos.lng, b.lat, b.lng);
+      case 'visits_desc':   return (b.visits || 0) - (a.visits || 0);
+      case 'category_asc':  return (a.category || '').localeCompare(b.category || '');
+      default:              return b.created - a.created;
+    }
+  });
+
+  document.getElementById('listCount').textContent = classified.length;
+  body.innerHTML = '';
+
+  if (classified.length === 0) {
+    const totalClassified = pois.filter(p => p.category).length;
+    if (totalClassified === 0) {
+      body.innerHTML = '<div class="empty-state"><div class="big">NO ASSETS YET</div>Drop pins to start your survey.</div>';
+    } else {
+      body.innerHTML = '<div class="empty-state"><div class="big">NO MATCHES</div>No POIs match the current filter or search.</div>';
+    }
+    return;
+  }
+
+  classified.forEach(p => {
+    const cat = CATEGORIES.find(c => c.id === p.category);
+    const row = document.createElement('div');
+    row.className = 'list-row' + (p.hva ? ' hva' : '');
+    const starHTML = p.hva ? '<span class="hva-star">★</span>' : '';
+    const visitHTML = p.visits ? ' · ×' + p.visits : '';
+    row.innerHTML = `
+      <div class="flag-icon" style="color:${cat.color};"><div class="pole"></div><div class="pen"></div></div>
+      <div class="info">
+        <div class="name">${starHTML}${escapeHtml(p.name || 'UNTITLED')}</div>
+        <div class="meta">${p.category} · ${distanceLabel(p)}${visitHTML}</div>
+      </div>
+    `;
+    row.onclick = () => {
+      closeSheet();
+      setTimeout(() => {
+        map.setView([p.lat, p.lng], 18);
+        selectPOI(p.id);
+        openClassifySheet(p.id);
+      }, 350);
+    };
+    body.appendChild(row);
+  });
 }
 
 // ===== PENDING SHEET =====
@@ -2486,6 +2712,7 @@ function openJournalSheet() {
           closeSheet();
           setTimeout(() => {
             map.setView([poi.lat, poi.lng], 18);
+            selectPOI(poi.id);
             openClassifySheet(poi.id);
           }, 350);
         }
@@ -2528,6 +2755,7 @@ function closeSheet() {
   document.getElementById('settingsSheet').classList.remove('open');
   document.getElementById('journalSheet').classList.remove('open');
   editingId = null;
+  deselectPOI();
 }
 
 // ===== LEGEND TOGGLE =====
