@@ -1164,7 +1164,7 @@ function renderFog() {
     color: '#1a0f06',
     weight: 0,
     fillColor: '#2a1a10',
-    fillOpacity: 0.35,
+    fillOpacity: 0.88,
     interactive: false,
     smoothFactor: 0,
   }).addTo(map);
@@ -1194,8 +1194,8 @@ function injectFogHatch() {
     pattern.setAttribute('height', '8');
     pattern.setAttribute('patternTransform', 'rotate(45)');
     pattern.innerHTML = `
-      <rect width="8" height="8" fill="#28190f" opacity="0.35"/>
-      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.4"/>
+      <rect width="8" height="8" fill="#28190f" opacity="0.85"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
     `;
     defs.appendChild(pattern);
 
