@@ -49,7 +49,7 @@
   }
   /* Apply a sepia/paper filter to the tile layer to make it look like our paper map */
   .leaflet-tile-pane {
-    filter: sepia(0.45) saturate(0.85) brightness(0.95) contrast(1.05) hue-rotate(-5deg);
+    filter: sepia(0.35) saturate(0.9) brightness(0.96) contrast(1.05) hue-rotate(-5deg);
   }
   .leaflet-control-zoom { display: none !important; }
   .leaflet-control-attribution {
@@ -250,6 +250,13 @@
   .map-overlay-btn:active .cap {
     transform: translateY(1px);
     filter: brightness(0.9);
+  }
+  .map-overlay-btn.active .led {
+    background: radial-gradient(circle at 30% 30%, #fff0c0 0%, #f0a040 55%, #b8731c 100%) !important;
+    box-shadow:
+      0 0 5px #f0a040,
+      0 0 10px rgba(240, 160, 64, 0.5),
+      inset 0 1px 0 rgba(255, 220, 180, 0.8) !important;
   }
 
   /* ========================= BOTTOM CHROME ========================= */
@@ -751,6 +758,43 @@
     margin-bottom: 8px;
   }
 
+  /* Settings rows */
+  .settings-row {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+  }
+  .settings-row:active { filter: brightness(1.2); }
+  .settings-row .settings-name {
+    font-size: 11px;
+    color: #d4c8b0;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .settings-row .settings-desc {
+    font-size: 9px;
+    color: #6e6354;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+  .settings-row .settings-action {
+    font-family: 'B612 Mono', monospace;
+    font-size: 16px;
+    color: #f0a040;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
+  }
+  .settings-row.danger {
+    border-left: 2px solid #d96850;
+  }
+
   /* GPS error banner */
   .gps-banner {
     position: absolute;
@@ -842,6 +886,26 @@
   <!-- MAP OVERLAY BUTTONS -->
   <div class="map-overlay-buttons">
     <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
+    <div class="map-overlay-btn" id="legendBtn" onclick="toggleLegend()"><div class="socket"></div><div class="led"></div><div class="cap">⚐</div></div>
+    <div class="map-overlay-btn" onclick="openListSheet()"><div class="socket"></div><div class="cap">≡</div></div>
+  </div>
+
+  <!-- LEGEND PANEL (hidden by default) -->
+  <div id="legendPanel" style="
+    position: absolute;
+    top: 156px;
+    right: 60px;
+    z-index: 41;
+    background: linear-gradient(180deg, #322a24 0%, #1a1614 100%);
+    border: 1px solid #3a3128;
+    border-radius: 3px;
+    padding: 8px 10px;
+    width: 130px;
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: none;
+  ">
+    <div style="font-size: 7px; letter-spacing: 0.32em; color: #d68a3a; font-weight: 700; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #2a2520;">▸ FLAG LEGEND</div>
+    <div id="legendRows"></div>
   </div>
 
   <!-- SIDE BEZELS -->
@@ -872,6 +936,10 @@
         <div class="toggle-btn" onclick="openPendingSheet()">
           <div class="socket"></div>
           <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="pendingLabel">PENDING</span></div></div>
+        </div>
+        <div class="toggle-btn" onclick="openSettingsSheet()">
+          <div class="socket"></div>
+          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">MENU</span></div></div>
         </div>
       </div>
     </div>
@@ -946,6 +1014,82 @@
     </div>
   </div>
 </div>
+
+<!-- SETTINGS SHEET -->
+<div class="sheet" id="settingsSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">SETTINGS</div>
+  <div class="sheet-body" style="padding: 0 4px;">
+
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 8px 0 4px;">▸ DATA</div>
+
+    <div class="settings-row" onclick="exportData()">
+      <div>
+        <div class="settings-name">EXPORT POIs</div>
+        <div class="settings-desc">Download all data as JSON file</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-row" onclick="importData()">
+      <div>
+        <div class="settings-name">IMPORT POIs</div>
+        <div class="settings-desc">Restore from JSON backup</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ FOG OF WAR</div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-name">REVEALED CELLS</div>
+        <div class="settings-desc" id="fogCellCount">0 cells revealed</div>
+      </div>
+    </div>
+
+    <div class="settings-row danger" onclick="clearFog()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">CLEAR FOG</div>
+        <div class="settings-desc">Reset all revealed terrain</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ DANGER ZONE</div>
+
+    <div class="settings-row danger" onclick="resetAllPOIs()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">DELETE ALL POIs</div>
+        <div class="settings-desc">Permanently remove every pin</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div class="settings-row danger" onclick="hardReset()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">FULL RESET</div>
+        <div class="settings-desc">Wipe POIs, fog, everything</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div style="padding: 18px 0 4px; text-align: center;">
+      <div style="font-family: 'Saira Stencil One'; font-size: 14px; color: #d68a3a; letter-spacing: 0.1em;">RECON.OS</div>
+      <div style="font-size: 8px; color: #6e6354; letter-spacing: 0.2em; margin-top: 4px;">v0.1 · PWA · LOCAL ONLY</div>
+    </div>
+
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input for imports -->
+<input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 
 <script>
 /* =============================================================
@@ -1093,9 +1237,11 @@ function initMap() {
     attributionControl: true,
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
-  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    attribution: '© OSM'
+    subdomains: 'abcd',
+    detectRetina: true,
+    attribution: '© CARTO © OSM'
   }).addTo(map);
 
   // Log tile loading status to console so we can see if tiles are failing
@@ -1545,7 +1691,133 @@ function closeSheet() {
   document.getElementById('classifySheet').classList.remove('open');
   document.getElementById('listSheet').classList.remove('open');
   document.getElementById('pendingSheet').classList.remove('open');
+  document.getElementById('settingsSheet').classList.remove('open');
   editingId = null;
+}
+
+// ===== LEGEND TOGGLE =====
+function buildLegend() {
+  const rows = document.getElementById('legendRows');
+  rows.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:3px 0; color:' + cat.color + ';';
+    row.innerHTML = `
+      <div style="width:14px; height:18px; position:relative; flex-shrink:0;">
+        <div style="position:absolute; left:50%; top:0; transform:translateX(-50%); width:1.5px; height:14px; background:#0a0604;"></div>
+        <div style="position:absolute; left:50%; top:1px; width:9px; height:5px; background:currentColor; clip-path:polygon(0 0, 100% 30%, 0 100%); border:0.5px solid #0a0604;"></div>
+      </div>
+      <span style="font-size:8px; letter-spacing:0.16em; color:#d4c8b0; font-weight:700;">${cat.id}</span>
+    `;
+    rows.appendChild(row);
+  });
+}
+buildLegend();
+
+function toggleLegend() {
+  const panel = document.getElementById('legendPanel');
+  const btn = document.getElementById('legendBtn');
+  if (panel.style.display === 'none' || !panel.style.display) {
+    panel.style.display = 'block';
+    btn.classList.add('active');
+  } else {
+    panel.style.display = 'none';
+    btn.classList.remove('active');
+  }
+}
+
+// ===== SETTINGS =====
+function openSettingsSheet() {
+  document.getElementById('fogCellCount').textContent =
+    revealedCells.size + ' cells revealed';
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('settingsSheet').classList.add('open');
+}
+
+function exportData() {
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    pois: pois,
+    fog: [...revealedCells],
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'recon-os-backup-' + Date.now() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('EXPORT DOWNLOADED');
+}
+
+function importData() {
+  document.getElementById('importFile').click();
+}
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.pois) {
+        alert('Invalid backup file');
+        return;
+      }
+      if (!confirm('Replace current data with backup?\n\n' +
+                   data.pois.length + ' POIs\n' +
+                   (data.fog ? data.fog.length : 0) + ' fog cells\n\n' +
+                   'Your current data will be lost.')) {
+        return;
+      }
+      pois = data.pois;
+      savePOIs();
+      if (data.fog) {
+        revealedCells = new Set(data.fog);
+        saveFog();
+        renderFog();
+      }
+      renderAllMarkers();
+      updatePendingCount();
+      closeSheet();
+      showToast('IMPORT COMPLETE · ' + pois.length + ' POIs');
+    } catch (err) {
+      alert('Could not parse file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+function clearFog() {
+  if (!confirm('Clear all revealed terrain?\n\nFog will reset to fully cover the map. Your POIs are not affected.')) return;
+  revealedCells.clear();
+  localStorage.removeItem('recon.os.fog');
+  lastSamplePos = null;
+  renderFog();
+  showToast('FOG CLEARED');
+  closeSheet();
+}
+
+function resetAllPOIs() {
+  if (!confirm('DELETE ALL ' + pois.length + ' POIs?\n\nThis cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure?')) return;
+  pois = [];
+  savePOIs();
+  renderAllMarkers();
+  updatePendingCount();
+  showToast('ALL POIs DELETED');
+  closeSheet();
+}
+
+function hardReset() {
+  if (!confirm('FULL RESET — wipe POIs, fog, everything?\n\nThis cannot be undone.')) return;
+  if (!confirm('Last chance. Erase everything?')) return;
+  localStorage.removeItem('recon.os.pois');
+  localStorage.removeItem('recon.os.fog');
+  location.reload();
 }
 
 function distanceLabel(p) {
