@@ -921,6 +921,7 @@
   .journal-row.classify { border-left-color: #2d8a3e; }
   .journal-row.edit { border-left-color: #1d4ea8; }
   .journal-row.hva { border-left-color: #d68a3a; }
+  .journal-row.visit { border-left-color: #e87819; }
   .journal-row.delete { border-left-color: #d96850; }
   .journal-row .ic {
     width: 22px; height: 22px;
@@ -938,6 +939,7 @@
   .journal-row.classify .ic { color: #2d8a3e; }
   .journal-row.edit .ic { color: #5b8dd6; }
   .journal-row.hva .ic { color: #d68a3a; }
+  .journal-row.visit .ic { color: #e87819; }
   .journal-row.delete .ic { color: #d96850; }
   .journal-row .text { flex: 1; min-width: 0; }
   .journal-row .t {
@@ -969,6 +971,67 @@
     color: #f0a040;
     text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
     margin-right: 4px;
+  }
+
+  /* Flag pulse animation when a visit is auto-logged */
+  @keyframes flag-pulse {
+    0%   { filter: drop-shadow(0 0 0 transparent); }
+    20%  { filter: drop-shadow(0 0 8px rgba(255, 220, 130, 1)) drop-shadow(0 0 16px rgba(255, 200, 100, 0.6)); }
+    100% { filter: drop-shadow(0 0 0 transparent); }
+  }
+  .flag-pulse {
+    animation: flag-pulse 1.2s ease-out;
+  }
+
+  /* Visit row */
+  .visit-row {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+  }
+  .visit-count {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .visit-num {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: #f0a040;
+    text-shadow: 0 0 5px rgba(240, 160, 64, 0.5);
+    line-height: 1;
+  }
+  .visit-last {
+    font-size: 8px;
+    color: #6e6354;
+    letter-spacing: 0.15em;
+  }
+  .visit-log-btn {
+    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 100%);
+    border: 1px solid #14110d;
+    border-radius: 3px;
+    color: #f0a040;
+    font-family: 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    box-shadow:
+      inset 0 1px 0 rgba(220, 190, 140, 0.3),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+      0 2px 3px rgba(0, 0, 0, 0.5);
+  }
+  .visit-log-btn:active {
+    transform: translateY(1px);
+    filter: brightness(0.9);
   }
 
   /* GPS error banner */
@@ -1165,6 +1228,17 @@
       <div class="hva-led"></div>
     </div>
 
+    <div id="visitRow" style="display:none;">
+      <div class="field-label">VISITS</div>
+      <div class="visit-row">
+        <div class="visit-count">
+          <span class="visit-num" id="visitNum">0</span>
+          <span class="visit-last" id="visitLast">—</span>
+        </div>
+        <button type="button" class="visit-log-btn" onclick="manualLogVisit()">+ LOG VISIT</button>
+      </div>
+    </div>
+
   </div>
   <div class="sheet-actions">
     <div class="action-btn" onclick="deletePOI()" id="deleteBtn" style="display:none;">
@@ -1358,6 +1432,27 @@ const NEW_REGION_DIST_MI = 50;
 const NEW_REGION_DWELL_MS = 5 * 60 * 1000;
 let outsideRegionSince = null;  // timestamp when user left all known region bounds
 
+// ===== CLUSTER CONSTANTS =====
+// 3+ POIs within 1500ft of each other form a cluster
+const CLUSTER_RADIUS_FT = 1500;
+const CLUSTER_RADIUS_M = CLUSTER_RADIUS_FT * 0.3048;  // ~457m
+const CLUSTER_MIN_POIS = 3;
+let clusterLayer = null;  // Leaflet layer group for cluster outlines
+
+// ===== VISIT TRACKING CONSTANTS =====
+// Per-category distance (feet) and dwell (minutes) thresholds for auto-visits.
+// HAZARD has no visit logging — it only triggers proximity alerts (not implemented here).
+const VISIT_RULES = {
+  WAYPOINT: { distFt: 100, dwellSec: 60 },
+  VISTA:    { distFt: 200, dwellSec: 180 },
+  LANDMARK: { distFt: 200, dwellSec: 120 },
+  SUPPLY:   { distFt: 100, dwellSec: 300 },
+  INTEL:    { distFt: 100, dwellSec: 180 },
+  HAZARD:   null,  // no visits
+};
+// Track per-POI dwell timers: { [poiId]: { since: ts } }
+let visitDwellState = {};
+
 // ===== STORAGE =====
 function loadPOIs() {
   try {
@@ -1467,12 +1562,167 @@ function saveJournal() {
 function logEvent(type, poiId, summary, meta) {
   journalEntries.push({
     ts: Date.now(),
-    type: type,        // 'drop' | 'classify' | 'edit' | 'hva' | 'delete'
+    type: type,        // 'drop' | 'classify' | 'edit' | 'hva' | 'delete' | 'visit'
     poiId: poiId,
-    summary: summary,  // human-readable title
-    meta: meta || '',  // category, ID, etc
+    summary: summary,
+    meta: meta || '',
   });
   saveJournal();
+}
+
+// ===== CLUSTER DETECTION =====
+// Find groups of 3+ classified POIs within CLUSTER_RADIUS_M of each other.
+// Uses a simple union-find approach: every pair within range gets merged into the same group.
+function findClusters() {
+  const classified = pois.filter(p => p.category);
+  if (classified.length < CLUSTER_MIN_POIS) return [];
+
+  // parent[i] = index of parent for union-find
+  const parent = classified.map((_, i) => i);
+  function find(i) {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  }
+  function union(a, b) {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  }
+
+  // Merge any pair within radius
+  for (let i = 0; i < classified.length; i++) {
+    for (let j = i + 1; j < classified.length; j++) {
+      const d = metersBetween(classified[i].lat, classified[i].lng, classified[j].lat, classified[j].lng);
+      if (d <= CLUSTER_RADIUS_M) union(i, j);
+    }
+  }
+
+  // Group by root
+  const groups = {};
+  classified.forEach((p, i) => {
+    const root = find(i);
+    if (!groups[root]) groups[root] = [];
+    groups[root].push(p);
+  });
+
+  // Return only groups with 3+ members
+  return Object.values(groups).filter(g => g.length >= CLUSTER_MIN_POIS);
+}
+
+// Compute a bounding box for a cluster (with a small padding)
+function clusterBounds(group) {
+  const lats = group.map(p => p.lat);
+  const lngs = group.map(p => p.lng);
+  const pad = 0.0003; // small padding so flags fit inside the box
+  return [
+    [Math.min(...lats) - pad, Math.min(...lngs) - pad],
+    [Math.max(...lats) + pad, Math.max(...lngs) + pad],
+  ];
+}
+
+function renderClusters() {
+  if (clusterLayer) {
+    map.removeLayer(clusterLayer);
+    clusterLayer = null;
+  }
+  const groups = findClusters();
+  if (groups.length === 0) return;
+
+  clusterLayer = L.layerGroup().addTo(map);
+  groups.forEach((g, i) => {
+    const [sw, ne] = clusterBounds(g);
+    const rect = L.rectangle([sw, ne], {
+      color: '#8a3220',
+      weight: 1.2,
+      opacity: 0.7,
+      dashArray: '3 2',
+      fill: false,
+      interactive: false,
+    });
+    rect.addTo(clusterLayer);
+
+    // Label at upper-left corner
+    const labelId = String(i + 1).padStart(2, '0');
+    const labelLat = ne[0];
+    const labelLng = sw[1];
+    const labelIcon = L.divIcon({
+      html: `<div style="
+        font-family: 'Special Elite', cursive;
+        font-size: 10px;
+        font-weight: 700;
+        color: rgba(130, 50, 30, 0.9);
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+        text-shadow: 0 0 3px rgba(255, 240, 220, 0.6);
+        pointer-events: none;
+      ">CLUSTER ${labelId}</div>`,
+      className: '',
+      iconSize: [80, 14],
+      iconAnchor: [0, 14],
+    });
+    L.marker([labelLat, labelLng], { icon: labelIcon, interactive: false }).addTo(clusterLayer);
+  });
+}
+
+// ===== VISIT TRACKING =====
+// Called on every GPS update with current lat/lng. For each classified POI with
+// a visit rule, check if user is within that category's distance threshold. If yes,
+// start (or continue) a dwell timer. When dwell exceeds threshold and we haven't
+// already logged a visit in this session for that POI, increment its visit count.
+function checkVisits(lat, lng) {
+  const now = Date.now();
+  const seenThisCheck = new Set();
+
+  pois.forEach(p => {
+    if (!p.category) return;
+    const rule = VISIT_RULES[p.category];
+    if (!rule) return;
+
+    const distM = metersBetween(lat, lng, p.lat, p.lng);
+    const distFt = distM * 3.28084;
+
+    if (distFt <= rule.distFt) {
+      seenThisCheck.add(p.id);
+      const state = visitDwellState[p.id] || { since: now, logged: false };
+      // First time we're entering range — record entry time
+      if (!visitDwellState[p.id]) state.since = now;
+
+      const dwellSec = (now - state.since) / 1000;
+      if (dwellSec >= rule.dwellSec && !state.logged) {
+        // Visit threshold met — increment counter and log
+        p.visits = (p.visits || 0) + 1;
+        p.lastVisited = now;
+        savePOIs();
+        state.logged = true;
+        const displayName = p.name || ('POI-' + p.id.slice(-6));
+        logEvent('visit', p.id, 'Visited: ' + displayName, p.category + ' · ×' + p.visits);
+        // Animate the flag briefly
+        pulseFlag(p.id);
+      }
+      visitDwellState[p.id] = state;
+    }
+  });
+
+  // For any POI we're no longer near, reset its dwell state so next entry starts fresh
+  Object.keys(visitDwellState).forEach(id => {
+    if (!seenThisCheck.has(id)) delete visitDwellState[id];
+  });
+}
+
+// Briefly pulse a flag on the map when a visit is auto-logged
+function pulseFlag(poiId) {
+  // Find the marker element by re-rendering with a temporary "pulsing" class
+  // Simplest implementation: find the corresponding DOM element via Leaflet's _layers
+  // (Leaflet doesn't expose this cleanly, so we just trigger a CSS class on the marker img.)
+  const layers = markerLayer.getLayers();
+  layers.forEach(layer => {
+    if (layer._poiId === poiId && layer._icon) {
+      layer._icon.classList.add('flag-pulse');
+      setTimeout(() => layer._icon.classList.remove('flag-pulse'), 1200);
+    }
+  });
 }
 
 // A region has: id, name, originLat, originLng (the center), created, revealedSectors (Set/array)
@@ -1766,9 +2016,12 @@ function renderAllMarkers() {
   pois.forEach(p => {
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], { icon: makeFlagIcon(cat.color) });
+    m._poiId = p.id;
     m.on('click', () => openClassifySheet(p.id));
     m.addTo(markerLayer);
   });
+  // Recompute clusters when markers change
+  if (map) renderClusters();
 }
 
 function recenterMap() {
@@ -1838,6 +2091,9 @@ function startGPS() {
         lastSamplePos = { lat: latitude, lng: longitude };
         if (newReveal) renderFog();
       }
+
+      // VISITS: check proximity-based auto-visits
+      checkVisits(latitude, longitude);
 
       // REGION: identify or establish, update HUD
       updateRegion(latitude, longitude);
@@ -1985,9 +2241,35 @@ function openClassifySheet(poiId) {
   editorHVA = poi.hva || false;
   updateHVAUI();
 
+  // Show visit info only for classified POIs
+  const visitRow = document.getElementById('visitRow');
+  if (poi.category) {
+    visitRow.style.display = 'block';
+    document.getElementById('visitNum').textContent = String(poi.visits || 0).padStart(3, '0');
+    document.getElementById('visitLast').textContent = poi.lastVisited
+      ? 'LAST: ' + new Date(poi.lastVisited).toLocaleDateString()
+      : 'NEVER VISITED';
+  } else {
+    visitRow.style.display = 'none';
+  }
+
   buildCatGrid();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('classifySheet').classList.add('open');
+}
+
+function manualLogVisit() {
+  const poi = pois.find(p => p.id === editingId);
+  if (!poi) return;
+  poi.visits = (poi.visits || 0) + 1;
+  poi.lastVisited = Date.now();
+  savePOIs();
+  const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+  logEvent('visit', poi.id, 'Visited (manual): ' + displayName, poi.category + ' · ×' + poi.visits);
+  // Refresh display
+  document.getElementById('visitNum').textContent = String(poi.visits).padStart(3, '0');
+  document.getElementById('visitLast').textContent = 'LAST: ' + new Date(poi.lastVisited).toLocaleDateString();
+  showToast('VISIT LOGGED · ×' + poi.visits);
 }
 
 // ===== PHOTO HANDLING =====
@@ -2185,6 +2467,7 @@ function openJournalSheet() {
         classify: '⬡',
         edit: '✎',
         hva: '★',
+        visit: '◉',
         delete: '✕',
       };
       const row = document.createElement('div');
