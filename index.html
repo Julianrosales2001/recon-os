@@ -984,6 +984,18 @@
     margin-right: 4px;
   }
 
+  /* Drag crosshair — visible above finger while repositioning a pin */
+  .drag-crosshair {
+    position: fixed;
+    width: 60px;
+    height: 60px;
+    pointer-events: none;
+    z-index: 250;
+    display: none;
+    filter: drop-shadow(0 0 6px rgba(240, 160, 64, 0.6));
+  }
+  .drag-crosshair.visible { display: block; }
+
   /* Flag pulse animation when a visit is auto-logged */
   @keyframes flag-pulse {
     0%   { filter: drop-shadow(0 0 0 transparent); }
@@ -1259,6 +1271,18 @@
 
   <!-- MARK FLASH OVERLAY -->
   <div class="mark-flash" id="markFlash"></div>
+
+  <!-- DRAG CROSSHAIR — shown above finger while dragging a pin -->
+  <div class="drag-crosshair" id="dragCrosshair">
+    <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="30" cy="30" r="22" fill="none" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5" stroke-dasharray="3 2"/>
+      <circle cx="30" cy="30" r="3" fill="#f0a040"/>
+      <line x1="30" y1="6" x2="30" y2="20" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
+      <line x1="30" y1="40" x2="30" y2="54" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
+      <line x1="6" y1="30" x2="20" y2="30" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
+      <line x1="40" y1="30" x2="54" y2="30" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
+    </svg>
+  </div>
 
   <!-- TOAST -->
   <div class="toast" id="toast">PIN DROPPED</div>
@@ -2135,6 +2159,42 @@ function renderAllMarkers() {
       selectPOI(p.id);
       openClassifySheet(p.id);
     });
+
+    // === DRAG: auto-zoom + crosshair indicator ===
+    let zoomBeforeDrag = null;
+    m.on('dragstart', (e) => {
+      // Save current zoom level for restoration
+      zoomBeforeDrag = map.getZoom();
+      // Snap to max zoom centered on the pin's start position for precision
+      const startLatLng = e.target.getLatLng();
+      if (zoomBeforeDrag < 19) {
+        map.setView(startLatLng, 19, { animate: true });
+      }
+      // Show crosshair
+      const crosshair = document.getElementById('dragCrosshair');
+      crosshair.classList.add('visible');
+      // Hide vibration handled by haptic if available
+      if (navigator.vibrate) navigator.vibrate(20);
+    });
+
+    m.on('drag', (e) => {
+      // Position the crosshair above the pin's current projected screen position.
+      // The pin's icon is anchored at its base, so we project the latlng to a screen
+      // point and offset upward to land above the finger.
+      const latlng = e.target.getLatLng();
+      const screenPt = map.latLngToContainerPoint(latlng);
+      const crosshair = document.getElementById('dragCrosshair');
+      // Map container offset relative to viewport
+      const mapEl = document.getElementById('map');
+      const rect = mapEl.getBoundingClientRect();
+      // Crosshair is 60×60; center it horizontally on the pin's projected x,
+      // and place it ~80px above the pin tip (which is at screenPt.y because base anchor)
+      const cx = rect.left + screenPt.x - 30;
+      const cy = rect.top + screenPt.y - 110;  // pin height + offset
+      crosshair.style.left = cx + 'px';
+      crosshair.style.top = cy + 'px';
+    });
+
     m.on('dragend', (e) => {
       const newLatLng = e.target.getLatLng();
       const poi = pois.find(x => x.id === p.id);
@@ -2150,7 +2210,15 @@ function renderAllMarkers() {
       const displayName = poi.name || ('POI-' + poi.id.slice(-6));
       logEvent('edit', poi.id, 'Repositioned: ' + displayName, poi.sector || '');
       showToast('PIN MOVED');
+
+      // Hide crosshair, restore zoom
+      document.getElementById('dragCrosshair').classList.remove('visible');
+      if (zoomBeforeDrag !== null && zoomBeforeDrag < 19) {
+        map.setView(newLatLng, zoomBeforeDrag, { animate: true });
+      }
+      zoomBeforeDrag = null;
     });
+
     m.addTo(markerLayer);
   });
   if (map) renderClusters();
