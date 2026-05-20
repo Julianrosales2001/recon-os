@@ -804,15 +804,6 @@
 
 <div id="app">
 
-  <!-- DEBUG PANEL — visible by default, top-most z-index -->
-  <div id="debugPanel" style="position:fixed; top:0; left:0; right:0; background:rgba(0,0,0,0.95); border-bottom:2px solid #d68a3a; padding:8px 10px; z-index:99999; font-family:'B612 Mono',monospace; font-size:10px; line-height:1.5; color:#f0a040; display:block; max-height:45vh; overflow-y:auto; letter-spacing:0.05em; pointer-events:auto;">
-    <div style="color:#fff; font-weight:700; font-size:11px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-      <span>RECON.OS · DEBUG</span>
-      <button id="dbgClose" style="background:#d68a3a; color:#000; border:0; padding:3px 8px; font-family:inherit; font-size:10px; font-weight:700; border-radius:2px;">HIDE</button>
-    </div>
-    <div id="dbgLog">Initializing...</div>
-  </div>
-
   <!-- STATUS BAR -->
   <div class="status-bar">
     <span class="clock" id="clock">--:--</span>
@@ -1073,31 +1064,15 @@ function recenterMap() {
   }
 }
 
-// ===== DEBUG =====
-const debugLog = [];
+// ===== DEBUG (no-op in production, but kept callable so nothing breaks) =====
 function dbg(msg) {
-  const ts = new Date().toISOString().slice(11, 19);
-  debugLog.push(`[${ts}] ${msg}`);
-  const logDiv = document.getElementById('dbgLog');
-  if (logDiv) logDiv.innerHTML = debugLog.slice(-30).join('<br>');
-  console.log(msg);
+  if (window.console) console.log(msg);
 }
 
-// Hide button
-document.getElementById('dbgClose').addEventListener('click', () => {
-  document.getElementById('debugPanel').style.display = 'none';
-});
-
-// Capture all JS errors so we see them in the debug panel
+// Capture all JS errors to console
 window.addEventListener('error', (e) => {
   dbg('JS ERROR: ' + e.message + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'));
 });
-
-dbg('PAGE LOAD');
-dbg('URL: ' + location.href);
-dbg('PROTOCOL: ' + location.protocol);
-dbg('HAS geolocation: ' + ('geolocation' in navigator));
-dbg('USER AGENT: ' + navigator.userAgent.slice(0, 80));
 
 // ===== GPS =====
 function setStatus(text, color) {
