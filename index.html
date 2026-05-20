@@ -99,6 +99,16 @@
     mix-blend-mode: overlay;
   }
 
+  /* ========================= FOG OF WAR ========================= */
+  /* Leaflet pane for fog — sits above tile layer but below markers */
+  .leaflet-fog-pane {
+    z-index: 250; /* below markers (default 600) but above tile pane (200) */
+  }
+  .leaflet-fog-pane svg path {
+    /* Diagonal hatch fill via embedded pattern */
+    fill: url(#fog-hatch);
+  }
+
   /* ========================= STATUS BAR ========================= */
   .status-bar {
     height: 44px;
@@ -955,12 +965,24 @@ const CATEGORIES = [
 // ===== STATE =====
 let userPos = null;             // {lat, lng}
 let lastFix = null;             // timestamp of last good GPS fix
+let lastSamplePos = null;       // last position we recorded for fog
 let pois = [];                  // array of POI objects
+let revealedCells = new Set();  // set of "lat_lng" cell IDs that are revealed
 let map = null;
 let userMarker = null;
 let markerLayer = null;
+let fogPolygon = null;          // Leaflet polygon representing fog with holes
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
+
+// ===== FOG OF WAR CONSTANTS =====
+// Cell size in degrees. ~150m at the equator ≈ 0.00135°. At ~30°N latitude
+// (Houston area), 1° latitude ≈ 111km, 1° longitude ≈ 96km. So:
+//   150m / 111000m = 0.00135° latitude per cell
+//   150m / 96000m  = 0.00156° longitude per cell
+// We'll use 0.0014° as a roughly-square cell at this latitude.
+const FOG_CELL_DEG = 0.0014;
+const FOG_SAMPLE_MIN_METERS = 50;   // only record movement after >50m
 
 // ===== STORAGE =====
 function loadPOIs() {
@@ -973,6 +995,70 @@ function loadPOIs() {
 }
 function savePOIs() {
   localStorage.setItem('recon.os.pois', JSON.stringify(pois));
+}
+
+function loadFog() {
+  try {
+    const raw = localStorage.getItem('recon.os.fog');
+    revealedCells = new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    revealedCells = new Set();
+  }
+}
+function saveFog() {
+  // Throttled — saving on every cell add would thrash storage
+  if (saveFog._timer) clearTimeout(saveFog._timer);
+  saveFog._timer = setTimeout(() => {
+    localStorage.setItem('recon.os.fog', JSON.stringify([...revealedCells]));
+  }, 2000);
+}
+
+// Convert lat/lng to a cell ID like "29.74_-94.99"
+function cellIdFor(lat, lng) {
+  const cellLat = Math.floor(lat / FOG_CELL_DEG) * FOG_CELL_DEG;
+  const cellLng = Math.floor(lng / FOG_CELL_DEG) * FOG_CELL_DEG;
+  return cellLat.toFixed(5) + '_' + cellLng.toFixed(5);
+}
+
+// Get the four corners of a cell (returns [sw, se, ne, nw] as [lat, lng] tuples)
+function cellCorners(cellId) {
+  const [lat, lng] = cellId.split('_').map(Number);
+  return [
+    [lat, lng],
+    [lat, lng + FOG_CELL_DEG],
+    [lat + FOG_CELL_DEG, lng + FOG_CELL_DEG],
+    [lat + FOG_CELL_DEG, lng],
+  ];
+}
+
+// Reveal the cell at this position AND the 8 neighbors (so the cleared area
+// feels like a ~3-cell-wide trail, not a single dot). Returns true if anything
+// new was revealed.
+function revealAround(lat, lng) {
+  let newCells = false;
+  for (let dLat = -1; dLat <= 1; dLat++) {
+    for (let dLng = -1; dLng <= 1; dLng++) {
+      const id = cellIdFor(lat + dLat * FOG_CELL_DEG, lng + dLng * FOG_CELL_DEG);
+      if (!revealedCells.has(id)) {
+        revealedCells.add(id);
+        newCells = true;
+      }
+    }
+  }
+  if (newCells) saveFog();
+  return newCells;
+}
+
+// Haversine distance in meters
+function metersBetween(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 // ===== UI HELPERS =====
@@ -1007,19 +1093,106 @@ function initMap() {
     attributionControl: true,
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
+    detectRetina: true,
     attribution: '© OSM'
   }).addTo(map);
 
+  // Custom pane for fog that sits above tiles but below markers
+  map.createPane('fogPane');
+  map.getPane('fogPane').style.zIndex = 250;
+  map.getPane('fogPane').style.pointerEvents = 'none';
+
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
+  renderFog();
+
+  // Re-render fog when map moves (in case bounds extend beyond current outer polygon)
+  map.on('moveend', renderFog);
 
   // Long-press / right-click on map to drop a manual pin
-  // Leaflet's 'contextmenu' event handles both touch long-press AND desktop right-click
   map.on('contextmenu', (e) => {
     L.DomEvent.preventDefault(e.originalEvent);
     dropPinAt(e.latlng.lat, e.latlng.lng);
+  });
+}
+
+// Render fog as a single polygon: huge outer ring covering everything,
+// with rectangular holes cut out for each revealed cell.
+function renderFog() {
+  if (fogPolygon) {
+    map.removeLayer(fogPolygon);
+    fogPolygon = null;
+  }
+  if (!map) return;
+
+  // Outer ring: cover from -85° to 85° lat and -180° to 180° lng. This
+  // ensures fog covers everywhere except where holes are punched.
+  // (Polygons in Leaflet are [lat, lng] pairs.)
+  const outer = [
+    [85, -180],
+    [85, 180],
+    [-85, 180],
+    [-85, -180],
+  ];
+
+  // Inner rings (holes) — one per revealed cell.
+  // Leaflet expects the hole polygons to wind opposite from the outer ring.
+  // Outer is clockwise, so holes need to be counter-clockwise.
+  const holes = [];
+  revealedCells.forEach(id => {
+    const [sw, se, ne, nw] = cellCorners(id);
+    holes.push([sw, nw, ne, se]); // counter-clockwise
+  });
+
+  // Combine outer + holes into one multi-polygon
+  fogPolygon = L.polygon([outer, ...holes], {
+    pane: 'fogPane',
+    color: '#1a0f06',
+    weight: 0,
+    fillColor: '#2a1a10',
+    fillOpacity: 0.78,
+    interactive: false,
+    smoothFactor: 0,
+  }).addTo(map);
+
+  // Apply diagonal-hatch pattern to the polygon's SVG path.
+  // We do this by inserting an SVG pattern into the map's overlay SVG and
+  // setting the polygon's fill to reference it.
+  setTimeout(injectFogHatch, 0);
+}
+
+// Insert a diagonal-hatch pattern into Leaflet's SVG renderer so fog has
+// the same paper-map "uncharted" look from the mockups.
+function injectFogHatch() {
+  const svgs = document.querySelectorAll('.leaflet-fog-pane svg');
+  svgs.forEach(svg => {
+    let defs = svg.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      svg.insertBefore(defs, svg.firstChild);
+    }
+    if (defs.querySelector('#fog-hatch')) return; // already inserted
+
+    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+    pattern.setAttribute('id', 'fog-hatch');
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('width', '8');
+    pattern.setAttribute('height', '8');
+    pattern.setAttribute('patternTransform', 'rotate(45)');
+    pattern.innerHTML = `
+      <rect width="8" height="8" fill="#28190f" opacity="0.88"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
+    `;
+    defs.appendChild(pattern);
+
+    // Apply the pattern to the polygon's fill
+    const paths = svg.querySelectorAll('path');
+    paths.forEach(p => {
+      p.setAttribute('fill', 'url(#fog-hatch)');
+      p.setAttribute('fill-opacity', '1');
+    });
   });
 }
 
@@ -1117,6 +1290,14 @@ function startGPS() {
       } else {
         userMarker.setLatLng([latitude, longitude]);
       }
+
+      // FOG: sample if we've moved enough since last sample
+      if (!lastSamplePos ||
+          metersBetween(lastSamplePos.lat, lastSamplePos.lng, latitude, longitude) >= FOG_SAMPLE_MIN_METERS) {
+        const newReveal = revealAround(latitude, longitude);
+        lastSamplePos = { lat: latitude, lng: longitude };
+        if (newReveal) renderFog();
+      }
     },
     (err) => {
       let msg = 'GPS ERROR';
@@ -1161,6 +1342,10 @@ function retryGPSOnGesture() {
         userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
         map.setView([latitude, longitude], 16);
       }
+      // First fog reveal
+      revealAround(latitude, longitude);
+      lastSamplePos = { lat: latitude, lng: longitude };
+      renderFog();
       startGPS();
     },
     (err) => {
@@ -1380,6 +1565,7 @@ function formatTimestamp(ts) {
 
 // ===== INIT =====
 loadPOIs();
+loadFog();
 initMap();
 startGPS();
 updatePendingCount();
