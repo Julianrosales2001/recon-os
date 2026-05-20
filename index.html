@@ -1015,21 +1015,11 @@ function initMap() {
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
 
-  // Long-press on map to drop a manual pin (fallback when GPS unavailable / for placing pins elsewhere)
-  let pressTimer = null;
-  let pressStart = null;
-  map.on('mousedown touchstart', (e) => {
-    pressStart = e.latlng;
-    pressTimer = setTimeout(() => {
-      dropPinAt(pressStart.lat, pressStart.lng);
-      pressTimer = null;
-    }, 600);
-  });
-  map.on('mouseup mouseout touchend touchcancel mousemove touchmove', () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-    }
+  // Long-press / right-click on map to drop a manual pin
+  // Leaflet's 'contextmenu' event handles both touch long-press AND desktop right-click
+  map.on('contextmenu', (e) => {
+    L.DomEvent.preventDefault(e.originalEvent);
+    dropPinAt(e.latlng.lat, e.latlng.lng);
   });
 }
 
@@ -1075,26 +1065,29 @@ function recenterMap() {
 }
 
 // ===== GPS =====
+function setStatus(text, color) {
+  document.getElementById('sectorTag').textContent = text;
+  if (color) document.getElementById('gpsDot').style.color = color;
+}
+
 function startGPS() {
   if (!navigator.geolocation) {
-    document.getElementById('sectorTag').textContent = 'NO GPS SUPPORT';
+    setStatus('NO GPS SUPPORT IN BROWSER', '#ef4a3f');
     return;
   }
+
+  setStatus('REQUESTING PERMISSION...', '#f0a040');
+
   navigator.geolocation.watchPosition(
     (pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
       userPos = { lat: latitude, lng: longitude, acc: accuracy };
       lastFix = Date.now();
 
-      // Update sector tag
-      document.getElementById('sectorTag').textContent =
-        `${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`;
+      setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
       document.getElementById('regionTitle').textContent = '▾ ACTIVE REGION';
-      document.getElementById('gpsDot').style.color = '#c9d97b';
       document.getElementById('gpsBanner').classList.remove('visible');
-      document.getElementById('markBtn').classList.remove('disabled');
 
-      // Place / move user marker
       if (!userMarker) {
         userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
         map.setView([latitude, longitude], 16);
@@ -1103,10 +1096,13 @@ function startGPS() {
       }
     },
     (err) => {
-      console.error(err);
-      document.getElementById('sectorTag').textContent = 'NO GPS · LONG-PRESS MAP TO DROP';
-      document.getElementById('gpsDot').style.color = '#ef4a3f';
+      let msg = 'GPS ERROR';
+      if (err.code === 1) msg = 'PERMISSION DENIED · TAP MAP TO DROP';
+      else if (err.code === 2) msg = 'POSITION UNAVAILABLE · TAP MAP TO DROP';
+      else if (err.code === 3) msg = 'GPS TIMEOUT · TAP MAP TO DROP';
+      setStatus(msg, '#ef4a3f');
       document.getElementById('regionTitle').textContent = '▾ NO POSITION';
+      console.error('Geolocation error', err.code, err.message);
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
   );
@@ -1122,6 +1118,40 @@ function startGPS() {
     }
   }, 5000);
 }
+
+// Retry GPS on any user tap — Safari sometimes needs a user gesture to prompt
+let gpsRetried = false;
+function retryGPSOnGesture() {
+  if (gpsRetried || userPos) return;
+  gpsRetried = true;
+  setStatus('RETRY GPS ON USER TAP...', '#f0a040');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      userPos = { lat: latitude, lng: longitude, acc: accuracy };
+      lastFix = Date.now();
+      setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
+      document.getElementById('regionTitle').textContent = '▾ ACTIVE REGION';
+      if (!userMarker) {
+        userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
+        map.setView([latitude, longitude], 16);
+      }
+      // Start the watcher now that we have permission
+      startGPS();
+    },
+    (err) => {
+      let msg = 'GPS BLOCKED';
+      if (err.code === 1) msg = 'PERM DENIED · CHECK SETTINGS';
+      else if (err.code === 2) msg = 'NO SIGNAL · OUTDOORS?';
+      else if (err.code === 3) msg = 'TIMEOUT · TRY AGAIN';
+      setStatus(msg, '#ef4a3f');
+      gpsRetried = false; // allow another retry
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+document.addEventListener('click', retryGPSOnGesture, { once: false });
+document.addEventListener('touchend', retryGPSOnGesture, { once: false });
 
 // ===== MARK FLOW =====
 function dropPin() {
