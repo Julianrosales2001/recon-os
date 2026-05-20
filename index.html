@@ -49,7 +49,7 @@
   }
   /* Apply a sepia/paper filter to the tile layer to make it look like our paper map */
   .leaflet-tile-pane {
-    filter: sepia(0.85) saturate(0.7) brightness(0.85) contrast(1.15) hue-rotate(-10deg);
+    filter: sepia(0.45) saturate(0.85) brightness(0.95) contrast(1.05) hue-rotate(-5deg);
   }
   .leaflet-control-zoom { display: none !important; }
   .leaflet-control-attribution {
@@ -1093,11 +1093,22 @@ function initMap() {
     attributionControl: true,
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png', {
+  const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     detectRetina: true,
     attribution: '© OSM'
   }).addTo(map);
+
+  // Log tile loading status to console so we can see if tiles are failing
+  tileLayer.on('tileerror', (e) => {
+    dbg('TILE ERROR: ' + e.tile.src);
+  });
+  tileLayer.on('tileload', () => {
+    if (!tileLayer._oneLoaded) {
+      tileLayer._oneLoaded = true;
+      dbg('First tile loaded OK');
+    }
+  });
 
   // Custom pane for fog that sits above tiles but below markers
   map.createPane('fogPane');
@@ -1106,10 +1117,12 @@ function initMap() {
 
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
-  renderFog();
 
-  // Re-render fog when map moves (in case bounds extend beyond current outer polygon)
-  map.on('moveend', renderFog);
+  // Defer fog rendering slightly so tiles get a chance to start loading first
+  setTimeout(renderFog, 100);
+
+  // Re-render fog when zoom changes (cell sizes need updating)
+  map.on('zoomend', renderFog);
 
   // Long-press / right-click on map to drop a manual pin
   map.on('contextmenu', (e) => {
@@ -1152,7 +1165,7 @@ function renderFog() {
     color: '#1a0f06',
     weight: 0,
     fillColor: '#2a1a10',
-    fillOpacity: 0.78,
+    fillOpacity: 0.35,
     interactive: false,
     smoothFactor: 0,
   }).addTo(map);
@@ -1182,8 +1195,8 @@ function injectFogHatch() {
     pattern.setAttribute('height', '8');
     pattern.setAttribute('patternTransform', 'rotate(45)');
     pattern.innerHTML = `
-      <rect width="8" height="8" fill="#28190f" opacity="0.88"/>
-      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
+      <rect width="8" height="8" fill="#28190f" opacity="0.35"/>
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.4"/>
     `;
     defs.appendChild(pattern);
 
