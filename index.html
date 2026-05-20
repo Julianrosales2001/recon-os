@@ -19,6 +19,25 @@
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  /* ========================= LAYOUT VARIABLES =========================
+     Single source of truth for chrome dimensions. Every top/bottom anchor
+     references these so resizing chrome (e.g. PWA standalone mode hiding
+     the fake status bar) automatically moves everything else. */
+  :root {
+    --status-h: 44px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+    --titlebar-h: 56px;
+    --top-chrome-h: calc(var(--status-h) + var(--titlebar-h) + var(--safe-top));
+    --bot-chrome-h: calc(148px + var(--safe-bot));
+  }
+  /* When launched as a PWA from home screen, iOS provides its own status bar
+     and we hide our fake one — so the top chrome shrinks by --status-h. */
+  @media all and (display-mode: standalone) {
+    :root { --status-h: 0px; }
+  }
+
   html, body {
     background: #0a0807;
     color: #d4c8b0;
@@ -40,8 +59,8 @@
   /* ========================= LEAFLET MAP STYLED AS PAPER ========================= */
   #map {
     position: absolute;
-    top: 100px;
-    bottom: calc(148px + env(safe-area-inset-bottom, 0));
+    top: var(--top-chrome-h);
+    bottom: var(--bot-chrome-h);
     left: 0;
     right: 0;
     background: #7a5e44;
@@ -89,8 +108,8 @@
   /* ========================= PAPER OVERLAY (subtle texture on map) ========================= */
   .paper-overlay {
     position: absolute;
-    top: 100px;
-    bottom: calc(148px + env(safe-area-inset-bottom, 0));
+    top: var(--top-chrome-h);
+    bottom: var(--bot-chrome-h);
     left: 0; right: 0;
     pointer-events: none;
     z-index: 2;
@@ -111,12 +130,14 @@
 
   /* ========================= STATUS BAR ========================= */
   .status-bar {
-    height: 44px;
+    height: calc(var(--status-h) + var(--safe-top));
+    padding-top: var(--safe-top);
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    padding: 0 22px 6px;
-    padding-top: env(safe-area-inset-top, 0);
+    padding-left: 22px;
+    padding-right: 22px;
+    padding-bottom: 6px;
     font-size: 11px;
     color: #e8dcc4;
     font-weight: 700;
@@ -126,9 +147,8 @@
     text-shadow: 0 0 4px rgba(0,0,0,0.5);
     pointer-events: none;
   }
-  .status-bar .clock { padding-top: env(safe-area-inset-top, 0); }
   .status-bar .right { display: flex; gap: 6px; align-items: center; font-size: 10px; }
-  /* When running as a home-screen PWA, iOS shows its own status bar; hide our fake clock/right side */
+  /* In standalone PWA, hide the fake status bar entirely */
   @media all and (display-mode: standalone) {
     .status-bar { display: none; }
   }
@@ -136,9 +156,9 @@
   /* ========================= TOP CHROME ========================= */
   .panel-bg-top {
     position: absolute;
-    top: calc(44px + env(safe-area-inset-top, 0));
+    top: calc(var(--status-h) + var(--safe-top));
     left: 0; right: 0;
-    height: 56px;
+    height: var(--titlebar-h);
     background:
       linear-gradient(180deg, #38312a 0%, #1a1614 8%, #261f1a 14%, #322a24 22%, #1c1815 100%);
     border-bottom: 1px solid #050403;
@@ -146,18 +166,6 @@
       inset 0 1px 0 rgba(220, 190, 140, 0.2),
       inset 0 -3px 10px rgba(0, 0, 0, 0.6);
     z-index: 4;
-  }
-  @media all and (display-mode: standalone) {
-    /* PWA mode: no fake status bar, just iOS notch inset + chrome */
-    .panel-bg-top { top: env(safe-area-inset-top, 0); }
-    .title-strip { top: calc(6px + env(safe-area-inset-top, 0)) !important; }
-    #map { top: calc(56px + env(safe-area-inset-top, 0)) !important; }
-    .paper-overlay { top: calc(56px + env(safe-area-inset-top, 0)) !important; }
-    .sector-tag { top: calc(66px + env(safe-area-inset-top, 0)) !important; }
-    .map-overlay-buttons { top: calc(66px + env(safe-area-inset-top, 0)) !important; }
-    .gps-banner { top: calc(56px + env(safe-area-inset-top, 0)) !important; }
-    .pull-refresh { top: calc(60px + env(safe-area-inset-top, 0)) !important; }
-    .knurl, .knurl-l { top: calc(56px + env(safe-area-inset-top, 0)) !important; }
   }
   .panel-bg-top::before {
     content: "";
@@ -175,7 +183,7 @@
     pointer-events: none;
   }
   .rivets.top { top: 6px; }
-  .rivets.bot { bottom: 6px; }
+  .rivets.bot { bottom: calc(6px + var(--safe-bot)); }
   .rivet {
     width: 5px; height: 5px;
     border-radius: 50%;
@@ -184,7 +192,7 @@
   }
   .title-strip {
     position: absolute;
-    top: 50px;
+    top: calc(var(--status-h) + var(--safe-top) + 6px);
     left: 50px;
     right: 50px;
     height: 30px;
@@ -209,7 +217,7 @@
   /* ========================= FLOATING SECTOR TAG ========================= */
   .sector-tag {
     position: absolute;
-    top: 110px;
+    top: calc(var(--top-chrome-h) + 10px);
     left: 14px;
     background: rgba(8, 6, 4, 0.75);
     backdrop-filter: blur(2px);
@@ -228,7 +236,7 @@
   /* ========================= MAP OVERLAY BUTTONS (right side) ========================= */
   .map-overlay-buttons {
     position: absolute;
-    top: 110px;
+    top: calc(var(--top-chrome-h) + 10px);
     right: 12px;
     display: flex;
     flex-direction: column;
@@ -237,7 +245,7 @@
   }
   .map-zoom-buttons {
     position: absolute;
-    bottom: 160px;
+    bottom: calc(var(--bot-chrome-h) + 12px);
     left: 12px;
     display: flex;
     flex-direction: column;
@@ -292,7 +300,7 @@
     position: absolute;
     bottom: 0;
     left: 0; right: 0;
-    height: calc(148px + env(safe-area-inset-bottom, 0));
+    height: var(--bot-chrome-h);
     background:
       linear-gradient(180deg, #3a3128 0%, #2a2520 8%, #1f1a14 35%, #1a1614 100%);
     border-top: 1px solid #4a3d2c;
@@ -303,8 +311,8 @@
   }
   .knurl, .knurl-l {
     position: absolute;
-    top: 100px;
-    bottom: calc(148px + env(safe-area-inset-bottom, 0));
+    top: var(--top-chrome-h);
+    bottom: var(--bot-chrome-h);
     width: 8px;
     background-image: repeating-linear-gradient(
       0deg,
@@ -324,7 +332,7 @@
   /* ========================= MARK BUTTON ========================= */
   .mark-area {
     position: absolute;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0));
+    bottom: calc(14px + var(--safe-bot));
     left: 14px;
     right: 14px;
     z-index: 10;
@@ -1015,7 +1023,7 @@
   /* Pull-to-refresh GPS */
   .pull-refresh {
     position: absolute;
-    top: 104px;
+    top: calc(var(--top-chrome-h) + 4px);
     left: 50%;
     transform: translateX(-50%) translateY(-100%);
     z-index: 45;
@@ -1029,6 +1037,30 @@
     opacity: 0;
     transition: transform 0.15s ease-out, opacity 0.15s ease-out;
     pointer-events: none;
+  }
+
+  /* Legend panel */
+  .legend-panel {
+    position: absolute;
+    top: calc(var(--top-chrome-h) + 56px);
+    right: 60px;
+    z-index: 41;
+    background: linear-gradient(180deg, #322a24 0%, #1a1614 100%);
+    border: 1px solid #3a3128;
+    border-radius: 3px;
+    padding: 8px 10px;
+    width: 130px;
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: none;
+  }
+  .legend-header {
+    font-size: 7px;
+    letter-spacing: 0.32em;
+    color: #d68a3a;
+    font-weight: 700;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #2a2520;
   }
   .pull-refresh.visible {
     opacity: 1;
@@ -1254,7 +1286,7 @@
   /* GPS error banner */
   .gps-banner {
     position: absolute;
-    top: 100px;
+    top: var(--top-chrome-h);
     left: 0; right: 0;
     height: 24px;
     background: rgba(239, 74, 63, 0.18);
@@ -1287,7 +1319,7 @@
   /* Toast notification */
   .toast {
     position: fixed;
-    bottom: 180px;
+    bottom: calc(var(--bot-chrome-h) + 32px);
     left: 50%;
     transform: translateX(-50%);
     background: rgba(8, 6, 4, 0.95);
@@ -1353,20 +1385,8 @@
   </div>
 
   <!-- LEGEND PANEL (hidden by default) -->
-  <div id="legendPanel" style="
-    position: absolute;
-    top: 156px;
-    right: 60px;
-    z-index: 41;
-    background: linear-gradient(180deg, #322a24 0%, #1a1614 100%);
-    border: 1px solid #3a3128;
-    border-radius: 3px;
-    padding: 8px 10px;
-    width: 130px;
-    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
-    display: none;
-  ">
-    <div style="font-size: 7px; letter-spacing: 0.32em; color: #d68a3a; font-weight: 700; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid #2a2520;">▸ FLAG LEGEND</div>
+  <div id="legendPanel" class="legend-panel">
+    <div class="legend-header">▸ FLAG LEGEND</div>
     <div id="legendRows"></div>
   </div>
 
