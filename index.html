@@ -41,7 +41,7 @@
   #map {
     position: absolute;
     top: 100px;
-    bottom: 148px;
+    bottom: calc(148px + env(safe-area-inset-bottom, 0));
     left: 0;
     right: 0;
     background: #7a5e44;
@@ -90,7 +90,7 @@
   .paper-overlay {
     position: absolute;
     top: 100px;
-    bottom: 148px;
+    bottom: calc(148px + env(safe-area-inset-bottom, 0));
     left: 0; right: 0;
     pointer-events: none;
     z-index: 2;
@@ -292,8 +292,7 @@
     position: absolute;
     bottom: 0;
     left: 0; right: 0;
-    height: 148px;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    height: calc(148px + env(safe-area-inset-bottom, 0));
     background:
       linear-gradient(180deg, #3a3128 0%, #2a2520 8%, #1f1a14 35%, #1a1614 100%);
     border-top: 1px solid #4a3d2c;
@@ -305,7 +304,7 @@
   .knurl, .knurl-l {
     position: absolute;
     top: 100px;
-    bottom: 148px;
+    bottom: calc(148px + env(safe-area-inset-bottom, 0));
     width: 8px;
     background-image: repeating-linear-gradient(
       0deg,
@@ -325,7 +324,7 @@
   /* ========================= MARK BUTTON ========================= */
   .mark-area {
     position: absolute;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0));
     left: 14px;
     right: 14px;
     z-index: 10;
