@@ -804,8 +804,14 @@
 
 <div id="app">
 
-  <!-- DEBUG PANEL — tap the title bar to toggle -->
-  <div id="debugPanel" style="position:absolute; top:84px; left:14px; right:14px; background:rgba(8,6,4,0.95); border:1px solid #d68a3a; padding:8px 10px; z-index:60; font-family:'B612 Mono',monospace; font-size:9px; line-height:1.5; color:#f0a040; display:none; max-height:50%; overflow-y:auto; letter-spacing:0.05em;"></div>
+  <!-- DEBUG PANEL — visible by default, top-most z-index -->
+  <div id="debugPanel" style="position:fixed; top:0; left:0; right:0; background:rgba(0,0,0,0.95); border-bottom:2px solid #d68a3a; padding:8px 10px; z-index:99999; font-family:'B612 Mono',monospace; font-size:10px; line-height:1.5; color:#f0a040; display:block; max-height:45vh; overflow-y:auto; letter-spacing:0.05em; pointer-events:auto;">
+    <div style="color:#fff; font-weight:700; font-size:11px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+      <span>RECON.OS · DEBUG</span>
+      <button id="dbgClose" style="background:#d68a3a; color:#000; border:0; padding:3px 8px; font-family:inherit; font-size:10px; font-weight:700; border-radius:2px;">HIDE</button>
+    </div>
+    <div id="dbgLog">Initializing...</div>
+  </div>
 
   <!-- STATUS BAR -->
   <div class="status-bar">
@@ -1072,14 +1078,14 @@ const debugLog = [];
 function dbg(msg) {
   const ts = new Date().toISOString().slice(11, 19);
   debugLog.push(`[${ts}] ${msg}`);
-  const panel = document.getElementById('debugPanel');
-  panel.innerHTML = debugLog.slice(-30).join('<br>');
+  const logDiv = document.getElementById('dbgLog');
+  if (logDiv) logDiv.innerHTML = debugLog.slice(-30).join('<br>');
   console.log(msg);
 }
-// Tap the title bar to toggle debug panel
-document.querySelector('.title-strip').addEventListener('click', () => {
-  const panel = document.getElementById('debugPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+
+// Hide button
+document.getElementById('dbgClose').addEventListener('click', () => {
+  document.getElementById('debugPanel').style.display = 'none';
 });
 
 // Capture all JS errors so we see them in the debug panel
