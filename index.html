@@ -1997,12 +1997,6 @@ function initMap() {
 
   // Re-render fog when zoom changes (cell sizes need updating)
   map.on('zoomend', renderFog);
-
-  // Long-press / right-click on map to drop a manual pin
-  map.on('contextmenu', (e) => {
-    L.DomEvent.preventDefault(e.originalEvent);
-    dropPinAt(e.latlng.lat, e.latlng.lng);
-  });
 }
 
 // Render fog as a single polygon: huge outer ring covering everything,
@@ -2369,7 +2363,7 @@ function openClassifySheet(poiId) {
   document.getElementById('poiName').value = poi.name || '';
   document.getElementById('poiNotes').value = poi.notes || '';
   document.getElementById('classifyTitle').textContent = poi.category ? 'EDIT POI' : 'CLASSIFY POI';
-  document.getElementById('deleteBtn').style.display = poi.category ? 'block' : 'none';
+  document.getElementById('deleteBtn').style.display = 'block';
 
   // Load photo
   editorPhoto = poi.photo || null;
