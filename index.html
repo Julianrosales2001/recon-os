@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RECON.OS" />
+<meta name="theme-color" content="#1a1614" />
+<title>RECON.OS</title>
+
+<!-- Leaflet (free open-source mapping library) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Saira+Stencil+One&family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: #0a0807;
+    color: #d4c8b0;
+    font-family: 'IBM Plex Mono', monospace;
+    height: 100%;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* ========================= APP CONTAINER ========================= */
+  #app {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  /* ========================= LEAFLET MAP STYLED AS PAPER ========================= */
+  #map {
+    position: absolute;
+    top: 100px;
+    bottom: 148px;
+    left: 0;
+    right: 0;
+    background: #7a5e44;
+    z-index: 1;
+  }
+  /* Apply a sepia/paper filter to the tile layer to make it look like our paper map */
+  .leaflet-tile-pane {
+    filter: sepia(0.85) saturate(0.7) brightness(0.85) contrast(1.15) hue-rotate(-10deg);
+  }
+  .leaflet-control-zoom { display: none !important; }
+  .leaflet-control-attribution {
+    background: rgba(8, 6, 4, 0.6) !important;
+    color: #6e6354 !important;
+    font-size: 7px !important;
+    font-family: 'B612 Mono', monospace !important;
+    padding: 1px 5px !important;
+  }
+  .leaflet-control-attribution a { color: #8c8170 !important; }
+
+  /* Custom flag marker styles */
+  .flag-marker {
+    width: 36px;
+    height: 48px;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .flag-marker .flag-svg { width: 100%; height: 100%; overflow: visible; }
+  .user-marker {
+    width: 24px; height: 24px;
+    background: radial-gradient(circle, rgba(214, 138, 58, 0.6) 0%, rgba(214, 138, 58, 0.15) 60%, transparent 100%);
+    border-radius: 50%;
+    position: relative;
+  }
+  .user-marker::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #e8a050;
+    border: 1.5px solid #3a1a08;
+  }
+
+  /* ========================= PAPER OVERLAY (subtle texture on map) ========================= */
+  .paper-overlay {
+    position: absolute;
+    top: 100px;
+    bottom: 148px;
+    left: 0; right: 0;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.4 0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/></svg>");
+    mix-blend-mode: overlay;
+  }
+
+  /* ========================= STATUS BAR ========================= */
+  .status-bar {
+    height: 44px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 22px 6px;
+    font-size: 11px;
+    color: #e8dcc4;
+    font-weight: 700;
+    z-index: 50;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    text-shadow: 0 0 4px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+  .status-bar .clock { padding-top: env(safe-area-inset-top, 0); }
+  .status-bar .right { display: flex; gap: 6px; align-items: center; font-size: 10px; }
+
+  /* ========================= TOP CHROME ========================= */
+  .panel-bg-top {
+    position: absolute;
+    top: 44px;
+    left: 0; right: 0;
+    height: 56px;
+    background:
+      linear-gradient(180deg, #38312a 0%, #1a1614 8%, #261f1a 14%, #322a24 22%, #1c1815 100%);
+    border-bottom: 1px solid #050403;
+    box-shadow:
+      inset 0 1px 0 rgba(220, 190, 140, 0.2),
+      inset 0 -3px 10px rgba(0, 0, 0, 0.6);
+    z-index: 4;
+  }
+  .panel-bg-top::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 400 100' xmlns='http://www.w3.org/2000/svg'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='0.02 1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.25 0 0 0 0 0.2 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23b)' opacity='0.6'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.55;
+  }
+  .rivets {
+    position: absolute;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px;
+    pointer-events: none;
+  }
+  .rivets.top { top: 6px; }
+  .rivets.bot { bottom: 6px; }
+  .rivet {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #6a5d4a 0%, #2c2620 60%, #100c08 100%);
+    box-shadow: inset 0 -1px 1px rgba(0,0,0,0.6), 0 1px 0 rgba(220, 190, 140, 0.15);
+  }
+  .title-strip {
+    position: absolute;
+    top: 50px;
+    left: 50px;
+    right: 50px;
+    height: 30px;
+    background: #050403;
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    z-index: 6;
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.85);
+  }
+  .title-strip .text {
+    font-family: 'VT323', monospace;
+    font-size: 17px;
+    color: #f0a040;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 6px rgba(240, 160, 64, 0.6);
+  }
+
+  /* ========================= FLOATING SECTOR TAG ========================= */
+  .sector-tag {
+    position: absolute;
+    top: 110px;
+    left: 14px;
+    background: rgba(8, 6, 4, 0.75);
+    backdrop-filter: blur(2px);
+    border: 1px solid #d68a3a;
+    padding: 4px 8px;
+    z-index: 35;
+    font-family: 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: #f0a040;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    box-shadow: 0 0 12px rgba(240, 160, 64, 0.15);
+    font-weight: 700;
+  }
+
+  /* ========================= MAP OVERLAY BUTTONS (right side) ========================= */
+  .map-overlay-buttons {
+    position: absolute;
+    top: 110px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 40;
+  }
+  .map-overlay-btn {
+    width: 40px; height: 40px;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .map-overlay-btn .socket {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
+    border-radius: 4px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.9);
+  }
+  .map-overlay-btn .cap {
+    position: absolute;
+    top: 1px; bottom: 4px;
+    left: 1px; right: 1px;
+    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
+    border: 1px solid #14110d;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    color: #f0a040;
+    font-family: 'B612 Mono', monospace;
+    font-size: 17px;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    box-shadow:
+      inset 0 1px 0 rgba(220, 190, 140, 0.3),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+      0 2px 3px rgba(0, 0, 0, 0.5);
+  }
+  .map-overlay-btn:active .cap {
+    transform: translateY(1px);
+    filter: brightness(0.9);
+  }
+
+  /* ========================= BOTTOM CHROME ========================= */
+  .panel-bg-bot {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 148px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background:
+      linear-gradient(180deg, #1c1815 0%, #322a24 8%, #261f1a 18%, #1a1614 100%);
+    border-top: 1px solid #050403;
+    box-shadow:
+      inset 0 1px 0 rgba(220, 190, 140, 0.2),
+      inset 0 -3px 10px rgba(0, 0, 0, 0.7);
+    z-index: 4;
+  }
+  .knurl, .knurl-l {
+    position: absolute;
+    top: 100px;
+    bottom: 148px;
+    width: 8px;
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 2px,
+      rgba(0,0,0,0.6) 2px,
+      rgba(0,0,0,0.6) 3px,
+      rgba(220, 190, 140, 0.08) 3px,
+      rgba(220, 190, 140, 0.08) 4px
+    );
+    background-color: #1a1612;
+    z-index: 5;
+  }
+  .knurl { right: 0; border-left: 1px solid #050403; }
+  .knurl-l { left: 0; border-right: 1px solid #050403; }
+
+  /* ========================= MARK BUTTON ========================= */
+  .mark-area {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    z-index: 10;
+  }
+  .mark-housing-label {
+    font-size: 7px;
+    color: #6e6354;
+    letter-spacing: 0.25em;
+    font-weight: 500;
+    padding-left: 4px;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .mark-housing {
+    background: linear-gradient(180deg, #050403 0%, #161310 50%, #1c1814 100%);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow:
+      inset 0 3px 8px rgba(0, 0, 0, 0.95),
+      inset 0 -1px 0 rgba(220, 190, 140, 0.08),
+      0 1px 0 rgba(220, 190, 140, 0.12);
+    border: 1px solid #3a3128;
+  }
+  .mark-btn {
+    position: relative;
+    height: 56px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mark-btn .socket {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, #200a04 0%, #050201 75%);
+    border-radius: 6px;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 14px rgba(180, 50, 30, 0.35);
+  }
+  .mark-btn .cap {
+    position: absolute;
+    top: 3px; bottom: 6px;
+    left: 3px; right: 3px;
+    background: radial-gradient(circle at 30% 25%, #ff7848 0%, #e84a26 40%, #6e1c10 100%);
+    border-radius: 5px;
+    border: 1px solid #3a0d05;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 220, 200, 0.4),
+      inset 0 -3px 0 rgba(50, 15, 8, 0.7),
+      0 2px 6px rgba(180, 50, 30, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+  }
+  .mark-btn:active .cap {
+    transform: translateY(2px);
+    filter: brightness(1.2);
+  }
+  .mark-btn.disabled .cap {
+    opacity: 0.5;
+    filter: grayscale(0.5);
+  }
+  .mark-btn .lcd {
+    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
+    border-radius: 2px;
+    padding: 5px 22px 4px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.95), 0 1px 0 rgba(255, 200, 180, 0.3);
+    border: 1px solid #050403;
+    position: relative;
+    overflow: hidden;
+  }
+  .mark-btn .lcd::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
+      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
+    pointer-events: none;
+  }
+  .lcd-text {
+    position: relative;
+    z-index: 2;
+    font-family: 'B612 Mono', monospace;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    font-size: 18px;
+    background-image: radial-gradient(circle at 50% 50%, #b8f290 0%, #b8f290 38%, transparent 42%);
+    background-size: 2.5px 2.5px;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    filter:
+      drop-shadow(0 0 1.5px rgba(184, 242, 144, 0.85))
+      drop-shadow(0 0 3px rgba(120, 220, 90, 0.5));
+  }
+  .lcd-text.small { font-size: 10px; letter-spacing: 0.16em; background-size: 2px 2px; }
+
+  /* ========================= SECONDARY TOGGLE BUTTONS ========================= */
+  .toggle-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .toggle-btn {
+    flex: 1;
+    height: 44px;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .toggle-btn .socket {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
+    border-radius: 4px;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.9);
+  }
+  .toggle-btn .cap {
+    position: absolute;
+    top: 2px; bottom: 5px;
+    left: 2px; right: 2px;
+    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
+    border: 1px solid #14110d;
+    border-radius: 3px;
+    box-shadow:
+      inset 0 2px 0 rgba(220, 190, 140, 0.3),
+      inset 0 -3px 0 rgba(0, 0, 0, 0.7),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s;
+  }
+  .toggle-btn:active .cap { transform: translateY(1px); filter: brightness(0.9); }
+  .toggle-btn .lcd-fixed {
+    position: absolute;
+    left: 6px; right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 18px;
+    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
+    border: 1px solid #050403;
+    border-radius: 2px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.95);
+    overflow: hidden;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toggle-btn .lcd-fixed::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
+      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
+    pointer-events: none;
+  }
+
+  /* ========================= MARK FLASH ========================= */
+  .mark-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(240, 160, 64, 0);
+    pointer-events: none;
+    z-index: 100;
+  }
+  .mark-flash.active {
+    animation: flash 0.4s ease-out;
+  }
+  @keyframes flash {
+    0%   { background: rgba(240, 160, 64, 0); }
+    15%  { background: rgba(255, 200, 100, 0.45); }
+    100% { background: rgba(240, 160, 64, 0); }
+  }
+
+  /* ========================= MODAL / SHEET (for POI list, classifier, etc) ========================= */
+  .sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 200;
+    display: none;
+  }
+  .sheet-overlay.open { display: block; }
+  .sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    max-height: 85vh;
+    background: linear-gradient(180deg, #2a2520 0%, #1a1614 100%);
+    border-top: 2px solid #d68a3a;
+    border-radius: 14px 14px 0 0;
+    z-index: 201;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0));
+    box-shadow:
+      0 -20px 50px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(220, 190, 140, 0.2);
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet .grip {
+    width: 40px; height: 3px;
+    background: #5a4d3a;
+    margin: 0 auto 12px;
+    border-radius: 2px;
+  }
+  .sheet-title {
+    font-family: 'Saira Stencil One', sans-serif;
+    font-size: 16px;
+    color: #f0a040;
+    letter-spacing: 0.12em;
+    text-align: center;
+    margin-bottom: 12px;
+    text-shadow: 0 0 6px rgba(240, 160, 64, 0.4);
+  }
+  .sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Category pads */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .cat-pad {
+    position: relative;
+    height: 56px;
+    cursor: pointer;
+  }
+  .cat-pad .socket {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
+    border-radius: 4px;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.9);
+  }
+  .cat-pad .cap {
+    position: absolute;
+    top: 2px; bottom: 5px;
+    left: 2px; right: 2px;
+    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
+    border: 1px solid #14110d;
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    box-shadow:
+      inset 0 2px 0 rgba(220, 190, 140, 0.3),
+      inset 0 -3px 0 rgba(0, 0, 0, 0.7);
+  }
+  .cat-pad .led {
+    position: absolute;
+    top: 5px; right: 5px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #1a1612;
+    box-shadow: inset 0 0 1px rgba(0,0,0,0.8);
+    z-index: 5;
+  }
+  .cat-pad.selected .led {
+    background: radial-gradient(circle at 30% 30%, #fff0c0 0%, #f0a040 55%, #b8731c 100%);
+    box-shadow: 0 0 5px #f0a040, 0 0 10px rgba(240, 160, 64, 0.5);
+  }
+  .cat-pad .flag-mini {
+    width: 14px; height: 16px;
+    position: relative;
+  }
+  .cat-pad .flag-mini::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+    width: 1.5px; height: 16px;
+    background: #0a0604;
+  }
+  .cat-pad .flag-mini::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 1px;
+    width: 9px; height: 5px;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 35%, 0 100%);
+  }
+  .cat-pad .lbl {
+    font-family: 'B612 Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: #8c8170;
+    font-weight: 700;
+  }
+  .cat-pad.selected .lbl { color: #f0a040; }
+
+  /* Form inputs */
+  .field-label {
+    font-size: 8px;
+    letter-spacing: 0.3em;
+    color: #8c8170;
+    font-weight: 700;
+    margin-bottom: 4px;
+    margin-top: 8px;
+  }
+  .field-input {
+    background: #050403;
+    border: 1px solid #3a3128;
+    border-radius: 2px;
+    padding: 10px 12px;
+    color: #f0a040;
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    width: 100%;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
+    text-shadow: 0 0 5px rgba(240, 160, 64, 0.45);
+    letter-spacing: 0.04em;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field-input.notes {
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #d4a468;
+    text-shadow: none;
+    height: 70px;
+    resize: none;
+    line-height: 1.5;
+  }
+
+  /* List rows (for POI list) */
+  .list-row {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 10px 11px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+    cursor: pointer;
+  }
+  .list-row:active { filter: brightness(1.2); }
+  .list-row .flag-icon {
+    flex-shrink: 0;
+    width: 24px; height: 30px;
+    position: relative;
+  }
+  .list-row .flag-icon .pole {
+    position: absolute;
+    left: 50%; top: 4px;
+    transform: translateX(-50%);
+    width: 2px; height: 22px;
+    background: #0a0604;
+  }
+  .list-row .flag-icon .pen {
+    position: absolute;
+    left: 50%;
+    top: 5px;
+    width: 13px; height: 7px;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 30%, 0 100%);
+  }
+  .list-row .info { flex: 1; min-width: 0; }
+  .list-row .name {
+    font-size: 12px;
+    color: #d4c8b0;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .list-row .meta {
+    font-size: 9px;
+    color: #6e6354;
+    letter-spacing: 0.12em;
+    margin-top: 2px;
+  }
+
+  /* Footer action buttons in sheets */
+  .sheet-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 0 4px;
+    flex-shrink: 0;
+  }
+  .action-btn {
+    flex: 1;
+    height: 50px;
+    position: relative;
+    cursor: pointer;
+  }
+  .action-btn .socket {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
+    border-radius: 5px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.9);
+  }
+  .action-btn .cap {
+    position: absolute;
+    top: 3px; bottom: 6px;
+    left: 3px; right: 3px;
+    border-radius: 4px;
+    border: 1px solid #14110d;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s;
+  }
+  .action-btn:active .cap { transform: translateY(1px); filter: brightness(0.9); }
+  .action-btn .cap.amber {
+    background: radial-gradient(circle at 30% 25%, #f5b840 0%, #d68a3a 40%, #8a4c1a 100%);
+    border-color: #4a2810;
+    box-shadow: inset 0 2px 0 rgba(255, 230, 170, 0.4), inset 0 -3px 0 rgba(40, 18, 5, 0.7);
+  }
+  .action-btn .cap.red {
+    background: radial-gradient(circle at 30% 25%, #ff7848 0%, #e84a26 40%, #6e1c10 100%);
+    border-color: #3a0d05;
+    box-shadow: inset 0 2px 0 rgba(255, 220, 200, 0.4), inset 0 -3px 0 rgba(50, 15, 8, 0.7);
+  }
+  .action-btn .cap.steel {
+    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
+    box-shadow: inset 0 2px 0 rgba(220, 190, 140, 0.3), inset 0 -3px 0 rgba(0, 0, 0, 0.7);
+  }
+  .action-btn .lcd {
+    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
+    border-radius: 2px;
+    padding: 4px 14px 3px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.95);
+    border: 1px solid #050403;
+    position: relative;
+    overflow: hidden;
+  }
+  .action-btn .lcd::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
+      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
+    pointer-events: none;
+  }
+  .action-btn .lcd-text { font-size: 14px; letter-spacing: 0.18em; background-size: 2px 2px; }
+
+  /* Empty state in lists */
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6e6354;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    line-height: 1.7;
+  }
+  .empty-state .big {
+    font-family: 'Saira Stencil One', sans-serif;
+    font-size: 14px;
+    color: #8c8170;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+
+  /* GPS error banner */
+  .gps-banner {
+    position: absolute;
+    top: 100px;
+    left: 0; right: 0;
+    height: 24px;
+    background: rgba(239, 74, 63, 0.18);
+    border-top: 1px solid rgba(239, 74, 63, 0.5);
+    border-bottom: 1px solid rgba(239, 74, 63, 0.5);
+    z-index: 30;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    color: #ef4a3f;
+    font-weight: 700;
+    text-shadow: 0 0 4px rgba(239, 74, 63, 0.4);
+    backdrop-filter: blur(2px);
+  }
+  .gps-banner.visible { display: flex; }
+  .gps-banner .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #ef4a3f;
+    box-shadow: 0 0 5px #ef4a3f;
+    margin-right: 8px;
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0.3; } }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 180px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(8, 6, 4, 0.95);
+    border: 1px solid #d68a3a;
+    color: #f0a040;
+    padding: 10px 18px;
+    font-family: 'B612 Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    border-radius: 4px;
+    z-index: 300;
+    box-shadow: 0 0 18px rgba(240, 160, 64, 0.3);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    white-space: nowrap;
+  }
+  .toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <span class="clock" id="clock">--:--</span>
+    <span class="right"><span id="gpsStatus">GPS</span><span id="gpsDot" style="color:#c9d97b;">●</span></span>
+  </div>
+
+  <!-- LEAFLET MAP -->
+  <div id="map"></div>
+  <div class="paper-overlay"></div>
+
+  <!-- TOP CHROME -->
+  <div class="panel-bg-top">
+    <div class="rivets top"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
+  </div>
+  <div class="title-strip"><span class="text" id="regionTitle">▾ INITIALIZING...</span></div>
+
+  <!-- GPS LOST BANNER -->
+  <div class="gps-banner" id="gpsBanner">
+    <span class="dot"></span>
+    <span>GPS LOST · LAST FIX <span id="gpsAgo">--</span></span>
+  </div>
+
+  <!-- FLOATING SECTOR/STATUS TAG -->
+  <div class="sector-tag" id="sectorTag">ACQUIRING POSITION...</div>
+
+  <!-- MAP OVERLAY BUTTONS -->
+  <div class="map-overlay-buttons">
+    <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
+  </div>
+
+  <!-- SIDE BEZELS -->
+  <div class="knurl-l"></div>
+  <div class="knurl"></div>
+
+  <!-- BOTTOM CHROME -->
+  <div class="panel-bg-bot">
+    <div class="rivets top"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
+    <div class="rivets bot"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
+  </div>
+
+  <!-- MARK BUTTON + TOGGLES -->
+  <div class="mark-area">
+    <span class="mark-housing-label">MK-01 / FIELD MARK</span>
+    <div class="mark-housing">
+      <div class="mark-btn" id="markBtn" onclick="dropPin()">
+        <div class="socket"></div>
+        <div class="cap">
+          <div class="lcd"><span class="lcd-text">MARK</span></div>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-btn" onclick="openListSheet()">
+          <div class="socket"></div>
+          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">LIST</span></div></div>
+        </div>
+        <div class="toggle-btn" onclick="openPendingSheet()">
+          <div class="socket"></div>
+          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="pendingLabel">PENDING</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MARK FLASH OVERLAY -->
+  <div class="mark-flash" id="markFlash"></div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">PIN DROPPED</div>
+
+</div>
+
+<!-- ============ SHEETS (modals) ============ -->
+
+<!-- CLASSIFIER / DETAIL SHEET -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+
+<div class="sheet" id="classifySheet">
+  <div class="grip"></div>
+  <div class="sheet-title" id="classifyTitle">CLASSIFY POI</div>
+  <div class="sheet-body">
+    <div class="field-label">CATEGORY</div>
+    <div class="cat-grid" id="catGrid">
+      <!-- Category pads injected by JS -->
+    </div>
+    <div class="field-label">NAME</div>
+    <input class="field-input" id="poiName" placeholder="UNTITLED" />
+    <div class="field-label">NOTES</div>
+    <textarea class="field-input notes" id="poiNotes" placeholder="OPTIONAL"></textarea>
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="deletePOI()" id="deleteBtn" style="display:none;">
+      <div class="socket"></div>
+      <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
+    </div>
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
+    </div>
+    <div class="action-btn" onclick="savePOI()">
+      <div class="socket"></div>
+      <div class="cap amber"><div class="lcd"><span class="lcd-text">SAVE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LIST SHEET -->
+<div class="sheet" id="listSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">ALL ASSETS · <span id="listCount">0</span></div>
+  <div class="sheet-body" id="listBody">
+    <!-- POI list injected by JS -->
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PENDING SHEET (unclassified) -->
+<div class="sheet" id="pendingSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">PENDING · <span id="pendingCount">0</span></div>
+  <div class="sheet-body" id="pendingBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =============================================================
+   RECON.OS v1 — Personal POI tool
+   ============================================================= */
+
+// ===== CONFIG =====
+const CATEGORIES = [
+  { id: 'WAYPOINT', label: 'WAYPT',  color: '#c8331f' },
+  { id: 'VISTA',    label: 'VISTA',  color: '#e87819' },
+  { id: 'LANDMARK', label: 'LANDMK', color: '#1d4ea8' },
+  { id: 'SUPPLY',   label: 'SUPPLY', color: '#2d8a3e' },
+  { id: 'INTEL',    label: 'INTEL',  color: '#a82770' },
+  { id: 'HAZARD',   label: 'HAZARD', color: '#e8b818' },
+];
+
+// ===== STATE =====
+let userPos = null;             // {lat, lng}
+let lastFix = null;             // timestamp of last good GPS fix
+let pois = [];                  // array of POI objects
+let map = null;
+let userMarker = null;
+let markerLayer = null;
+let editingId = null;           // currently editing POI id
+let selectedCategory = 'WAYPOINT';
+
+// ===== STORAGE =====
+function loadPOIs() {
+  try {
+    const raw = localStorage.getItem('recon.os.pois');
+    pois = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    pois = [];
+  }
+}
+function savePOIs() {
+  localStorage.setItem('recon.os.pois', JSON.stringify(pois));
+}
+
+// ===== UI HELPERS =====
+function showToast(message) {
+  const t = document.getElementById('toast');
+  t.textContent = message;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 1800);
+}
+
+function flashMark() {
+  const f = document.getElementById('markFlash');
+  f.classList.remove('active');
+  void f.offsetWidth;
+  f.classList.add('active');
+  if (navigator.vibrate) navigator.vibrate(40);
+}
+
+function updateClock() {
+  const d = new Date();
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  document.getElementById('clock').textContent = h + ':' + m;
+}
+setInterval(updateClock, 30000);
+updateClock();
+
+// ===== MAP =====
+function initMap() {
+  map = L.map('map', {
+    zoomControl: false,
+    attributionControl: true,
+  }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OSM'
+  }).addTo(map);
+
+  markerLayer = L.layerGroup().addTo(map);
+  renderAllMarkers();
+
+  // Long-press on map to drop a manual pin (fallback when GPS unavailable / for placing pins elsewhere)
+  let pressTimer = null;
+  let pressStart = null;
+  map.on('mousedown touchstart', (e) => {
+    pressStart = e.latlng;
+    pressTimer = setTimeout(() => {
+      dropPinAt(pressStart.lat, pressStart.lng);
+      pressTimer = null;
+    }, 600);
+  });
+  map.on('mouseup mouseout touchend touchcancel mousemove touchmove', () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  });
+}
+
+function makeFlagIcon(color) {
+  const svg = `
+    <svg class="flag-svg" viewBox="-10 -50 50 60" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="0" cy="0" r="3" fill="#1a0f06"/>
+      <line x1="0" y1="0" x2="0" y2="-42" stroke="#1a0f06" stroke-width="3" stroke-linecap="round"/>
+      <path d="M 0 -42 L 28 -34 L 0 -25 Z" fill="${color}" stroke="#1a0f06" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+  `;
+  return L.divIcon({
+    html: `<div class="flag-marker">${svg}</div>`,
+    className: '',
+    iconSize: [36, 48],
+    iconAnchor: [18, 48], // anchor at base of pole
+  });
+}
+
+function userIcon() {
+  return L.divIcon({
+    html: `<div class="user-marker"></div>`,
+    className: '',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function renderAllMarkers() {
+  markerLayer.clearLayers();
+  pois.forEach(p => {
+    const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
+    const m = L.marker([p.lat, p.lng], { icon: makeFlagIcon(cat.color) });
+    m.on('click', () => openClassifySheet(p.id));
+    m.addTo(markerLayer);
+  });
+}
+
+function recenterMap() {
+  if (userPos) {
+    map.setView([userPos.lat, userPos.lng], 16);
+  }
+}
+
+// ===== GPS =====
+function startGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById('sectorTag').textContent = 'NO GPS SUPPORT';
+    return;
+  }
+  navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      userPos = { lat: latitude, lng: longitude, acc: accuracy };
+      lastFix = Date.now();
+
+      // Update sector tag
+      document.getElementById('sectorTag').textContent =
+        `${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`;
+      document.getElementById('regionTitle').textContent = '▾ ACTIVE REGION';
+      document.getElementById('gpsDot').style.color = '#c9d97b';
+      document.getElementById('gpsBanner').classList.remove('visible');
+      document.getElementById('markBtn').classList.remove('disabled');
+
+      // Place / move user marker
+      if (!userMarker) {
+        userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
+        map.setView([latitude, longitude], 16);
+      } else {
+        userMarker.setLatLng([latitude, longitude]);
+      }
+    },
+    (err) => {
+      console.error(err);
+      document.getElementById('sectorTag').textContent = 'NO GPS · LONG-PRESS MAP TO DROP';
+      document.getElementById('gpsDot').style.color = '#ef4a3f';
+      document.getElementById('regionTitle').textContent = '▾ NO POSITION';
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
+  );
+
+  // Check for stale GPS every 5s
+  setInterval(() => {
+    if (!lastFix) return;
+    const age = Math.round((Date.now() - lastFix) / 1000);
+    if (age > 30) {
+      document.getElementById('gpsBanner').classList.add('visible');
+      document.getElementById('gpsAgo').textContent = age + 'S AGO';
+      document.getElementById('gpsDot').style.color = '#ef4a3f';
+    }
+  }, 5000);
+}
+
+// ===== MARK FLOW =====
+function dropPin() {
+  if (!userPos) {
+    showToast('NO GPS · LONG-PRESS MAP TO DROP MANUALLY');
+    return;
+  }
+  dropPinAt(userPos.lat, userPos.lng);
+}
+
+function dropPinAt(lat, lng) {
+  flashMark();
+  const id = 'POI-' + Date.now();
+  const poi = {
+    id: id,
+    lat: lat,
+    lng: lng,
+    category: null,        // null = unclassified / pending
+    name: '',
+    notes: '',
+    created: Date.now(),
+  };
+  pois.push(poi);
+  savePOIs();
+  renderAllMarkers();
+  updatePendingCount();
+  showToast('PIN DROPPED · ID ' + id.slice(-6));
+}
+
+// ===== CLASSIFY / EDIT =====
+function buildCatGrid() {
+  const grid = document.getElementById('catGrid');
+  grid.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const div = document.createElement('div');
+    div.className = 'cat-pad' + (selectedCategory === cat.id ? ' selected' : '');
+    div.dataset.cat = cat.id;
+    div.innerHTML = `
+      <div class="socket"></div>
+      <div class="led"></div>
+      <div class="cap">
+        <div class="flag-mini" style="color:${cat.color};"></div>
+        <div class="lbl">${cat.label}</div>
+      </div>
+    `;
+    div.onclick = () => {
+      selectedCategory = cat.id;
+      buildCatGrid();
+    };
+    grid.appendChild(div);
+  });
+}
+
+function openClassifySheet(poiId) {
+  editingId = poiId;
+  const poi = pois.find(p => p.id === poiId);
+  if (!poi) return;
+
+  selectedCategory = poi.category || 'WAYPOINT';
+  document.getElementById('poiName').value = poi.name || '';
+  document.getElementById('poiNotes').value = poi.notes || '';
+  document.getElementById('classifyTitle').textContent = poi.category ? 'EDIT POI' : 'CLASSIFY POI';
+  document.getElementById('deleteBtn').style.display = poi.category ? 'block' : 'none';
+
+  buildCatGrid();
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('classifySheet').classList.add('open');
+}
+
+function savePOI() {
+  const poi = pois.find(p => p.id === editingId);
+  if (!poi) return;
+  poi.category = selectedCategory;
+  poi.name = document.getElementById('poiName').value.trim();
+  poi.notes = document.getElementById('poiNotes').value.trim();
+  savePOIs();
+  renderAllMarkers();
+  updatePendingCount();
+  closeSheet();
+  showToast('POI SAVED');
+}
+
+function deletePOI() {
+  if (!confirm('DELETE THIS POI FOREVER?\n\nThis cannot be undone.')) return;
+  pois = pois.filter(p => p.id !== editingId);
+  savePOIs();
+  renderAllMarkers();
+  updatePendingCount();
+  closeSheet();
+  showToast('POI DELETED');
+}
+
+// ===== LIST SHEET =====
+function openListSheet() {
+  const body = document.getElementById('listBody');
+  document.getElementById('listCount').textContent = pois.filter(p => p.category).length;
+  body.innerHTML = '';
+
+  const classified = pois.filter(p => p.category);
+  if (classified.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="big">NO ASSETS YET</div>Drop pins to start your survey.</div>';
+  } else {
+    classified.forEach(p => {
+      const cat = CATEGORIES.find(c => c.id === p.category);
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `
+        <div class="flag-icon" style="color:${cat.color};"><div class="pole"></div><div class="pen"></div></div>
+        <div class="info">
+          <div class="name">${p.name || 'UNTITLED'}</div>
+          <div class="meta">${p.category} · ${distanceLabel(p)}</div>
+        </div>
+      `;
+      row.onclick = () => {
+        closeSheet();
+        setTimeout(() => {
+          map.setView([p.lat, p.lng], 18);
+          openClassifySheet(p.id);
+        }, 350);
+      };
+      body.appendChild(row);
+    });
+  }
+
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('listSheet').classList.add('open');
+}
+
+// ===== PENDING SHEET =====
+function openPendingSheet() {
+  const body = document.getElementById('pendingBody');
+  const pending = pois.filter(p => !p.category);
+  document.getElementById('pendingCount').textContent = pending.length;
+  body.innerHTML = '';
+
+  if (pending.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="big">NO PENDING</div>All POIs classified.</div>';
+  } else {
+    pending.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `
+        <div class="flag-icon" style="color:#8c8170;"><div class="pole"></div><div class="pen"></div></div>
+        <div class="info">
+          <div class="name">UNCLASSIFIED · ${p.id.slice(-6)}</div>
+          <div class="meta">${formatTimestamp(p.created)} · ${distanceLabel(p)}</div>
+        </div>
+      `;
+      row.onclick = () => {
+        closeSheet();
+        setTimeout(() => openClassifySheet(p.id), 350);
+      };
+      body.appendChild(row);
+    });
+  }
+
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('pendingSheet').classList.add('open');
+}
+
+function updatePendingCount() {
+  const n = pois.filter(p => !p.category).length;
+  document.getElementById('pendingLabel').textContent = n > 0 ? `PENDING ${n}` : 'PENDING';
+}
+
+// ===== UTILS =====
+function closeSheet() {
+  document.getElementById('sheetOverlay').classList.remove('open');
+  document.getElementById('classifySheet').classList.remove('open');
+  document.getElementById('listSheet').classList.remove('open');
+  document.getElementById('pendingSheet').classList.remove('open');
+  editingId = null;
+}
+
+function distanceLabel(p) {
+  if (!userPos) return '— MI';
+  const d = haversine(userPos.lat, userPos.lng, p.lat, p.lng);
+  if (d < 0.1) return Math.round(d * 5280) + 'FT';
+  return d.toFixed(1) + 'MI';
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959; // miles
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) {
+    return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+  }
+  return (d.getMonth()+1) + '/' + d.getDate();
+}
+
+// ===== INIT =====
+loadPOIs();
+initMap();
+startGPS();
+updatePendingCount();
+</script>
+
+</body>
+</html>
