@@ -795,6 +795,182 @@
     border-left: 2px solid #d96850;
   }
 
+  /* Photo area */
+  .photo-area {
+    background: #050403;
+    border: 1px dashed #3a3128;
+    border-radius: 2px;
+    padding: 24px;
+    text-align: center;
+    color: #6e6354;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .photo-area img {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: 2px;
+    display: block;
+  }
+  .photo-area.has-photo {
+    padding: 4px;
+    border-style: solid;
+    border-color: #2a2520;
+  }
+  .photo-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    background: rgba(8, 6, 4, 0.85);
+    color: #d96850;
+    border: 1px solid #d96850;
+    border-radius: 50%;
+    font-size: 18px;
+    font-family: inherit;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    z-index: 5;
+  }
+  .photo-area.has-photo .photo-remove { display: flex; }
+
+  /* HVA toggle */
+  .hva-toggle {
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+  }
+  .hva-toggle:active { filter: brightness(1.2); }
+  .hva-toggle .hva-star {
+    font-size: 22px;
+    color: #3a3128;
+    text-shadow: none;
+    transition: all 0.2s;
+  }
+  .hva-toggle.on .hva-star {
+    color: #f0a040;
+    text-shadow: 0 0 8px rgba(240, 160, 64, 0.6), 0 0 16px rgba(240, 160, 64, 0.3);
+  }
+  .hva-toggle .hva-label { flex: 1; }
+  .hva-toggle .hva-name {
+    font-size: 11px;
+    color: #d4c8b0;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+  }
+  .hva-toggle .hva-desc {
+    font-size: 8px;
+    color: #6e6354;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+  .hva-toggle .hva-led {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #1a1612;
+    box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.8);
+  }
+  .hva-toggle.on .hva-led {
+    background: radial-gradient(circle at 30% 30%, #fff0c0, #f0a040 55%, #b8731c 100%);
+    box-shadow: 0 0 5px #f0a040, 0 0 10px rgba(240, 160, 64, 0.5);
+  }
+
+  /* Journal rows */
+  .journal-day-header {
+    font-size: 8px;
+    color: #d68a3a;
+    letter-spacing: 0.32em;
+    padding: 12px 0 4px;
+    font-weight: 700;
+  }
+  .journal-day-header:first-child { padding-top: 4px; }
+  .journal-row {
+    background: #14110d;
+    border: 1px solid #2a2520;
+    border-left: 2px solid #d68a3a;
+    border-radius: 2px;
+    padding: 9px 11px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+    cursor: pointer;
+  }
+  .journal-row:active { filter: brightness(1.2); }
+  .journal-row.drop { border-left-color: #f0a040; }
+  .journal-row.classify { border-left-color: #2d8a3e; }
+  .journal-row.edit { border-left-color: #1d4ea8; }
+  .journal-row.hva { border-left-color: #d68a3a; }
+  .journal-row.delete { border-left-color: #d96850; }
+  .journal-row .ic {
+    width: 22px; height: 22px;
+    border: 1px solid currentColor;
+    color: #d68a3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'B612 Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .journal-row.drop .ic { color: #f0a040; }
+  .journal-row.classify .ic { color: #2d8a3e; }
+  .journal-row.edit .ic { color: #5b8dd6; }
+  .journal-row.hva .ic { color: #d68a3a; }
+  .journal-row.delete .ic { color: #d96850; }
+  .journal-row .text { flex: 1; min-width: 0; }
+  .journal-row .t {
+    font-size: 11px;
+    color: #d4c8b0;
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .journal-row .s {
+    font-size: 8px;
+    color: #6e6354;
+    letter-spacing: 0.15em;
+    margin-top: 2px;
+  }
+  .journal-row .time {
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    color: #d4a468;
+    flex-shrink: 0;
+  }
+
+  /* HVA badge in list view */
+  .list-row.hva {
+    border-left: 2px solid #d68a3a;
+  }
+  .list-row .hva-star {
+    color: #f0a040;
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    margin-right: 4px;
+  }
+
   /* GPS error banner */
   .gps-banner {
     position: absolute;
@@ -887,7 +1063,7 @@
   <div class="map-overlay-buttons">
     <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
     <div class="map-overlay-btn" id="legendBtn" onclick="toggleLegend()"><div class="socket"></div><div class="led"></div><div class="cap">⚐</div></div>
-    <div class="map-overlay-btn" onclick="openListSheet()"><div class="socket"></div><div class="cap">≡</div></div>
+    <div class="map-overlay-btn" onclick="openJournalSheet()"><div class="socket"></div><div class="cap">▤</div></div>
   </div>
 
   <!-- LEGEND PANEL (hidden by default) -->
@@ -970,6 +1146,25 @@
     <input class="field-input" id="poiName" placeholder="UNTITLED" />
     <div class="field-label">NOTES</div>
     <textarea class="field-input notes" id="poiNotes" placeholder="OPTIONAL"></textarea>
+
+    <div class="field-label">PHOTO</div>
+    <div id="photoArea" class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <span id="photoPlaceholder">▢ TAP TO ADD PHOTO</span>
+      <img id="photoPreview" style="display:none;" />
+      <button type="button" class="photo-remove" id="photoRemoveBtn" onclick="event.stopPropagation(); removePhoto()">×</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)" />
+
+    <div class="field-label">HIGH VALUE ASSET</div>
+    <div class="hva-toggle" id="hvaToggle" onclick="toggleHVA()">
+      <div class="hva-star">★</div>
+      <div class="hva-label">
+        <div class="hva-name">MARK AS HVA</div>
+        <div class="hva-desc">Pin gets star prefix + amber edge in list</div>
+      </div>
+      <div class="hva-led"></div>
+    </div>
+
   </div>
   <div class="sheet-actions">
     <div class="action-btn" onclick="deletePOI()" id="deleteBtn" style="display:none;">
@@ -1098,6 +1293,19 @@
   </div>
 </div>
 
+<!-- JOURNAL SHEET -->
+<div class="sheet" id="journalSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">FIELD JOURNAL</div>
+  <div class="sheet-body" id="journalBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden file input for imports -->
 <input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
 
@@ -1124,12 +1332,15 @@ let pois = [];                  // array of POI objects
 let revealedCells = new Set();  // set of "lat_lng" cell IDs that are revealed
 let regions = [];               // array of region objects
 let currentRegionId = null;     // id of region user is currently inside
+let journalEntries = [];        // chronological event log
 let map = null;
 let userMarker = null;
 let markerLayer = null;
 let fogPolygon = null;          // Leaflet polygon representing fog with holes
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
+let editorPhoto = null;         // base64 data URL for photo being edited
+let editorHVA = false;          // HVA state for POI being edited
 
 // ===== FOG OF WAR CONSTANTS =====
 const FOG_CELL_DEG = 0.0014;        // ~150m at Houston latitude
@@ -1235,6 +1446,33 @@ function loadRegions() {
 }
 function saveRegions() {
   localStorage.setItem('recon.os.regions', JSON.stringify(regions));
+}
+
+// ===== JOURNAL =====
+function loadJournal() {
+  try {
+    const raw = localStorage.getItem('recon.os.journal');
+    journalEntries = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    journalEntries = [];
+  }
+}
+function saveJournal() {
+  // Keep only last 1000 entries to prevent unbounded growth
+  if (journalEntries.length > 1000) {
+    journalEntries = journalEntries.slice(-1000);
+  }
+  localStorage.setItem('recon.os.journal', JSON.stringify(journalEntries));
+}
+function logEvent(type, poiId, summary, meta) {
+  journalEntries.push({
+    ts: Date.now(),
+    type: type,        // 'drop' | 'classify' | 'edit' | 'hva' | 'delete'
+    poiId: poiId,
+    summary: summary,  // human-readable title
+    meta: meta || '',  // category, ID, etc
+  });
+  saveJournal();
 }
 
 // A region has: id, name, originLat, originLng (the center), created, revealedSectors (Set/array)
@@ -1681,6 +1919,8 @@ function dropPin() {
 function dropPinAt(lat, lng) {
   flashMark();
   const id = 'POI-' + Date.now();
+  const region = getCurrentRegion();
+  const sectorId = region ? sectorIdForRegion(region, lat, lng) : null;
   const poi = {
     id: id,
     lat: lat,
@@ -1688,12 +1928,17 @@ function dropPinAt(lat, lng) {
     category: null,        // null = unclassified / pending
     name: '',
     notes: '',
+    photo: null,           // base64 data URL
+    hva: false,
+    regionId: region ? region.id : null,
+    sector: sectorId,
     created: Date.now(),
   };
   pois.push(poi);
   savePOIs();
   renderAllMarkers();
   updatePendingCount();
+  logEvent('drop', id, 'Pin dropped', sectorId ? 'Sector ' + sectorId : '');
   showToast('PIN DROPPED · ID ' + id.slice(-6));
 }
 
@@ -1732,30 +1977,110 @@ function openClassifySheet(poiId) {
   document.getElementById('classifyTitle').textContent = poi.category ? 'EDIT POI' : 'CLASSIFY POI';
   document.getElementById('deleteBtn').style.display = poi.category ? 'block' : 'none';
 
+  // Load photo
+  editorPhoto = poi.photo || null;
+  updatePhotoUI();
+
+  // Load HVA
+  editorHVA = poi.hva || false;
+  updateHVAUI();
+
   buildCatGrid();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('classifySheet').classList.add('open');
 }
 
+// ===== PHOTO HANDLING =====
+function onPhotoSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    editorPhoto = e.target.result;
+    updatePhotoUI();
+  };
+  reader.readAsDataURL(file);
+  // Reset input so selecting the same file twice still triggers change
+  event.target.value = '';
+}
+
+function removePhoto() {
+  if (!confirm('Remove photo from this POI?')) return;
+  editorPhoto = null;
+  updatePhotoUI();
+}
+
+function updatePhotoUI() {
+  const area = document.getElementById('photoArea');
+  const placeholder = document.getElementById('photoPlaceholder');
+  const preview = document.getElementById('photoPreview');
+  if (editorPhoto) {
+    area.classList.add('has-photo');
+    placeholder.style.display = 'none';
+    preview.style.display = 'block';
+    preview.src = editorPhoto;
+  } else {
+    area.classList.remove('has-photo');
+    placeholder.style.display = 'inline';
+    preview.style.display = 'none';
+    preview.src = '';
+  }
+}
+
+// ===== HVA TOGGLE =====
+function toggleHVA() {
+  editorHVA = !editorHVA;
+  updateHVAUI();
+}
+
+function updateHVAUI() {
+  const toggle = document.getElementById('hvaToggle');
+  if (editorHVA) {
+    toggle.classList.add('on');
+  } else {
+    toggle.classList.remove('on');
+  }
+}
+
 function savePOI() {
   const poi = pois.find(p => p.id === editingId);
   if (!poi) return;
+  const wasClassified = !!poi.category;
+  const oldHVA = poi.hva;
   poi.category = selectedCategory;
   poi.name = document.getElementById('poiName').value.trim();
   poi.notes = document.getElementById('poiNotes').value.trim();
+  poi.photo = editorPhoto;
+  poi.hva = editorHVA;
   savePOIs();
   renderAllMarkers();
   updatePendingCount();
+
+  // Journal logging
+  const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+  if (!wasClassified) {
+    logEvent('classify', poi.id, 'Classified: ' + displayName, poi.category);
+  } else {
+    logEvent('edit', poi.id, 'Edited: ' + displayName, poi.category);
+  }
+  if (editorHVA && !oldHVA) {
+    logEvent('hva', poi.id, 'Marked HVA: ' + displayName, poi.category);
+  }
+
   closeSheet();
   showToast('POI SAVED');
 }
 
 function deletePOI() {
-  if (!confirm('DELETE THIS POI FOREVER?\n\nThis cannot be undone.')) return;
+  const poi = pois.find(p => p.id === editingId);
+  if (!poi) return;
+  const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+  if (!confirm('DELETE "' + displayName + '" FOREVER?\n\nThis cannot be undone.')) return;
   pois = pois.filter(p => p.id !== editingId);
   savePOIs();
   renderAllMarkers();
   updatePendingCount();
+  logEvent('delete', editingId, 'Deleted: ' + displayName, poi.category || '');
   closeSheet();
   showToast('POI DELETED');
 }
@@ -1773,11 +2098,12 @@ function openListSheet() {
     classified.forEach(p => {
       const cat = CATEGORIES.find(c => c.id === p.category);
       const row = document.createElement('div');
-      row.className = 'list-row';
+      row.className = 'list-row' + (p.hva ? ' hva' : '');
+      const starHTML = p.hva ? '<span class="hva-star">★</span>' : '';
       row.innerHTML = `
         <div class="flag-icon" style="color:${cat.color};"><div class="pole"></div><div class="pen"></div></div>
         <div class="info">
-          <div class="name">${p.name || 'UNTITLED'}</div>
+          <div class="name">${starHTML}${p.name || 'UNTITLED'}</div>
           <div class="meta">${p.category} · ${distanceLabel(p)}</div>
         </div>
       `;
@@ -1833,6 +2159,83 @@ function updatePendingCount() {
   document.getElementById('pendingLabel').textContent = n > 0 ? `PENDING ${n}` : 'PENDING';
 }
 
+// ===== JOURNAL SHEET =====
+function openJournalSheet() {
+  const body = document.getElementById('journalBody');
+  body.innerHTML = '';
+
+  if (journalEntries.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="big">NO ACTIVITY YET</div>Drop and classify pins to populate the journal.</div>';
+  } else {
+    // Sort newest first, then group by day
+    const sorted = [...journalEntries].sort((a, b) => b.ts - a.ts);
+    let lastDay = null;
+    sorted.forEach(entry => {
+      const d = new Date(entry.ts);
+      const dayKey = d.toDateString();
+      if (dayKey !== lastDay) {
+        const header = document.createElement('div');
+        header.className = 'journal-day-header';
+        header.textContent = '▸ ' + formatDayHeader(d);
+        body.appendChild(header);
+        lastDay = dayKey;
+      }
+      const icons = {
+        drop: '▼',
+        classify: '⬡',
+        edit: '✎',
+        hva: '★',
+        delete: '✕',
+      };
+      const row = document.createElement('div');
+      row.className = 'journal-row ' + entry.type;
+      row.innerHTML = `
+        <div class="ic">${icons[entry.type] || '·'}</div>
+        <div class="text">
+          <div class="t">${escapeHtml(entry.summary)}</div>
+          <div class="s">${escapeHtml(entry.meta || '')}</div>
+        </div>
+        <div class="time">${formatJournalTime(d)}</div>
+      `;
+      row.onclick = () => {
+        const poi = pois.find(p => p.id === entry.poiId);
+        if (poi) {
+          closeSheet();
+          setTimeout(() => {
+            map.setView([poi.lat, poi.lng], 18);
+            openClassifySheet(poi.id);
+          }, 350);
+        }
+      };
+      body.appendChild(row);
+    });
+  }
+
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('journalSheet').classList.add('open');
+}
+
+function formatDayHeader(d) {
+  const today = new Date();
+  const yest = new Date(today);
+  yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'TODAY · ' + formatDateShort(d);
+  if (d.toDateString() === yest.toDateString()) return 'YESTERDAY · ' + formatDateShort(d);
+  return formatDateShort(d).toUpperCase();
+}
+function formatDateShort(d) {
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return d.getDate().toString().padStart(2, '0') + ' ' + months[d.getMonth()] + ' ' + d.getFullYear().toString().slice(-2);
+}
+function formatJournalTime(d) {
+  return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
 // ===== UTILS =====
 function closeSheet() {
   document.getElementById('sheetOverlay').classList.remove('open');
@@ -1840,6 +2243,7 @@ function closeSheet() {
   document.getElementById('listSheet').classList.remove('open');
   document.getElementById('pendingSheet').classList.remove('open');
   document.getElementById('settingsSheet').classList.remove('open');
+  document.getElementById('journalSheet').classList.remove('open');
   editingId = null;
 }
 
@@ -1900,11 +2304,12 @@ function showRegionsList() {
 
 function exportData() {
   const data = {
-    version: 2,
+    version: 3,
     exported: new Date().toISOString(),
     pois: pois,
     fog: [...revealedCells],
     regions: regions,
+    journal: journalEntries,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1935,7 +2340,8 @@ document.getElementById('importFile').addEventListener('change', (e) => {
       if (!confirm('Replace current data with backup?\n\n' +
                    data.pois.length + ' POIs\n' +
                    (data.fog ? data.fog.length : 0) + ' fog cells\n' +
-                   (data.regions ? data.regions.length : 0) + ' regions\n\n' +
+                   (data.regions ? data.regions.length : 0) + ' regions\n' +
+                   (data.journal ? data.journal.length : 0) + ' journal entries\n\n' +
                    'Your current data will be lost.')) {
         return;
       }
@@ -1949,6 +2355,10 @@ document.getElementById('importFile').addEventListener('change', (e) => {
       if (data.regions) {
         regions = data.regions;
         saveRegions();
+      }
+      if (data.journal) {
+        journalEntries = data.journal;
+        saveJournal();
       }
       renderAllMarkers();
       updatePendingCount();
@@ -1983,11 +2393,12 @@ function resetAllPOIs() {
 }
 
 function hardReset() {
-  if (!confirm('FULL RESET — wipe POIs, fog, regions, everything?\n\nThis cannot be undone.')) return;
+  if (!confirm('FULL RESET — wipe POIs, fog, regions, journal, everything?\n\nThis cannot be undone.')) return;
   if (!confirm('Last chance. Erase everything?')) return;
   localStorage.removeItem('recon.os.pois');
   localStorage.removeItem('recon.os.fog');
   localStorage.removeItem('recon.os.regions');
+  localStorage.removeItem('recon.os.journal');
   location.reload();
 }
 
@@ -2022,6 +2433,7 @@ function formatTimestamp(ts) {
 loadPOIs();
 loadFog();
 loadRegions();
+loadJournal();
 initMap();
 startGPS();
 updatePendingCount();
