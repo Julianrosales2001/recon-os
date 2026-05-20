@@ -804,6 +804,9 @@
 
 <div id="app">
 
+  <!-- DEBUG PANEL — tap the title bar to toggle -->
+  <div id="debugPanel" style="position:absolute; top:84px; left:14px; right:14px; background:rgba(8,6,4,0.95); border:1px solid #d68a3a; padding:8px 10px; z-index:60; font-family:'B612 Mono',monospace; font-size:9px; line-height:1.5; color:#f0a040; display:none; max-height:50%; overflow-y:auto; letter-spacing:0.05em;"></div>
+
   <!-- STATUS BAR -->
   <div class="status-bar">
     <span class="clock" id="clock">--:--</span>
@@ -1064,10 +1067,37 @@ function recenterMap() {
   }
 }
 
+// ===== DEBUG =====
+const debugLog = [];
+function dbg(msg) {
+  const ts = new Date().toISOString().slice(11, 19);
+  debugLog.push(`[${ts}] ${msg}`);
+  const panel = document.getElementById('debugPanel');
+  panel.innerHTML = debugLog.slice(-30).join('<br>');
+  console.log(msg);
+}
+// Tap the title bar to toggle debug panel
+document.querySelector('.title-strip').addEventListener('click', () => {
+  const panel = document.getElementById('debugPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+
+// Capture all JS errors so we see them in the debug panel
+window.addEventListener('error', (e) => {
+  dbg('JS ERROR: ' + e.message + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'));
+});
+
+dbg('PAGE LOAD');
+dbg('URL: ' + location.href);
+dbg('PROTOCOL: ' + location.protocol);
+dbg('HAS geolocation: ' + ('geolocation' in navigator));
+dbg('USER AGENT: ' + navigator.userAgent.slice(0, 80));
+
 // ===== GPS =====
 function setStatus(text, color) {
   document.getElementById('sectorTag').textContent = text;
   if (color) document.getElementById('gpsDot').style.color = color;
+  dbg('STATUS: ' + text);
 }
 
 function startGPS() {
@@ -1077,6 +1107,17 @@ function startGPS() {
   }
 
   setStatus('REQUESTING PERMISSION...', '#f0a040');
+  dbg('Calling watchPosition()');
+
+  // Also check permission status if API available
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      dbg('PERM STATE: ' + result.state);
+      result.onchange = () => dbg('PERM CHANGED TO: ' + result.state);
+    }).catch(e => dbg('PERM QUERY FAILED: ' + e.message));
+  } else {
+    dbg('navigator.permissions not available');
+  }
 
   navigator.geolocation.watchPosition(
     (pos) => {
@@ -1087,6 +1128,7 @@ function startGPS() {
       setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
       document.getElementById('regionTitle').textContent = '▾ ACTIVE REGION';
       document.getElementById('gpsBanner').classList.remove('visible');
+      dbg('GOT FIX: ' + latitude.toFixed(4) + ',' + longitude.toFixed(4) + ' ±' + Math.round(accuracy));
 
       if (!userMarker) {
         userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
@@ -1102,7 +1144,7 @@ function startGPS() {
       else if (err.code === 3) msg = 'GPS TIMEOUT · TAP MAP TO DROP';
       setStatus(msg, '#ef4a3f');
       document.getElementById('regionTitle').textContent = '▾ NO POSITION';
-      console.error('Geolocation error', err.code, err.message);
+      dbg('GPS ERROR code=' + err.code + ' msg=' + err.message);
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
   );
@@ -1124,6 +1166,7 @@ let gpsRetried = false;
 function retryGPSOnGesture() {
   if (gpsRetried || userPos) return;
   gpsRetried = true;
+  dbg('USER GESTURE: retrying GPS');
   setStatus('RETRY GPS ON USER TAP...', '#f0a040');
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -1132,11 +1175,11 @@ function retryGPSOnGesture() {
       lastFix = Date.now();
       setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
       document.getElementById('regionTitle').textContent = '▾ ACTIVE REGION';
+      dbg('RETRY SUCCESS');
       if (!userMarker) {
         userMarker = L.marker([latitude, longitude], { icon: userIcon() }).addTo(map);
         map.setView([latitude, longitude], 16);
       }
-      // Start the watcher now that we have permission
       startGPS();
     },
     (err) => {
@@ -1145,7 +1188,8 @@ function retryGPSOnGesture() {
       else if (err.code === 2) msg = 'NO SIGNAL · OUTDOORS?';
       else if (err.code === 3) msg = 'TIMEOUT · TRY AGAIN';
       setStatus(msg, '#ef4a3f');
-      gpsRetried = false; // allow another retry
+      dbg('RETRY FAIL code=' + err.code + ' msg=' + err.message);
+      gpsRetried = false;
     },
     { enableHighAccuracy: true, timeout: 15000 }
   );
