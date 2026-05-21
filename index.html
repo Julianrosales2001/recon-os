@@ -1663,6 +1663,19 @@
       </div>
     </div>
 
+    <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div>
+        <div class="settings-name">FOG DENSITY</div>
+        <div class="settings-desc">How opaque unexplored areas appear</div>
+      </div>
+      <div class="cat-filter-row" id="fogDensityRow" style="margin: 0;">
+        <div class="cat-chip" data-fog="CLEAR">CLEAR</div>
+        <div class="cat-chip" data-fog="LIGHT">LIGHT</div>
+        <div class="cat-chip" data-fog="MEDIUM">MEDIUM</div>
+        <div class="cat-chip" data-fog="HEAVY">HEAVY</div>
+      </div>
+    </div>
+
     <div class="settings-row danger" onclick="clearFog()">
       <div>
         <div class="settings-name" style="color: #d96850;">CLEAR FOG</div>
@@ -2032,6 +2045,7 @@ function loadPrefs() {
     if (typeof p.listSearchQuery === 'string') listSearchQuery = p.listSearchQuery;
     if (typeof p.listSortMode === 'string') listSortMode = p.listSortMode;
     if (typeof p.legendOpen === 'boolean') prefLegendOpen = p.legendOpen;
+    if (typeof p.fogOpacity === 'string' && FOG_OPACITY_VALUES[p.fogOpacity]) prefFogOpacity = p.fogOpacity;
   } catch (e) { /* ignore */ }
 }
 
@@ -2045,11 +2059,20 @@ function savePrefs() {
       listSearchQuery: listSearchQuery,
       listSortMode: listSortMode,
       legendOpen: prefLegendOpen,
+      fogOpacity: prefFogOpacity,
     }));
   }, 500);
 }
 
 let prefLegendOpen = false;
+let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
+
+const FOG_OPACITY_VALUES = {
+  CLEAR: 0.35,
+  LIGHT: 0.55,
+  MEDIUM: 0.72,
+  HEAVY: 0.88,
+};
 
 // ===== CLUSTER DETECTION =====
 // Find groups of 3+ classified POIs within CLUSTER_RADIUS_M of each other.
@@ -2448,7 +2471,7 @@ function renderFog() {
     color: '#1a0f06',
     weight: 0,
     fillColor: '#2a1a10',
-    fillOpacity: 0.88,
+    fillOpacity: FOG_OPACITY_VALUES[prefFogOpacity] || 0.88,
     interactive: false,
     smoothFactor: 0,
   }).addTo(map);
@@ -3677,8 +3700,23 @@ function openSettingsSheet() {
   document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
   document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
   document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
+  setupFogDensityChips();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('settingsSheet').classList.add('open');
+}
+
+function setupFogDensityChips() {
+  const chips = document.querySelectorAll('#fogDensityRow .cat-chip');
+  chips.forEach(chip => {
+    if (chip.dataset.fog === prefFogOpacity) chip.classList.add('active');
+    else chip.classList.remove('active');
+    chip.onclick = () => {
+      prefFogOpacity = chip.dataset.fog;
+      chips.forEach(c => c.classList.toggle('active', c.dataset.fog === prefFogOpacity));
+      savePrefs();
+      renderFog();  // re-render with new opacity
+    };
+  });
 }
 
 function showRegionsList() {
