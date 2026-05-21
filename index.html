@@ -2069,9 +2069,9 @@ let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
 
 const FOG_OPACITY_VALUES = {
   CLEAR: 0.35,
-  LIGHT: 0.55,
-  MEDIUM: 0.72,
-  HEAVY: 0.88,
+  LIGHT: 0.60,
+  MEDIUM: 0.80,
+  HEAVY: 1.0,
 };
 
 // ===== CLUSTER DETECTION =====
@@ -2494,7 +2494,9 @@ function injectFogHatch() {
       svg.insertBefore(defs, svg.firstChild);
     }
 
-    // Diagonal hatch pattern (paper "uncharted" look)
+    // Diagonal hatch pattern (paper "uncharted" look). Pattern internals are
+    // fully opaque so HEAVY density is truly opaque; the polygon's fill-opacity
+    // controls actual visibility based on user preference.
     if (!defs.querySelector('#fog-hatch')) {
       const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
       pattern.setAttribute('id', 'fog-hatch');
@@ -2503,8 +2505,8 @@ function injectFogHatch() {
       pattern.setAttribute('height', '8');
       pattern.setAttribute('patternTransform', 'rotate(45)');
       pattern.innerHTML = `
-        <rect width="8" height="8" fill="#28190f" opacity="0.85"/>
-        <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
+        <rect width="8" height="8" fill="#28190f"/>
+        <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2"/>
       `;
       defs.appendChild(pattern);
     }
