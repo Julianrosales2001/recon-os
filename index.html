@@ -2393,8 +2393,25 @@ function initMap() {
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
 
-  // Re-render fog when zoom changes (cell sizes need updating)
-  map.on('zoomend', renderFog);
+  // Note: we used to redraw fog on zoomend, but the polygon scales naturally
+  // with the map. Removing that handler eliminates the brief unfogged flash
+  // between the old polygon being removed and the new one being added.
+
+  // === Fix marker drift: tell Leaflet to recalculate its container size
+  //     at moments when the layout might have shifted underneath it. ===
+  // After initial paint (gives CSS layout time to settle on first load):
+  setTimeout(() => map.invalidateSize(true), 250);
+  setTimeout(() => map.invalidateSize(true), 1000);
+  // On orientation change (Safari resizes weirdly):
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => map.invalidateSize(true), 200);
+  });
+  // On window resize:
+  window.addEventListener('resize', () => map.invalidateSize(true));
+  // On visualViewport changes (iOS keyboard, dynamic toolbar, PWA changes):
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => map.invalidateSize(true));
+  }
 }
 
 // Render fog as a single polygon: huge outer ring covering everything,
@@ -2442,8 +2459,9 @@ function renderFog() {
   setTimeout(injectFogHatch, 0);
 }
 
-// Insert a diagonal-hatch pattern into Leaflet's SVG renderer so fog has
-// the same paper-map "uncharted" look from the mockups.
+// Insert a diagonal-hatch pattern + Gaussian-blur filter into Leaflet's SVG
+// renderer so fog has the paper-map "uncharted" look AND feathered edges
+// where revealed cells meet still-fogged terrain.
 function injectFogHatch() {
   const svgs = document.querySelectorAll('.leaflet-fog-pane svg');
   svgs.forEach(svg => {
@@ -2452,25 +2470,43 @@ function injectFogHatch() {
       defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
       svg.insertBefore(defs, svg.firstChild);
     }
-    if (defs.querySelector('#fog-hatch')) return; // already inserted
 
-    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
-    pattern.setAttribute('id', 'fog-hatch');
-    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
-    pattern.setAttribute('width', '8');
-    pattern.setAttribute('height', '8');
-    pattern.setAttribute('patternTransform', 'rotate(45)');
-    pattern.innerHTML = `
-      <rect width="8" height="8" fill="#28190f" opacity="0.85"/>
-      <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
-    `;
-    defs.appendChild(pattern);
+    // Diagonal hatch pattern (paper "uncharted" look)
+    if (!defs.querySelector('#fog-hatch')) {
+      const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+      pattern.setAttribute('id', 'fog-hatch');
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.setAttribute('width', '8');
+      pattern.setAttribute('height', '8');
+      pattern.setAttribute('patternTransform', 'rotate(45)');
+      pattern.innerHTML = `
+        <rect width="8" height="8" fill="#28190f" opacity="0.85"/>
+        <line x1="0" y1="0" x2="0" y2="8" stroke="#0e0805" stroke-width="2" opacity="0.6"/>
+      `;
+      defs.appendChild(pattern);
+    }
 
-    // Apply the pattern to the polygon's fill
+    // Gaussian blur filter — softens the sharp rectangular cell edges into
+    // smooth feathered transitions so revealed terrain blends with fog naturally
+    if (!defs.querySelector('#fog-feather')) {
+      const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+      filter.setAttribute('id', 'fog-feather');
+      filter.setAttribute('x', '-5%');
+      filter.setAttribute('y', '-5%');
+      filter.setAttribute('width', '110%');
+      filter.setAttribute('height', '110%');
+      filter.innerHTML = `
+        <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
+      `;
+      defs.appendChild(filter);
+    }
+
+    // Apply the pattern AND filter to the polygon's fill
     const paths = svg.querySelectorAll('path');
     paths.forEach(p => {
       p.setAttribute('fill', 'url(#fog-hatch)');
       p.setAttribute('fill-opacity', '1');
+      p.setAttribute('filter', 'url(#fog-feather)');
     });
   });
 }
