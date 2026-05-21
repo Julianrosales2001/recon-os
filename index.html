@@ -2362,6 +2362,12 @@ function initMap() {
   map = L.map('map', {
     zoomControl: false,
     attributionControl: true,
+    // Disable zoom animation: prevents the fog polygon from briefly disappearing
+    // during pinch-zoom while it catches up to the new zoom level.
+    // The tiles and fog will re-render together at the final zoom instead.
+    zoomAnimation: false,
+    fadeAnimation: false,
+    markerZoomAnimation: false,
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
   const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
