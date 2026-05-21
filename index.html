@@ -2387,15 +2387,6 @@ function initMap() {
   map.getPane('fogPane').style.zIndex = 250;
   map.getPane('fogPane').style.pointerEvents = 'none';
 
-  // Custom SVG renderer with HUGE padding for the fog polygon. The fog covers
-  // the entire world; default padding (0.1 = 10%) makes the SVG container too
-  // small and the fog gets clipped during zoom transitions, briefly exposing
-  // unfogged tiles. A padding of 10 means the renderer's SVG canvas extends
-  // 10x the viewport size in each direction — enough that the fog polygon
-  // never gets clipped during zoom.
-  window.fogRenderer = L.svg({ padding: 10, pane: 'fogPane' });
-  fogRenderer.addTo(map);
-
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
 
@@ -2453,7 +2444,6 @@ function renderFog() {
 
   // Combine outer + holes into one multi-polygon
   fogPolygon = L.polygon([outer, ...holes], {
-    renderer: fogRenderer,
     pane: 'fogPane',
     color: '#1a0f06',
     weight: 0,
