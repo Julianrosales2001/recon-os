@@ -2528,7 +2528,9 @@ function injectFogHatch() {
     const paths = svg.querySelectorAll('path');
     paths.forEach(p => {
       p.setAttribute('fill', 'url(#fog-hatch)');
-      p.setAttribute('fill-opacity', '1');
+      // fill-opacity here multiplies with the pattern's internal opacity, so
+      // setting it to the user's preference makes density actually responsive
+      p.setAttribute('fill-opacity', FOG_OPACITY_VALUES[prefFogOpacity] || 0.88);
       p.setAttribute('filter', 'url(#fog-feather)');
     });
   });
