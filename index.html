@@ -1016,18 +1016,6 @@
     margin-right: 4px;
   }
 
-  /* Drag crosshair — visible above finger while repositioning a pin */
-  .drag-crosshair {
-    position: fixed;
-    width: 60px;
-    height: 60px;
-    pointer-events: none;
-    z-index: 250;
-    display: none;
-    filter: drop-shadow(0 0 6px rgba(240, 160, 64, 0.6));
-  }
-  .drag-crosshair.visible { display: block; }
-
   /* ===== REPOSITION MODE (Lyft/Uber-style screen-center crosshair) ===== */
   .reposition-crosshair {
     position: absolute;
@@ -1591,14 +1579,6 @@
   </div>
 
   <!-- DRAG CROSSHAIR — shown above finger while dragging a pin -->
-  <!-- DRAG CROSSHAIR (no longer used; reposition mode has its own screen-center crosshair) -->
-  <div class="drag-crosshair" id="dragCrosshair">
-    <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="30" cy="30" r="22" fill="none" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5" stroke-dasharray="3 2"/>
-      <circle cx="30" cy="30" r="3" fill="#f0a040"/>
-    </svg>
-  </div>
-
   <!-- REPOSITION CROSSHAIR (fixed at screen center during reposition mode) -->
   <div id="repositionCrosshair" class="reposition-crosshair">
     <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
@@ -2832,10 +2812,6 @@ function renderAllMarkers() {
   if (map) renderClusters();
 }
 
-// Removed: enterDragMode, exitDragMode, exitAllDragModes
-// Repositioning is now handled by the Lyft/Uber-style screen-center crosshair flow.
-// See enterRepositionMode / confirmReposition / cancelReposition below.
-
 // ===== REPOSITION MODE (Lyft/Uber style) =====
 // When the user taps REPOSITION on a POI's detail sheet:
 //   - The original flag is hidden from the map
@@ -2951,6 +2927,19 @@ function setStatus(text, color) {
   dbg('STATUS: ' + text);
 }
 
+// Update user position state from a GeolocationCoordinates object.
+// Shared by watchPosition, retryGPSOnGesture, and pull-to-refresh.
+function applyGpsCoords(coords) {
+  const { latitude, longitude, accuracy, altitude, heading, speed } = coords;
+  userPos = { lat: latitude, lng: longitude, acc: accuracy };
+  userAltitudeM = (typeof altitude === 'number') ? altitude : null;
+  // Keep last known heading on slow/stop so the arrow doesn't blink off
+  if (typeof heading === 'number' && !isNaN(heading) && (speed === null || speed > 0.5)) {
+    userHeading = heading;
+  }
+  lastFix = Date.now();
+}
+
 function startGPS() {
   if (!navigator.geolocation) {
     setStatus('NO GPS SUPPORT IN BROWSER', '#ef4a3f');
@@ -2972,15 +2961,8 @@ function startGPS() {
 
   navigator.geolocation.watchPosition(
     (pos) => {
-      const { latitude, longitude, accuracy, altitude, heading, speed } = pos.coords;
-      userPos = { lat: latitude, lng: longitude, acc: accuracy };
-      userAltitudeM = (typeof altitude === 'number') ? altitude : null;
-      // heading is only meaningful when actually moving — iOS returns NaN at standstill
-      if (typeof heading === 'number' && !isNaN(heading) && (speed === null || speed > 0.5)) {
-        userHeading = heading;
-      }
-      // (Keep last known heading on slow/stop so the arrow doesn't blink off when paused)
-      lastFix = Date.now();
+      const { latitude, longitude, accuracy } = pos.coords;
+      applyGpsCoords(pos.coords);
 
       // setStatus shows the coords briefly until updateRegion overwrites with sector info
       setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
@@ -3051,24 +3033,17 @@ function retryGPSOnGesture() {
   setStatus('RETRY GPS ON USER TAP...', '#f0a040');
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const { latitude, longitude, accuracy, altitude, heading, speed } = pos.coords;
-      userPos = { lat: latitude, lng: longitude, acc: accuracy };
-      userAltitudeM = (typeof altitude === 'number') ? altitude : null;
-      if (typeof heading === 'number' && !isNaN(heading) && (speed === null || speed > 0.5)) {
-        userHeading = heading;
-      }
-      lastFix = Date.now();
+      const { latitude, longitude, accuracy } = pos.coords;
+      applyGpsCoords(pos.coords);
       setStatus(`${latitude.toFixed(4)} / ${longitude.toFixed(4)} · ±${Math.round(accuracy)}m`, '#c9d97b');
       dbg('RETRY SUCCESS');
       if (!userMarker) {
         userMarker = L.marker([latitude, longitude], { icon: userIcon(userHeading) }).addTo(map);
         map.setView([latitude, longitude], 16);
       }
-      // First fog reveal
       revealAround(latitude, longitude);
       lastSamplePos = { lat: latitude, lng: longitude };
       renderFog();
-      // First region check (will auto-establish "<Town> REGION" if needed)
       updateRegion(latitude, longitude);
       startGPS();
     },
@@ -3150,13 +3125,8 @@ document.addEventListener('touchend', retryGPSOnGesture, { once: false });
     if (navigator.vibrate) navigator.vibrate(20);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude, accuracy, altitude, heading, speed } = pos.coords;
-        userPos = { lat: latitude, lng: longitude, acc: accuracy };
-        userAltitudeM = (typeof altitude === 'number') ? altitude : null;
-        if (typeof heading === 'number' && !isNaN(heading) && (speed === null || speed > 0.5)) {
-          userHeading = heading;
-        }
-        lastFix = Date.now();
+        const { latitude, longitude, accuracy } = pos.coords;
+        applyGpsCoords(pos.coords);
         if (userMarker) {
           userMarker.setLatLng([latitude, longitude]);
           userMarker.setIcon(userIcon(userHeading));
