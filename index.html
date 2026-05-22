@@ -1640,16 +1640,16 @@
 
     <div class="settings-row" onclick="exportData()">
       <div>
-        <div class="settings-name">EXPORT POIs</div>
-        <div class="settings-desc">Download all data as JSON file</div>
+        <div class="settings-name">EXPORT FULL BACKUP</div>
+        <div class="settings-desc">POIs, fog, regions, journal, trail, prefs</div>
       </div>
       <div class="settings-action">→</div>
     </div>
 
     <div class="settings-row" onclick="importData()">
       <div>
-        <div class="settings-name">IMPORT POIs</div>
-        <div class="settings-desc">Restore from JSON backup</div>
+        <div class="settings-name">IMPORT FULL BACKUP</div>
+        <div class="settings-desc">Restore everything from a backup file</div>
       </div>
       <div class="settings-action">→</div>
     </div>
@@ -3739,14 +3739,21 @@ function showRegionsList() {
 
 function exportData() {
   const data = {
-    version: 4,
+    version: 5,
     exported: new Date().toISOString(),
     pois: pois,
     fog: [...revealedCells],
     regions: regions,
     journal: journalEntries,
+    trail: todayTrail,
     prefs: {
-      showTrail, activeCategoryFilter, listSearchQuery, listSortMode, legendOpen: prefLegendOpen,
+      showTrail: showTrail,
+      activeCategoryFilter: activeCategoryFilter,
+      activeRegionFilter: activeRegionFilter,
+      listSearchQuery: listSearchQuery,
+      listSortMode: listSortMode,
+      legendOpen: prefLegendOpen,
+      fogOpacity: prefFogOpacity,
     },
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3758,7 +3765,8 @@ function exportData() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('EXPORT DOWNLOADED');
+  const counts = pois.length + ' POIs · ' + revealedCells.size + ' fog cells · ' + regions.length + ' regions';
+  showToast('FULL BACKUP DOWNLOADED · ' + counts);
 }
 
 function importData() {
@@ -3798,12 +3806,21 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         journalEntries = data.journal;
         saveJournal();
       }
+      if (data.trail) {
+        todayTrail = data.trail;
+        saveTrail();
+        renderTrail();
+      }
       if (data.prefs) {
         if (typeof data.prefs.showTrail === 'boolean') showTrail = data.prefs.showTrail;
         if (typeof data.prefs.activeCategoryFilter === 'string') activeCategoryFilter = data.prefs.activeCategoryFilter;
+        if (typeof data.prefs.activeRegionFilter === 'string') activeRegionFilter = data.prefs.activeRegionFilter;
         if (typeof data.prefs.listSearchQuery === 'string') listSearchQuery = data.prefs.listSearchQuery;
         if (typeof data.prefs.listSortMode === 'string') listSortMode = data.prefs.listSortMode;
         if (typeof data.prefs.legendOpen === 'boolean') prefLegendOpen = data.prefs.legendOpen;
+        if (typeof data.prefs.fogOpacity === 'string' && FOG_OPACITY_VALUES[data.prefs.fogOpacity]) {
+          prefFogOpacity = data.prefs.fogOpacity;
+        }
         savePrefs();
       }
       renderAllMarkers();
