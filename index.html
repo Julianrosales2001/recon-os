@@ -1028,6 +1028,87 @@
   }
   .drag-crosshair.visible { display: block; }
 
+  /* Drag mode badge — sits near top of map, signals active drag state */
+  .drag-mode-badge {
+    position: absolute;
+    top: calc(var(--top-chrome-h) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 46;
+    background: rgba(8, 6, 4, 0.92);
+    border: 1px solid #d68a3a;
+    color: #f0a040;
+    font-family: 'B612 Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 18px;
+    box-shadow: 0 0 14px rgba(240, 160, 64, 0.3);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .drag-mode-badge.visible {
+    display: flex;
+    animation: drag-badge-pulse 1.2s ease-in-out infinite;
+  }
+  .drag-mode-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #f0a040;
+    box-shadow: 0 0 6px #f0a040;
+  }
+  @keyframes drag-badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* Undo button — appears for 6s after an undoable action */
+  .undo-btn {
+    position: absolute;
+    bottom: calc(var(--bot-chrome-h) + 16px);
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    z-index: 47;
+    background: rgba(8, 6, 4, 0.95);
+    border: 1px solid #d68a3a;
+    color: #f0a040;
+    font-family: 'B612 Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 22px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 14px rgba(240, 160, 64, 0.25);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    max-width: 80%;
+  }
+  .undo-btn.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  .undo-btn:active { filter: brightness(1.2); }
+  .undo-btn .undo-icon {
+    font-size: 14px;
+    color: #f0a040;
+  }
+  .undo-btn .undo-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* Pull-to-refresh GPS */
   .pull-refresh {
     position: absolute;
@@ -1461,6 +1542,18 @@
     </svg>
   </div>
 
+  <!-- DRAG MODE BADGE -->
+  <div id="dragModeBadge" class="drag-mode-badge">
+    <span class="dot"></span>
+    <span class="label">DRAG MODE</span>
+  </div>
+
+  <!-- UNDO BUTTON -->
+  <div id="undoBtn" class="undo-btn" onclick="doUndo()">
+    <span class="undo-icon">↶</span>
+    <span class="undo-label" id="undoLabel">UNDO</span>
+  </div>
+
   <!-- TOAST -->
   <div class="toast" id="toast">PIN DROPPED</div>
 
@@ -1820,6 +1913,38 @@ let selectedPoiId = null;       // currently selected on map (gets a halo)
 let liveNavPoiId = null;        // POI whose distance/bearing should live-update on GPS
 let userAltitudeM = null;       // latest GPS altitude in meters (null if not available)
 let userHeading = null;         // latest GPS heading in degrees (null if not moving / not available)
+
+// ===== UNDO STACK =====
+// One-deep last-action undo. Each pushed action has a label and a fn that
+// restores the previous state. The undo button appears for 6 seconds after
+// any undoable action.
+let lastUndoableAction = null;
+let undoHideTimer = null;
+
+function pushUndo(label, restoreFn) {
+  lastUndoableAction = { label, restoreFn, ts: Date.now() };
+  const btn = document.getElementById('undoBtn');
+  document.getElementById('undoLabel').textContent = label;
+  btn.classList.add('visible');
+  if (undoHideTimer) clearTimeout(undoHideTimer);
+  undoHideTimer = setTimeout(() => {
+    btn.classList.remove('visible');
+    lastUndoableAction = null;
+  }, 6000);
+}
+
+function doUndo() {
+  if (!lastUndoableAction) return;
+  try {
+    lastUndoableAction.restoreFn();
+    showToast('UNDONE · ' + lastUndoableAction.label);
+  } catch (e) {
+    showToast('UNDO FAILED');
+  }
+  lastUndoableAction = null;
+  document.getElementById('undoBtn').classList.remove('visible');
+  if (undoHideTimer) clearTimeout(undoHideTimer);
+}
 
 // ===== FOG OF WAR CONSTANTS =====
 const FOG_CELL_DEG = 0.0014;        // ~150m at Houston latitude
@@ -2413,6 +2538,9 @@ function initMap() {
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
 
+  // Tap on empty map exits any active drag mode
+  map.on('click', () => exitAllDragModes());
+
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
 
@@ -2604,45 +2732,99 @@ function renderAllMarkers() {
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], {
       icon: makeFlagIcon(cat.color, p.id === selectedPoiId),
-      draggable: true,
+      draggable: false,  // disabled by default — long-press to enable drag mode
     });
     m._poiId = p.id;
     m.on('click', () => {
+      // If marker is in drag mode, ignore click (it'd open the sheet and conflict)
+      if (m.dragging && m.dragging.enabled()) {
+        exitDragMode(m);
+        return;
+      }
       selectPOI(p.id);
       openClassifySheet(p.id);
     });
 
+    // === LONG-PRESS TO ENTER DRAG MODE ===
+    // Listen for touchstart/mousedown on the marker's DOM element after it's added.
+    // 500ms hold without moving more than 8px enters drag mode.
+    let pressTimer = null;
+    let pressStart = null;
+    const LONG_PRESS_MS = 500;
+    const MOVE_TOLERANCE_PX = 8;
+
+    function startPress(clientX, clientY) {
+      pressStart = { x: clientX, y: clientY };
+      pressTimer = setTimeout(() => {
+        enterDragMode(m, p);
+      }, LONG_PRESS_MS);
+    }
+    function cancelPress() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      pressStart = null;
+    }
+    function movedTooFar(clientX, clientY) {
+      if (!pressStart) return false;
+      const dx = clientX - pressStart.x;
+      const dy = clientY - pressStart.y;
+      return Math.sqrt(dx*dx + dy*dy) > MOVE_TOLERANCE_PX;
+    }
+
+    m.on('add', () => {
+      const el = m.getElement();
+      if (!el) return;
+      el.addEventListener('touchstart', (e) => {
+        if (m.dragging && m.dragging.enabled()) return;  // already in drag mode
+        const t = e.touches[0];
+        startPress(t.clientX, t.clientY);
+      }, { passive: true });
+      el.addEventListener('touchmove', (e) => {
+        const t = e.touches[0];
+        if (movedTooFar(t.clientX, t.clientY)) cancelPress();
+      }, { passive: true });
+      el.addEventListener('touchend', cancelPress, { passive: true });
+      el.addEventListener('touchcancel', cancelPress, { passive: true });
+      // Also support mouse for desktop
+      el.addEventListener('mousedown', (e) => {
+        if (m.dragging && m.dragging.enabled()) return;
+        startPress(e.clientX, e.clientY);
+      });
+      el.addEventListener('mousemove', (e) => {
+        if (movedTooFar(e.clientX, e.clientY)) cancelPress();
+      });
+      el.addEventListener('mouseup', cancelPress);
+      el.addEventListener('mouseleave', cancelPress);
+    });
+
     // === DRAG: auto-zoom + crosshair indicator ===
     let zoomBeforeDrag = null;
+    let latLngBeforeDrag = null;
     m.on('dragstart', (e) => {
       // Save current zoom level for restoration
       zoomBeforeDrag = map.getZoom();
+      latLngBeforeDrag = e.target.getLatLng();
       // Snap to max zoom centered on the pin's start position for precision
-      const startLatLng = e.target.getLatLng();
+      const startLatLng = latLngBeforeDrag;
       if (zoomBeforeDrag < 19) {
         map.setView(startLatLng, 19, { animate: true });
       }
       // Show crosshair
       const crosshair = document.getElementById('dragCrosshair');
       crosshair.classList.add('visible');
-      // Hide vibration handled by haptic if available
-      if (navigator.vibrate) navigator.vibrate(20);
     });
 
     m.on('drag', (e) => {
-      // Position the crosshair above the pin's current projected screen position.
-      // The pin's icon is anchored at its base, so we project the latlng to a screen
-      // point and offset upward to land above the finger.
+      // Position the crosshair centered exactly on the pin's anchor point —
+      // that's where it'll land when released. The pin icon is anchored at its
+      // base, so the base point of the flag is at the projected latlng. We
+      // center the 60×60 crosshair on that exact pixel.
       const latlng = e.target.getLatLng();
       const screenPt = map.latLngToContainerPoint(latlng);
       const crosshair = document.getElementById('dragCrosshair');
-      // Map container offset relative to viewport
       const mapEl = document.getElementById('map');
       const rect = mapEl.getBoundingClientRect();
-      // Crosshair is 60×60; center it horizontally on the pin's projected x,
-      // and place it ~80px above the pin tip (which is at screenPt.y because base anchor)
-      const cx = rect.left + screenPt.x - 30;
-      const cy = rect.top + screenPt.y - 110;  // pin height + offset
+      const cx = rect.left + screenPt.x - 30;  // 60/2 = 30
+      const cy = rect.top + screenPt.y - 30;
       crosshair.style.left = cx + 'px';
       crosshair.style.top = cy + 'px';
     });
@@ -2651,6 +2833,9 @@ function renderAllMarkers() {
       const newLatLng = e.target.getLatLng();
       const poi = pois.find(x => x.id === p.id);
       if (!poi) return;
+      const prevLat = latLngBeforeDrag ? latLngBeforeDrag.lat : poi.lat;
+      const prevLng = latLngBeforeDrag ? latLngBeforeDrag.lng : poi.lng;
+      const prevSector = poi.sector;
       poi.lat = newLatLng.lat;
       poi.lng = newLatLng.lng;
       const region = getCurrentRegion() || regions.find(r => r.id === poi.regionId);
@@ -2662,18 +2847,61 @@ function renderAllMarkers() {
       const displayName = poi.name || ('POI-' + poi.id.slice(-6));
       logEvent('edit', poi.id, 'Repositioned: ' + displayName, poi.sector || '');
       showToast('PIN MOVED');
+      pushUndo('Move "' + displayName + '" back', () => {
+        const x = pois.find(x => x.id === p.id);
+        if (!x) return;
+        x.lat = prevLat;
+        x.lng = prevLng;
+        x.sector = prevSector;
+        savePOIs();
+        renderAllMarkers();
+      });
 
-      // Hide crosshair, restore zoom
-      document.getElementById('dragCrosshair').classList.remove('visible');
+      // Hide crosshair, exit drag mode, restore zoom
+      exitDragMode(e.target);
       if (zoomBeforeDrag !== null && zoomBeforeDrag < 19) {
         map.setView(newLatLng, zoomBeforeDrag, { animate: true });
       }
       zoomBeforeDrag = null;
+      latLngBeforeDrag = null;
     });
 
     m.addTo(markerLayer);
   });
   if (map) renderClusters();
+}
+
+// ===== DRAG MODE =====
+// Markers are non-draggable by default. Long-press to enter drag mode, which
+// shows a "DRAG MODE" badge, the crosshair, and unlocks Leaflet's drag handler.
+// Exits on dragend, on tap of the marker, or when the user explicitly cancels.
+function enterDragMode(marker, poi) {
+  if (!marker.dragging) return;
+  marker.dragging.enable();
+  marker.setIcon(makeFlagIcon(
+    (CATEGORIES.find(c => c.id === poi.category) || CATEGORIES[0]).color,
+    true  // selected style
+  ));
+  selectedPoiId = poi.id;
+  document.getElementById('dragModeBadge').classList.add('visible');
+  if (navigator.vibrate) navigator.vibrate(30);
+  showToast('DRAG MODE · DRAG TO REPOSITION');
+}
+
+function exitDragMode(marker) {
+  if (marker && marker.dragging) marker.dragging.disable();
+  document.getElementById('dragModeBadge').classList.remove('visible');
+  document.getElementById('dragCrosshair').classList.remove('visible');
+}
+
+// Tap on empty map exits drag mode for any marker that's in it
+function exitAllDragModes() {
+  if (!markerLayer) return;
+  markerLayer.eachLayer(m => {
+    if (m.dragging && m.dragging.enabled()) m.dragging.disable();
+  });
+  document.getElementById('dragModeBadge').classList.remove('visible');
+  document.getElementById('dragCrosshair').classList.remove('visible');
 }
 
 function recenterMap() {
@@ -3293,6 +3521,8 @@ function savePOI() {
   if (!poi) return;
   const wasClassified = !!poi.category;
   const oldHVA = poi.hva;
+  // Snapshot for undo
+  const beforeSnapshot = JSON.parse(JSON.stringify(poi));
   poi.category = selectedCategory;
   poi.name = document.getElementById('poiName').value.trim();
   poi.notes = document.getElementById('poiNotes').value.trim();
@@ -3313,6 +3543,17 @@ function savePOI() {
     logEvent('hva', poi.id, 'Marked HVA: ' + displayName, poi.category);
   }
 
+  // Offer undo for the change
+  const undoLabel = wasClassified ? 'Undo edit' : 'Undo classification';
+  pushUndo(undoLabel, () => {
+    const p = pois.find(x => x.id === beforeSnapshot.id);
+    if (!p) return;
+    Object.assign(p, beforeSnapshot);
+    savePOIs();
+    renderAllMarkers();
+    updatePendingCount();
+  });
+
   closeSheet();
   showToast('POI SAVED');
 }
@@ -3321,7 +3562,8 @@ function deletePOI() {
   const poi = pois.find(p => p.id === editingId);
   if (!poi) return;
   const displayName = poi.name || ('POI-' + poi.id.slice(-6));
-  if (!confirm('DELETE "' + displayName + '" FOREVER?\n\nThis cannot be undone.')) return;
+  if (!confirm('DELETE "' + displayName + '"?')) return;
+  const deletedPoi = JSON.parse(JSON.stringify(poi));  // deep copy for undo
   pois = pois.filter(p => p.id !== editingId);
   savePOIs();
   renderAllMarkers();
@@ -3329,6 +3571,12 @@ function deletePOI() {
   logEvent('delete', editingId, 'Deleted: ' + displayName, poi.category || '');
   closeSheet();
   showToast('POI DELETED');
+  pushUndo('Restore "' + displayName + '"', () => {
+    pois.push(deletedPoi);
+    savePOIs();
+    renderAllMarkers();
+    updatePendingCount();
+  });
 }
 
 // ===== LIST FILTER STATE (also used for map filtering) =====
