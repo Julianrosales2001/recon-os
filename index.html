@@ -2735,27 +2735,25 @@ function renderAllMarkers() {
       draggable: true,  // attach the drag handler so it can be toggled on/off later
     });
     m._poiId = p.id;
-    m.on('click', () => {
-      // If marker is in drag mode, ignore click (it'd open the sheet and conflict)
-      if (m.dragging && m.dragging.enabled()) {
-        exitDragMode(m);
-        return;
-      }
-      selectPOI(p.id);
-      openClassifySheet(p.id);
-    });
 
     // === LONG-PRESS TO ENTER DRAG MODE ===
-    // Listen for touchstart/mousedown on the marker's DOM element after it's added.
-    // 500ms hold without moving more than 8px enters drag mode.
+    // 400ms hold with up to 20px finger jitter enters drag mode. Touch events
+    // are passive so they don't fight with Leaflet's pan handler. Once drag
+    // mode is on, Leaflet's own marker drag takes over.
     let pressTimer = null;
     let pressStart = null;
-    const LONG_PRESS_MS = 500;
-    const MOVE_TOLERANCE_PX = 8;
+    let pressFired = false;  // true once long-press has triggered, so we don't double-fire
+    const LONG_PRESS_MS = 400;
+    const MOVE_TOLERANCE_PX = 20;
 
     function startPress(clientX, clientY) {
+      cancelPress();
       pressStart = { x: clientX, y: clientY };
+      pressFired = false;
       pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (!pressStart) return;  // canceled before firing
+        pressFired = true;
         enterDragMode(m, p);
       }, LONG_PRESS_MS);
     }
@@ -2769,6 +2767,20 @@ function renderAllMarkers() {
       const dy = clientY - pressStart.y;
       return Math.sqrt(dx*dx + dy*dy) > MOVE_TOLERANCE_PX;
     }
+
+    m.on('click', () => {
+      // If a long-press just fired, swallow the resulting click — otherwise
+      // the click would immediately exit the drag mode we just enabled.
+      if (pressFired) { pressFired = false; return; }
+      // If marker is already in drag mode (from earlier long-press), tapping
+      // it exits drag mode without opening the sheet.
+      if (m.dragging && m.dragging.enabled()) {
+        exitDragMode(m);
+        return;
+      }
+      selectPOI(p.id);
+      openClassifySheet(p.id);
+    });
 
     m.on('add', () => {
       // Disable dragging by default — long-press will enable it
