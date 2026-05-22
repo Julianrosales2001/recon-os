@@ -2732,7 +2732,7 @@ function renderAllMarkers() {
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], {
       icon: makeFlagIcon(cat.color, p.id === selectedPoiId),
-      draggable: false,  // disabled by default — long-press to enable drag mode
+      draggable: true,  // attach the drag handler so it can be toggled on/off later
     });
     m._poiId = p.id;
     m.on('click', () => {
@@ -2771,6 +2771,8 @@ function renderAllMarkers() {
     }
 
     m.on('add', () => {
+      // Disable dragging by default — long-press will enable it
+      if (m.dragging) m.dragging.disable();
       const el = m.getElement();
       if (!el) return;
       el.addEventListener('touchstart', (e) => {
