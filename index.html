@@ -1028,43 +1028,103 @@
   }
   .drag-crosshair.visible { display: block; }
 
-  /* Drag mode badge — sits near top of map, signals active drag state */
-  .drag-mode-badge {
+  /* ===== REPOSITION MODE (Lyft/Uber-style screen-center crosshair) ===== */
+  .reposition-crosshair {
     position: absolute;
-    top: calc(var(--top-chrome-h) + 10px);
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
-    z-index: 46;
-    background: rgba(8, 6, 4, 0.92);
-    border: 1px solid #d68a3a;
-    color: #f0a040;
-    font-family: 'B612 Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.28em;
-    font-weight: 700;
-    padding: 6px 14px;
-    border-radius: 18px;
-    box-shadow: 0 0 14px rgba(240, 160, 64, 0.3);
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
-    display: none;
-    align-items: center;
-    gap: 8px;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
     pointer-events: none;
+    z-index: 250;
+    display: none;
+    filter: drop-shadow(0 0 8px rgba(240, 160, 64, 0.7)) drop-shadow(0 2px 6px rgba(0,0,0,0.5));
   }
-  .drag-mode-badge.visible {
+  .reposition-crosshair.visible {
+    display: block;
+    animation: reposition-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes reposition-pulse {
+    0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.03); }
+  }
+
+  .reposition-bar {
+    position: absolute;
+    bottom: calc(var(--bot-chrome-h) + 12px);
+    left: 12px;
+    right: 12px;
+    z-index: 48;
+    background: linear-gradient(180deg, #322a24 0%, #1a1614 100%);
+    border: 1px solid #d68a3a;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(220, 190, 140, 0.18);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  }
+  .reposition-bar.visible {
     display: flex;
-    animation: drag-badge-pulse 1.2s ease-in-out infinite;
+    opacity: 1;
+    transform: translateY(0);
   }
-  .drag-mode-badge .dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #f0a040;
-    box-shadow: 0 0 6px #f0a040;
+  .reposition-bar-info {
+    text-align: center;
   }
-  @keyframes drag-badge-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+  .reposition-bar-label {
+    font-family: 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    color: #d68a3a;
+    font-weight: 700;
+    text-shadow: 0 0 4px rgba(214, 138, 58, 0.45);
   }
+  .reposition-bar-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #e8dcc4;
+    font-weight: 500;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reposition-bar-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .reposition-cancel,
+  .reposition-confirm {
+    flex: 1;
+    font-family: 'B612 Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    padding: 12px 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
+  .reposition-cancel {
+    background: linear-gradient(180deg, #3a3128 0%, #1f1a14 100%);
+    border: 1px solid #14110d;
+    color: #8c8170;
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), 0 2px 3px rgba(0, 0, 0, 0.5);
+  }
+  .reposition-cancel:active { transform: translateY(1px); filter: brightness(0.9); }
+  .reposition-confirm {
+    background: linear-gradient(180deg, #e87819 0%, #c8331f 100%);
+    border: 1px solid #1a0a04;
+    color: #fff5d8;
+    box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.3), 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 14px rgba(232, 120, 25, 0.35);
+  }
+  .reposition-confirm:active { transform: translateY(1px); filter: brightness(1.1); }
 
   /* Undo button — appears for 6s after an undoable action */
   .undo-btn {
@@ -1531,21 +1591,38 @@
   </div>
 
   <!-- DRAG CROSSHAIR — shown above finger while dragging a pin -->
+  <!-- DRAG CROSSHAIR (no longer used; reposition mode has its own screen-center crosshair) -->
   <div class="drag-crosshair" id="dragCrosshair">
     <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
       <circle cx="30" cy="30" r="22" fill="none" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5" stroke-dasharray="3 2"/>
       <circle cx="30" cy="30" r="3" fill="#f0a040"/>
-      <line x1="30" y1="6" x2="30" y2="20" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
-      <line x1="30" y1="40" x2="30" y2="54" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
-      <line x1="6" y1="30" x2="20" y2="30" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
-      <line x1="40" y1="30" x2="54" y2="30" stroke="rgba(240, 160, 64, 0.9)" stroke-width="1.5"/>
     </svg>
   </div>
 
-  <!-- DRAG MODE BADGE -->
-  <div id="dragModeBadge" class="drag-mode-badge">
-    <span class="dot"></span>
-    <span class="label">DRAG MODE</span>
+  <!-- REPOSITION CROSSHAIR (fixed at screen center during reposition mode) -->
+  <div id="repositionCrosshair" class="reposition-crosshair">
+    <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+      <circle cx="40" cy="40" r="32" fill="none" stroke="#f0a040" stroke-width="2" opacity="0.4"/>
+      <circle cx="40" cy="40" r="24" fill="none" stroke="#f0a040" stroke-width="1.5" opacity="0.55"/>
+      <circle cx="40" cy="40" r="14" fill="none" stroke="#f0a040" stroke-width="1.5" opacity="0.7"/>
+      <line x1="40" y1="4" x2="40" y2="28" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="40" y1="52" x2="40" y2="76" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="4" y1="40" x2="28" y2="40" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="52" y1="40" x2="76" y2="40" stroke="#f0a040" stroke-width="2.5"/>
+      <circle cx="40" cy="40" r="3" fill="#f0a040"/>
+    </svg>
+  </div>
+
+  <!-- REPOSITION CONFIRM BAR -->
+  <div id="repositionBar" class="reposition-bar">
+    <div class="reposition-bar-info">
+      <div class="reposition-bar-label">REPOSITIONING</div>
+      <div class="reposition-bar-name" id="repositionPoiName">—</div>
+    </div>
+    <div class="reposition-bar-buttons">
+      <button type="button" class="reposition-cancel" onclick="cancelReposition()">CANCEL</button>
+      <button type="button" class="reposition-confirm" onclick="confirmReposition()">POSITION HERE</button>
+    </div>
   </div>
 
   <!-- UNDO BUTTON -->
@@ -1639,6 +1716,13 @@
             <span class="val" id="navElevation">—</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div id="repositionRow" style="display:none;">
+      <div class="field-label">POSITION</div>
+      <div class="visit-row" style="justify-content: stretch;">
+        <button type="button" class="visit-log-btn" style="flex:1;" onclick="enterRepositionMode(editingId)">⊕ REPOSITION ON MAP</button>
       </div>
     </div>
 
@@ -1913,6 +1997,9 @@ let selectedPoiId = null;       // currently selected on map (gets a halo)
 let liveNavPoiId = null;        // POI whose distance/bearing should live-update on GPS
 let userAltitudeM = null;       // latest GPS altitude in meters (null if not available)
 let userHeading = null;         // latest GPS heading in degrees (null if not moving / not available)
+let repositionPoiId = null;     // POI currently being repositioned (Lyft-style flow)
+let repositionOriginalLatLng = null;
+let repositionOriginalSector = null;
 
 // ===== UNDO STACK =====
 // One-deep last-action undo. Each pushed action has a label and a fn that
@@ -2538,9 +2625,6 @@ function initMap() {
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
 
-  // Tap on empty map exits any active drag mode
-  map.on('click', () => exitAllDragModes());
-
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
 
@@ -2729,193 +2813,119 @@ function renderAllMarkers() {
     // Apply category filter (also affects map — unclassified always show)
     if (p.category && activeCategoryFilter !== 'ALL' && p.category !== activeCategoryFilter) return;
 
+    // If this POI is currently being repositioned, hide its flag (the screen-center
+    // crosshair represents its proposed new position instead)
+    if (repositionPoiId === p.id) return;
+
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], {
       icon: makeFlagIcon(cat.color, p.id === selectedPoiId),
-      draggable: true,  // attach the drag handler so it can be toggled on/off later
+      draggable: false,
     });
     m._poiId = p.id;
-
-    // === LONG-PRESS TO ENTER DRAG MODE ===
-    // 400ms hold with up to 20px finger jitter enters drag mode. Touch events
-    // are passive so they don't fight with Leaflet's pan handler. Once drag
-    // mode is on, Leaflet's own marker drag takes over.
-    let pressTimer = null;
-    let pressStart = null;
-    let pressFired = false;  // true once long-press has triggered, so we don't double-fire
-    const LONG_PRESS_MS = 400;
-    const MOVE_TOLERANCE_PX = 20;
-
-    function startPress(clientX, clientY) {
-      cancelPress();
-      pressStart = { x: clientX, y: clientY };
-      pressFired = false;
-      pressTimer = setTimeout(() => {
-        pressTimer = null;
-        if (!pressStart) return;  // canceled before firing
-        pressFired = true;
-        enterDragMode(m, p);
-      }, LONG_PRESS_MS);
-    }
-    function cancelPress() {
-      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-      pressStart = null;
-    }
-    function movedTooFar(clientX, clientY) {
-      if (!pressStart) return false;
-      const dx = clientX - pressStart.x;
-      const dy = clientY - pressStart.y;
-      return Math.sqrt(dx*dx + dy*dy) > MOVE_TOLERANCE_PX;
-    }
-
     m.on('click', () => {
-      // If a long-press just fired, swallow the resulting click — otherwise
-      // the click would immediately exit the drag mode we just enabled.
-      if (pressFired) { pressFired = false; return; }
-      // If marker is already in drag mode (from earlier long-press), tapping
-      // it exits drag mode without opening the sheet.
-      if (m.dragging && m.dragging.enabled()) {
-        exitDragMode(m);
-        return;
-      }
       selectPOI(p.id);
       openClassifySheet(p.id);
     });
-
-    m.on('add', () => {
-      // Disable dragging by default — long-press will enable it
-      if (m.dragging) m.dragging.disable();
-      const el = m.getElement();
-      if (!el) return;
-      el.addEventListener('touchstart', (e) => {
-        if (m.dragging && m.dragging.enabled()) return;  // already in drag mode
-        const t = e.touches[0];
-        startPress(t.clientX, t.clientY);
-      }, { passive: true });
-      el.addEventListener('touchmove', (e) => {
-        const t = e.touches[0];
-        if (movedTooFar(t.clientX, t.clientY)) cancelPress();
-      }, { passive: true });
-      el.addEventListener('touchend', cancelPress, { passive: true });
-      el.addEventListener('touchcancel', cancelPress, { passive: true });
-      // Also support mouse for desktop
-      el.addEventListener('mousedown', (e) => {
-        if (m.dragging && m.dragging.enabled()) return;
-        startPress(e.clientX, e.clientY);
-      });
-      el.addEventListener('mousemove', (e) => {
-        if (movedTooFar(e.clientX, e.clientY)) cancelPress();
-      });
-      el.addEventListener('mouseup', cancelPress);
-      el.addEventListener('mouseleave', cancelPress);
-    });
-
-    // === DRAG: auto-zoom + crosshair indicator ===
-    let zoomBeforeDrag = null;
-    let latLngBeforeDrag = null;
-    m.on('dragstart', (e) => {
-      // Save current zoom level for restoration
-      zoomBeforeDrag = map.getZoom();
-      latLngBeforeDrag = e.target.getLatLng();
-      // Snap to max zoom centered on the pin's start position for precision
-      const startLatLng = latLngBeforeDrag;
-      if (zoomBeforeDrag < 19) {
-        map.setView(startLatLng, 19, { animate: true });
-      }
-      // Show crosshair
-      const crosshair = document.getElementById('dragCrosshair');
-      crosshair.classList.add('visible');
-    });
-
-    m.on('drag', (e) => {
-      // Position the crosshair centered exactly on the pin's anchor point —
-      // that's where it'll land when released. The pin icon is anchored at its
-      // base, so the base point of the flag is at the projected latlng. We
-      // center the 60×60 crosshair on that exact pixel.
-      const latlng = e.target.getLatLng();
-      const screenPt = map.latLngToContainerPoint(latlng);
-      const crosshair = document.getElementById('dragCrosshair');
-      const mapEl = document.getElementById('map');
-      const rect = mapEl.getBoundingClientRect();
-      const cx = rect.left + screenPt.x - 30;  // 60/2 = 30
-      const cy = rect.top + screenPt.y - 30;
-      crosshair.style.left = cx + 'px';
-      crosshair.style.top = cy + 'px';
-    });
-
-    m.on('dragend', (e) => {
-      const newLatLng = e.target.getLatLng();
-      const poi = pois.find(x => x.id === p.id);
-      if (!poi) return;
-      const prevLat = latLngBeforeDrag ? latLngBeforeDrag.lat : poi.lat;
-      const prevLng = latLngBeforeDrag ? latLngBeforeDrag.lng : poi.lng;
-      const prevSector = poi.sector;
-      poi.lat = newLatLng.lat;
-      poi.lng = newLatLng.lng;
-      const region = getCurrentRegion() || regions.find(r => r.id === poi.regionId);
-      if (region) {
-        poi.sector = sectorIdForRegion(region, poi.lat, poi.lng);
-      }
-      savePOIs();
-      renderClusters();
-      const displayName = poi.name || ('POI-' + poi.id.slice(-6));
-      logEvent('edit', poi.id, 'Repositioned: ' + displayName, poi.sector || '');
-      showToast('PIN MOVED');
-      pushUndo('Move "' + displayName + '" back', () => {
-        const x = pois.find(x => x.id === p.id);
-        if (!x) return;
-        x.lat = prevLat;
-        x.lng = prevLng;
-        x.sector = prevSector;
-        savePOIs();
-        renderAllMarkers();
-      });
-
-      // Hide crosshair, exit drag mode, restore zoom
-      exitDragMode(e.target);
-      if (zoomBeforeDrag !== null && zoomBeforeDrag < 19) {
-        map.setView(newLatLng, zoomBeforeDrag, { animate: true });
-      }
-      zoomBeforeDrag = null;
-      latLngBeforeDrag = null;
-    });
-
     m.addTo(markerLayer);
   });
   if (map) renderClusters();
 }
 
-// ===== DRAG MODE =====
-// Markers are non-draggable by default. Long-press to enter drag mode, which
-// shows a "DRAG MODE" badge, the crosshair, and unlocks Leaflet's drag handler.
-// Exits on dragend, on tap of the marker, or when the user explicitly cancels.
-function enterDragMode(marker, poi) {
-  if (!marker.dragging) return;
-  marker.dragging.enable();
-  marker.setIcon(makeFlagIcon(
-    (CATEGORIES.find(c => c.id === poi.category) || CATEGORIES[0]).color,
-    true  // selected style
-  ));
-  selectedPoiId = poi.id;
-  document.getElementById('dragModeBadge').classList.add('visible');
-  if (navigator.vibrate) navigator.vibrate(30);
-  showToast('DRAG MODE · DRAG TO REPOSITION');
+// Removed: enterDragMode, exitDragMode, exitAllDragModes
+// Repositioning is now handled by the Lyft/Uber-style screen-center crosshair flow.
+// See enterRepositionMode / confirmReposition / cancelReposition below.
+
+// ===== REPOSITION MODE (Lyft/Uber style) =====
+// When the user taps REPOSITION on a POI's detail sheet:
+//   - The original flag is hidden from the map
+//   - A fixed crosshair appears at screen center (the new "phantom" position)
+//   - The detail sheet closes; a confirm bar slides up from the bottom
+//   - The user pans the map to move the location underneath the crosshair
+//   - POSITION HERE = commit lat/lng to wherever the map center is
+//   - CANCEL = revert, original flag returns
+// State variables (repositionPoiId etc.) are declared at the top with other state.
+
+function enterRepositionMode(poiId) {
+  const poi = pois.find(p => p.id === poiId);
+  if (!poi) return;
+  repositionPoiId = poiId;
+  repositionOriginalLatLng = { lat: poi.lat, lng: poi.lng };
+  repositionOriginalSector = poi.sector;
+
+  // Close any open sheet
+  closeSheet();
+
+  // Re-render markers so the POI being repositioned is hidden
+  renderAllMarkers();
+
+  // Center map on the POI at high zoom for precision
+  map.setView([poi.lat, poi.lng], Math.max(map.getZoom(), 18), { animate: true });
+
+  // Show the screen-center crosshair
+  document.getElementById('repositionCrosshair').classList.add('visible');
+  // Show the confirm bar
+  document.getElementById('repositionBar').classList.add('visible');
+  // Update the bar's label with the POI name
+  const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+  document.getElementById('repositionPoiName').textContent = displayName;
+
+  if (navigator.vibrate) navigator.vibrate(25);
+  showToast('PAN MAP TO REPOSITION · TAP CONFIRM WHEN READY');
 }
 
-function exitDragMode(marker) {
-  if (marker && marker.dragging) marker.dragging.disable();
-  document.getElementById('dragModeBadge').classList.remove('visible');
-  document.getElementById('dragCrosshair').classList.remove('visible');
-}
+function confirmReposition() {
+  if (!repositionPoiId) return;
+  const poi = pois.find(p => p.id === repositionPoiId);
+  if (!poi) {
+    cancelReposition();
+    return;
+  }
+  const newCenter = map.getCenter();
+  const prevLat = repositionOriginalLatLng.lat;
+  const prevLng = repositionOriginalLatLng.lng;
+  const prevSector = repositionOriginalSector;
+  poi.lat = newCenter.lat;
+  poi.lng = newCenter.lng;
+  const region = getCurrentRegion() || regions.find(r => r.id === poi.regionId);
+  if (region) {
+    poi.sector = sectorIdForRegion(region, poi.lat, poi.lng);
+  }
+  savePOIs();
 
-// Tap on empty map exits drag mode for any marker that's in it
-function exitAllDragModes() {
-  if (!markerLayer) return;
-  markerLayer.eachLayer(m => {
-    if (m.dragging && m.dragging.enabled()) m.dragging.disable();
+  const displayName = poi.name || ('POI-' + poi.id.slice(-6));
+  logEvent('edit', poi.id, 'Repositioned: ' + displayName, poi.sector || '');
+  showToast('POSITION SAVED');
+
+  // Undo
+  const undoPoiId = poi.id;
+  pushUndo('Move "' + displayName + '" back', () => {
+    const x = pois.find(x => x.id === undoPoiId);
+    if (!x) return;
+    x.lat = prevLat;
+    x.lng = prevLng;
+    x.sector = prevSector;
+    savePOIs();
+    renderAllMarkers();
   });
-  document.getElementById('dragModeBadge').classList.remove('visible');
-  document.getElementById('dragCrosshair').classList.remove('visible');
+
+  exitRepositionUI();
+  renderAllMarkers();
+}
+
+function cancelReposition() {
+  if (!repositionPoiId) return;
+  exitRepositionUI();
+  renderAllMarkers();
+  showToast('REPOSITION CANCELED');
+}
+
+function exitRepositionUI() {
+  repositionPoiId = null;
+  repositionOriginalLatLng = null;
+  repositionOriginalSector = null;
+  document.getElementById('repositionCrosshair').classList.remove('visible');
+  document.getElementById('repositionBar').classList.remove('visible');
 }
 
 function recenterMap() {
@@ -3268,6 +3278,8 @@ function openClassifySheet(poiId) {
 
   // Always show navigation row
   document.getElementById('navRow').style.display = 'block';
+  // Always show reposition row
+  document.getElementById('repositionRow').style.display = 'block';
 
   buildCatGrid();
   document.getElementById('sheetOverlay').classList.add('open');
