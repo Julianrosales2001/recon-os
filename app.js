@@ -266,6 +266,46 @@ function loadRegions() {
   } catch (e) {
     regions = [];
   }
+  // One-shot migration: regions with `boundary` (raw GeoJSON) need to be
+  // compacted to `boundarySimplified` (Leaflet-format, simplified, 4-decimal).
+  // This was added after we discovered regions were eating 3+ MB of localStorage
+  // because we stored raw OSM polygons (thousands of vertices each).
+  let migrated = 0;
+  let savedBytes = 0;
+  regions.forEach(r => {
+    if (r.boundary && !r.boundarySimplified) {
+      try {
+        const rawSize = JSON.stringify(r.boundary).length;
+        // Convert raw GeoJSON → Leaflet coords → keep largest piece → simplify each ring → round
+        let coords = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
+        if (r.boundary.type === 'MultiPolygon') {
+          coords = keepLargestPiece('MultiPolygon', coords);
+        }
+        // coords is now [ring, ring, ...] where ring = [[lat,lng], ...]
+        const SIMPLIFY_TOL_M = 400;
+        coords = coords.map(ring => simplifyRing(ring, SIMPLIFY_TOL_M));
+        // Round each lat/lng to 4 decimals (~11 m precision — well under tolerance)
+        coords = coords.map(ring => ring.map(pt => [
+          Math.round(pt[0] * 10000) / 10000,
+          Math.round(pt[1] * 10000) / 10000,
+        ]));
+        r.boundarySimplified = {
+          coords: coords,
+          fetched: r.boundary.fetched || Date.now(),
+        };
+        delete r.boundary;  // free the bulky raw copy
+        const newSize = JSON.stringify(r.boundarySimplified).length;
+        savedBytes += (rawSize - newSize);
+        migrated++;
+      } catch (e) {
+        console.error('Region simplify migration failed for', r.name, e);
+      }
+    }
+  });
+  if (migrated > 0) {
+    saveRegions();
+    console.log('Region compacting:', migrated, 'regions simplified, ~' + Math.round(savedBytes / 1024) + ' KB freed');
+  }
 }
 function saveRegions() {
   safeSet('recon.os.regions', JSON.stringify(regions));
@@ -302,7 +342,16 @@ function logEvent(type, poiId, summary, meta) {
 function loadTrail() {
   try {
     const raw = localStorage.getItem('recon.os.trail');
-    todayTrail = raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Compact format: array of [lat, lng, tsSec] triples.
+    // Legacy format: array of {lat, lng, ts} objects (ts in ms).
+    // Detect and normalize to in-memory {lat, lng, ts} (ts in ms).
+    todayTrail = parsed.map(pt => {
+      if (Array.isArray(pt)) {
+        return { lat: pt[0], lng: pt[1], ts: pt[2] * 1000 };
+      }
+      return pt;  // legacy object form
+    });
   } catch (e) {
     todayTrail = [];
   }
@@ -312,7 +361,15 @@ function loadTrail() {
 function saveTrail() {
   if (saveTrail._timer) clearTimeout(saveTrail._timer);
   saveTrail._timer = setTimeout(() => {
-    safeSet('recon.os.trail', JSON.stringify(todayTrail));
+    // Compact serialization: round lat/lng to 5 decimals (~1 m precision),
+    // truncate timestamp to seconds, store as plain arrays. Cuts trail storage
+    // by ~40% versus storing full {lat, lng, ts} objects with 7-decimal coords.
+    const compact = todayTrail.map(pt => [
+      Math.round(pt.lat * 100000) / 100000,
+      Math.round(pt.lng * 100000) / 100000,
+      Math.floor(pt.ts / 1000),
+    ]);
+    safeSet('recon.os.trail', JSON.stringify(compact));
   }, 2000);
 }
 
@@ -331,6 +388,12 @@ function recordTrailPoint(lat, lng) {
     if (metersBetween(last.lat, last.lng, lat, lng) < 15) return;  // 15m noise floor
   }
   todayTrail.push({ lat, lng, ts: Date.now() });
+  // Soft cap: hours of driving can generate 10K+ points. Keep most recent 5000.
+  // At 15m spacing that's about 75 km of unique road which covers any single
+  // day's worth of driving for a personal tool. Older points fall off silently.
+  if (todayTrail.length > 5000) {
+    todayTrail = todayTrail.slice(-5000);
+  }
   saveTrail();
   renderTrail();
 }
@@ -713,11 +776,25 @@ async function fetchBoundaryForRegion(regionId, opts) {
     const t = data.geojson.type;
     if (t !== 'Polygon' && t !== 'MultiPolygon') return false;
 
-    region.boundary = {
-      type: t,
-      coords: data.geojson.coordinates,
+    // Simplify NOW (before storing) instead of carrying around the raw OSM
+    // polygon. Raw boundaries can be thousands of vertices and bloat storage.
+    let coords = geoJsonToLeafletCoords(t, data.geojson.coordinates);
+    if (t === 'MultiPolygon') {
+      coords = keepLargestPiece('MultiPolygon', coords);
+    }
+    const SIMPLIFY_TOL_M = 400;
+    coords = coords.map(ring => simplifyRing(ring, SIMPLIFY_TOL_M));
+    // Round to 4 decimals (~11 m precision)
+    coords = coords.map(ring => ring.map(pt => [
+      Math.round(pt[0] * 10000) / 10000,
+      Math.round(pt[1] * 10000) / 10000,
+    ]));
+    region.boundarySimplified = {
+      coords: coords,
       fetched: Date.now(),
     };
+    // Make sure no raw copy is hanging around from previous code
+    delete region.boundary;
     saveRegions();
     if (!opts.silent) showToast('BOUNDARY FETCHED · ' + region.name.replace(' REGION', ''));
     renderBoundaries();
@@ -729,7 +806,7 @@ async function fetchBoundaryForRegion(regionId, opts) {
 }
 
 async function fetchAllBoundaries() {
-  const targets = regions.filter(r => !r.boundary);
+  const targets = regions.filter(r => !r.boundary && !r.boundarySimplified);
   if (targets.length === 0) {
     showToast('ALL BOUNDARIES ALREADY FETCHED');
     return;
@@ -902,25 +979,30 @@ function renderBoundaries() {
   boundaryLayer.clearLayers();
   if (!prefShowBoundaries) return;
 
-  // Tolerance for simplification (meters). Higher = less detail.
-  const SIMPLIFY_TOL_M = 400;
-
   // Collect label positions so we can hide colliding ones
   const placedLabels = [];  // each: { lat, lng, text, radius (px) }
   const mapZoom = map.getZoom();
 
   regions.forEach(r => {
-    if (!r.boundary) return;
-    let coords = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
-    if (coords.length === 0) return;
+    // Prefer the new compact simplified format. Fall back to raw .boundary
+    // for any region that hasn't been migrated yet (shouldn't happen after
+    // loadRegions runs, but be defensive).
+    let coords;
+    if (r.boundarySimplified && r.boundarySimplified.coords) {
+      coords = r.boundarySimplified.coords;
+    } else if (r.boundary) {
+      // Legacy fallback — should be rare after migration
+      coords = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
+      if (r.boundary.type === 'MultiPolygon') {
+        coords = keepLargestPiece('MultiPolygon', coords);
+      }
+      coords = coords.map(ring => simplifyRing(ring, 400));
+    } else {
+      return;
+    }
 
-    // Reduce MultiPolygon to its largest piece
-    coords = keepLargestPiece(r.boundary.type, coords);
-    // coords now is an array of rings: [outerRing, hole1, hole2, ...]
+    if (!Array.isArray(coords) || coords.length === 0) return;
     if (!Array.isArray(coords[0]) || !Array.isArray(coords[0][0])) return;
-
-    // Simplify each ring
-    coords = coords.map(ring => simplifyRing(ring, SIMPLIFY_TOL_M));
     // Drop any rings that collapsed to too few points
     coords = coords.filter(ring => ring.length >= 4);
     if (coords.length === 0) return;
@@ -2746,11 +2828,11 @@ function showRegionsList() {
   const lines = regions.map((r, i) => {
     const isCurrent = r.id === currentRegionId;
     const star = isCurrent ? '★ ' : '  ';
-    const boundary = r.boundary ? '✓ boundary' : '— no boundary';
+    const boundary = (r.boundary || r.boundarySimplified) ? '✓ boundary' : '— no boundary';
     return `${star}${i+1}. ${r.name}\n   ${r.revealedSectors.length} sectors · ${boundary}`;
   });
   // Build a prompt: pick a region to fetch a missing boundary
-  const missing = regions.filter(r => !r.boundary);
+  const missing = regions.filter(r => !r.boundary && !r.boundarySimplified);
   let extra = '';
   if (missing.length > 0) {
     extra = '\n\n' + missing.length + ' region(s) missing boundaries.\nUse FETCH ALL BOUNDARIES in settings.';
