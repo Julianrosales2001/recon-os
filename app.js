@@ -194,10 +194,55 @@ function saveMissions() {
   safeSet('recon.os.missions', JSON.stringify(missions));
 }
 
+// ===== FOG SERIALIZATION =====
+// Cells are stored in-memory as string IDs ("29.74000_-94.99000") — that
+// format is referenced throughout the codebase and we don't want to churn it.
+// On disk, however, we pack each cell into a single integer to halve the
+// stored size. ~50% reduction in fog footprint at the serialization boundary.
+//
+// Pack scheme:
+//   latIdx = round(cellLat / FOG_CELL_DEG)        // can be negative
+//   lngIdx = round(cellLng / FOG_CELL_DEG)        // can be negative
+//   packed = (latIdx + LAT_OFFSET) * LNG_STRIDE + (lngIdx + LAT_OFFSET)
+// The offsets keep both indices positive within global coverage range.
+const FOG_PACK_OFFSET = 200000;        // shifts negative indices positive
+const FOG_PACK_STRIDE = 500000;        // > 2 * FOG_PACK_OFFSET, ample headroom
+function cellIdToPacked(cellId) {
+  const [lat, lng] = cellId.split('_').map(Number);
+  const latIdx = Math.round(lat / FOG_CELL_DEG);
+  const lngIdx = Math.round(lng / FOG_CELL_DEG);
+  return (latIdx + FOG_PACK_OFFSET) * FOG_PACK_STRIDE + (lngIdx + FOG_PACK_OFFSET);
+}
+function packedToCellId(packed) {
+  const lngIdx = (packed % FOG_PACK_STRIDE) - FOG_PACK_OFFSET;
+  const latIdx = Math.floor(packed / FOG_PACK_STRIDE) - FOG_PACK_OFFSET;
+  const lat = latIdx * FOG_CELL_DEG;
+  const lng = lngIdx * FOG_CELL_DEG;
+  return lat.toFixed(5) + '_' + lng.toFixed(5);
+}
+
 function loadFog() {
   try {
     const raw = localStorage.getItem('recon.os.fog');
-    revealedCells = new Set(raw ? JSON.parse(raw) : []);
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Detect format: new = numbers, legacy = strings.
+    // Convert each entry back to the in-memory string-ID form.
+    revealedCells = new Set();
+    let migrationNeeded = false;
+    for (const item of parsed) {
+      if (typeof item === 'number') {
+        revealedCells.add(packedToCellId(item));
+      } else if (typeof item === 'string') {
+        revealedCells.add(item);
+        migrationNeeded = true;
+      }
+    }
+    // If we found any legacy string entries, save in new format immediately.
+    // This is the one-shot migration trigger.
+    if (migrationNeeded && revealedCells.size > 0) {
+      console.log('Fog cell compacting: migrating', revealedCells.size, 'cells to packed format');
+      saveFog();  // throttled, will write in compact form
+    }
   } catch (e) {
     revealedCells = new Set();
   }
@@ -206,7 +251,15 @@ function saveFog() {
   // Throttled — saving on every cell add would thrash storage
   if (saveFog._timer) clearTimeout(saveFog._timer);
   saveFog._timer = setTimeout(() => {
-    safeSet('recon.os.fog', JSON.stringify([...revealedCells]));
+    // Serialize as packed integers. Skip any cell ID that fails to pack
+    // (shouldn't happen, but be defensive).
+    const packed = [];
+    for (const cellId of revealedCells) {
+      try {
+        packed.push(cellIdToPacked(cellId));
+      } catch (e) { /* skip malformed */ }
+    }
+    safeSet('recon.os.fog', JSON.stringify(packed));
   }, 2000);
 }
 
@@ -2846,7 +2899,7 @@ function exportData() {
     version: 6,
     exported: new Date().toISOString(),
     pois: pois,
-    fog: [...revealedCells],
+    fog: [...revealedCells].map(cellIdToPacked),
     regions: regions,
     journal: journalEntries,
     trail: todayTrail,
@@ -2902,7 +2955,15 @@ document.getElementById('importFile').addEventListener('change', (e) => {
       pois = data.pois;
       savePOIs();
       if (data.fog) {
-        revealedCells = new Set(data.fog);
+        // Handle both packed-integer format (current) and legacy string format
+        revealedCells = new Set();
+        for (const item of data.fog) {
+          if (typeof item === 'number') {
+            revealedCells.add(packedToCellId(item));
+          } else if (typeof item === 'string') {
+            revealedCells.add(item);
+          }
+        }
         saveFog();
         renderFog();
       }
