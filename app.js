@@ -338,6 +338,7 @@ function loadPrefs() {
     if (typeof p.fogOpacity === 'string' && FOG_OPACITY_VALUES[p.fogOpacity]) prefFogOpacity = p.fogOpacity;
     if (typeof p.activeLogTab === 'string') activeLogTab = p.activeLogTab;
     if (typeof p.showBoundaries === 'boolean') prefShowBoundaries = p.showBoundaries;
+    if (typeof p.activeLegendTab === 'string') activeLegendTab = p.activeLegendTab;
   } catch (e) { /* ignore */ }
 }
 
@@ -355,6 +356,7 @@ function savePrefs() {
       fogOpacity: prefFogOpacity,
       activeLogTab: activeLogTab,
       showBoundaries: prefShowBoundaries,
+      activeLegendTab: activeLegendTab,
     }));
   }, 500);
 }
@@ -2478,9 +2480,23 @@ function closeSheet() {
 }
 
 // ===== LEGEND TOGGLE =====
+let activeLegendTab = 'categories';  // 'categories' | 'symbols'
+
 function buildLegend() {
+  // Update which tab chip is active
+  document.querySelectorAll('.legend-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.legendTab === activeLegendTab);
+  });
   const rows = document.getElementById('legendRows');
   rows.innerHTML = '';
+  if (activeLegendTab === 'categories') {
+    renderLegendCategories(rows);
+  } else {
+    renderLegendSymbols(rows);
+  }
+}
+
+function renderLegendCategories(rows) {
   CATEGORIES.forEach(cat => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:3px 0; color:' + cat.color + ';';
@@ -2494,19 +2510,44 @@ function buildLegend() {
     rows.appendChild(row);
   });
 }
+
+function renderLegendSymbols(rows) {
+  POI_TYPES.forEach(t => {
+    if (t.id === 'NONE') return;  // skip the empty placeholder
+    const row = document.createElement('div');
+    row.className = 'legend-symbol-row';
+    row.innerHTML = `
+      <div class="swatch">
+        <svg viewBox="-12 -12 24 24" xmlns="http://www.w3.org/2000/svg" style="color:#d68a3a;">
+          ${t.svg}
+        </svg>
+      </div>
+      <span class="label">${t.label}</span>
+    `;
+    rows.appendChild(row);
+  });
+}
+
+function switchLegendTab(tabId) {
+  activeLegendTab = tabId;
+  buildLegend();
+  savePrefs();
+}
+
 buildLegend();
 
 function toggleLegend() {
   const panel = document.getElementById('legendPanel');
   const btn = document.getElementById('legendBtn');
-  if (panel.style.display === 'none' || !panel.style.display) {
-    panel.style.display = 'block';
-    btn.classList.add('active');
-    prefLegendOpen = true;
-  } else {
-    panel.style.display = 'none';
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
     btn.classList.remove('active');
     prefLegendOpen = false;
+  } else {
+    panel.classList.add('open');
+    btn.classList.add('active');
+    prefLegendOpen = true;
   }
   savePrefs();
 }
@@ -2516,7 +2557,7 @@ function applyLegendPref() {
   const panel = document.getElementById('legendPanel');
   const btn = document.getElementById('legendBtn');
   if (prefLegendOpen) {
-    panel.style.display = 'block';
+    panel.classList.add('open');
     btn.classList.add('active');
   }
 }

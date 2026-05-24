@@ -65,7 +65,10 @@
 
   <!-- LEGEND PANEL (hidden by default) -->
   <div id="legendPanel" class="legend-panel">
-    <div class="legend-header">▸ FLAG LEGEND</div>
+    <div class="legend-tabs">
+      <div class="legend-tab active" data-legend-tab="categories" onclick="switchLegendTab('categories')">CATEGORIES</div>
+      <div class="legend-tab" data-legend-tab="symbols" onclick="switchLegendTab('symbols')">SYMBOLS</div>
+    </div>
     <div id="legendRows"></div>
   </div>
 

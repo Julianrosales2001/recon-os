@@ -1362,10 +1362,43 @@
     background: linear-gradient(180deg, #322a24 0%, #1a1614 100%);
     border: 1px solid #3a3128;
     border-radius: 3px;
-    padding: 8px 10px;
-    width: 130px;
-    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
+    padding: 6px 8px 8px;
+    width: 160px;
+    max-height: 60vh;
+    overflow: hidden;
     display: none;
+    flex-direction: column;
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+  .legend-panel.open { display: flex; }
+  .legend-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    padding: 2px;
+    background: #050403;
+    border: 1px solid #2a2520;
+    border-radius: 3px;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+  }
+  .legend-tab {
+    padding: 5px 4px;
+    border-radius: 2px;
+    cursor: pointer;
+    text-align: center;
+    font-family: 'B612 Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    color: #6e6354;
+    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+  }
+  .legend-tab.active {
+    background: linear-gradient(180deg, #322a24 0%, #1f1a14 100%);
+    color: #f0a040;
+    box-shadow: inset 0 1px 0 rgba(240, 160, 64, 0.25);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
   }
   .legend-header {
     font-size: 7px;
@@ -1375,6 +1408,40 @@
     padding-bottom: 6px;
     margin-bottom: 6px;
     border-bottom: 1px solid #2a2520;
+  }
+  #legendRows {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
+  }
+  .legend-symbol-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 2px;
+  }
+  .legend-symbol-row .swatch {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    background: rgba(8, 6, 4, 0.92);
+    border: 1px solid #2a2520;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .legend-symbol-row .swatch svg {
+    width: 12px;
+    height: 12px;
+  }
+  .legend-symbol-row .label {
+    font-family: 'B612 Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    font-weight: 700;
+    color: #d4c8b0;
   }
   .pull-refresh.visible {
     opacity: 1;
