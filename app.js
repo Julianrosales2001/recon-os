@@ -726,31 +726,195 @@ function geoJsonToLeafletCoords(geoType, coords) {
   return [];
 }
 
+// ----- Polygon cleanup helpers -----
+
+// Approximate degrees per meter at a given latitude (for our local area).
+// One degree latitude ≈ 111000 m; one degree longitude ≈ 111000 * cos(lat) m.
+function degPerMeter(lat) {
+  const cosLat = Math.cos(lat * Math.PI / 180);
+  return { latDeg: 1 / 111000, lngDeg: 1 / (111000 * Math.max(cosLat, 0.01)) };
+}
+
+// Perpendicular distance from point p to the line through a and b, in meters.
+// All points are [lat, lng].
+function perpDistMeters(p, a, b) {
+  // Convert deltas to meters using local scale at p's latitude
+  const scale = degPerMeter(p[0]);
+  const px = (p[1] - a[1]) / scale.lngDeg;
+  const py = (p[0] - a[0]) / scale.latDeg;
+  const bx = (b[1] - a[1]) / scale.lngDeg;
+  const by = (b[0] - a[0]) / scale.latDeg;
+  const lineLen2 = bx*bx + by*by;
+  if (lineLen2 === 0) return Math.sqrt(px*px + py*py);
+  // Project p onto AB
+  const t = Math.max(0, Math.min(1, (px*bx + py*by) / lineLen2));
+  const dx = px - t*bx;
+  const dy = py - t*by;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+// Douglas-Peucker simplification. Tolerance in meters.
+// Drops points that don't deviate more than `tolMeters` from a straight line
+// between their preserved neighbors. Cleans up the cul-de-sac noise without
+// destroying the overall shape.
+function simplifyRing(points, tolMeters) {
+  if (points.length < 4) return points;
+  // Mark which points to keep
+  const keep = new Array(points.length).fill(false);
+  keep[0] = true;
+  keep[points.length - 1] = true;
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [first, last] = stack.pop();
+    let maxDist = 0;
+    let maxIdx = -1;
+    for (let i = first + 1; i < last; i++) {
+      const d = perpDistMeters(points[i], points[first], points[last]);
+      if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+    if (maxDist > tolMeters) {
+      keep[maxIdx] = true;
+      stack.push([first, maxIdx]);
+      stack.push([maxIdx, last]);
+    }
+  }
+  return points.filter((_, i) => keep[i]);
+}
+
+// Compute the signed area of a closed ring (lat/lng points) in m².
+// Used to find the largest piece in a MultiPolygon and discard tiny noise pieces.
+function ringAreaM2(ring) {
+  if (ring.length < 3) return 0;
+  // Shoelace formula on flattened coordinates (treat as planar over our small region).
+  const scale = degPerMeter(ring[0][0]);
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const x1 = ring[i][1] / scale.lngDeg, y1 = ring[i][0] / scale.latDeg;
+    const x2 = ring[i+1][1] / scale.lngDeg, y2 = ring[i+1][0] / scale.latDeg;
+    sum += (x1 * y2 - x2 * y1);
+  }
+  return Math.abs(sum) / 2;
+}
+
+// Reduce a MultiPolygon to just its largest polygon, discarding small
+// detached pieces (e.g. annexed parcels, tiny islands). Keeps reading clean.
+// For plain Polygon input, returned unchanged.
+function keepLargestPiece(geoType, leafletCoords) {
+  if (geoType === 'Polygon') return leafletCoords;
+  if (geoType !== 'MultiPolygon') return leafletCoords;
+  let bestIdx = 0;
+  let bestArea = 0;
+  for (let i = 0; i < leafletCoords.length; i++) {
+    // Outer ring is the first ring of each polygon
+    const outer = leafletCoords[i][0];
+    const a = ringAreaM2(outer);
+    if (a > bestArea) { bestArea = a; bestIdx = i; }
+  }
+  return leafletCoords[bestIdx];
+}
+
+// "Pole of inaccessibility" — approximate point inside polygon that's
+// furthest from any edge. Better than bounds-center for labeling concave/L-shaped
+// regions. Uses a grid scan (~30×30) of the polygon bounds, plus a refinement.
+function poleOfInaccessibility(ring) {
+  if (ring.length < 3) return null;
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  ring.forEach(p => {
+    if (p[0] < minLat) minLat = p[0];
+    if (p[0] > maxLat) maxLat = p[0];
+    if (p[1] < minLng) minLng = p[1];
+    if (p[1] > maxLng) maxLng = p[1];
+  });
+  function pointInRing(lat, lng) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const yi = ring[i][0], xi = ring[i][1];
+      const yj = ring[j][0], xj = ring[j][1];
+      const intersect = ((yi > lat) !== (yj > lat)) &&
+                        (lng < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+  function distToEdgeMeters(lat, lng) {
+    let minD = Infinity;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const d = perpDistMeters([lat, lng], ring[j], ring[i]);
+      if (d < minD) minD = d;
+    }
+    return minD;
+  }
+  const gridN = 24;
+  let best = null;
+  let bestD = -1;
+  for (let i = 1; i < gridN; i++) {
+    for (let k = 1; k < gridN; k++) {
+      const lat = minLat + (maxLat - minLat) * i / gridN;
+      const lng = minLng + (maxLng - minLng) * k / gridN;
+      if (!pointInRing(lat, lng)) continue;
+      const d = distToEdgeMeters(lat, lng);
+      if (d > bestD) { bestD = d; best = [lat, lng]; }
+    }
+  }
+  return best || [ (minLat + maxLat) / 2, (minLng + maxLng) / 2 ];
+}
+
 function renderBoundaries() {
   if (!boundaryLayer) return;
   boundaryLayer.clearLayers();
   if (!prefShowBoundaries) return;
+
+  // Tolerance for simplification (meters). Higher = less detail.
+  const SIMPLIFY_TOL_M = 120;
+
+  // Collect label positions so we can hide colliding ones
+  const placedLabels = [];  // each: { lat, lng, text, radius (px) }
+  const mapZoom = map.getZoom();
+
   regions.forEach(r => {
     if (!r.boundary) return;
-    const latlngs = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
-    if (latlngs.length === 0) return;
-    // L.polygon handles arrays of rings (Polygon) or arrays of arrays of rings (MultiPolygon)
-    const poly = L.polygon(latlngs, {
+    let coords = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
+    if (coords.length === 0) return;
+
+    // Reduce MultiPolygon to its largest piece
+    coords = keepLargestPiece(r.boundary.type, coords);
+    // coords now is an array of rings: [outerRing, hole1, hole2, ...]
+    if (!Array.isArray(coords[0]) || !Array.isArray(coords[0][0])) return;
+
+    // Simplify each ring
+    coords = coords.map(ring => simplifyRing(ring, SIMPLIFY_TOL_M));
+    // Drop any rings that collapsed to too few points
+    coords = coords.filter(ring => ring.length >= 4);
+    if (coords.length === 0) return;
+
+    const poly = L.polygon(coords, {
       pane: 'boundaryPane',
       color: '#d68a3a',
-      weight: 2.2,
+      weight: 2,
       dashArray: '6 4',
-      opacity: 0.85,
+      opacity: 0.7,
       fillColor: '#d68a3a',
-      fillOpacity: 0.04,
+      fillOpacity: 0.035,
       interactive: false,
-      smoothFactor: 0.5,
+      smoothFactor: 1.5,
     });
     poly.addTo(boundaryLayer);
 
-    // Floating label at the polygon's bounds center
-    const bounds = poly.getBounds();
-    const center = bounds.getCenter();
+    // Label: use pole-of-inaccessibility of the outer ring
+    const labelLatLng = poleOfInaccessibility(coords[0]);
+    if (!labelLatLng) return;
+
+    // Collision check — convert to pixel distance at current zoom
+    const px = map.latLngToContainerPoint(labelLatLng);
+    const COLLISION_PX = 70;
+    const collides = placedLabels.some(pl => {
+      const dx = pl.px.x - px.x;
+      const dy = pl.px.y - px.y;
+      return Math.sqrt(dx*dx + dy*dy) < COLLISION_PX;
+    });
+    if (collides) return;
+    placedLabels.push({ px, lat: labelLatLng[0], lng: labelLatLng[1] });
+
     const labelText = r.name.replace(' REGION', '');
     const labelIcon = L.divIcon({
       html: `<div class="region-label">${escapeHtml(labelText)}</div>`,
@@ -758,7 +922,7 @@ function renderBoundaries() {
       iconSize: [120, 18],
       iconAnchor: [60, 9],
     });
-    L.marker(center, { icon: labelIcon, pane: 'boundaryPane', interactive: false })
+    L.marker(labelLatLng, { icon: labelIcon, pane: 'boundaryPane', interactive: false })
       .addTo(boundaryLayer);
   });
 }
@@ -834,6 +998,10 @@ function initMap() {
   map.getPane('boundaryPane').style.pointerEvents = 'none';
 
   boundaryLayer = L.layerGroup({ pane: 'boundaryPane' }).addTo(map);
+  // Re-render boundaries on zoom so label collision detection uses current pixel scale
+  map.on('zoomend', () => {
+    if (prefShowBoundaries) renderBoundaries();
+  });
 
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
