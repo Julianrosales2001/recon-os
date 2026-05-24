@@ -54,7 +54,10 @@
   </div>
 
   <!-- FLOATING SECTOR/STATUS TAG -->
-  <div class="sector-tag" id="sectorTag">ACQUIRING POSITION...</div>
+  <div class="sector-tag" id="sectorTag">
+    <div class="sector-plate">SEC</div>
+    <div class="sector-screen" id="sectorTagText">ACQUIRING POSITION...</div>
+  </div>
 
   <!-- MAP OVERLAY BUTTONS -->
   <div class="map-overlay-buttons">
@@ -66,8 +69,8 @@
   <!-- LEGEND PANEL (hidden by default) -->
   <div id="legendPanel" class="legend-panel">
     <div class="legend-tabs">
-      <div class="legend-tab active" data-legend-tab="categories" onclick="switchLegendTab('categories')">CATEGORIES</div>
-      <div class="legend-tab" data-legend-tab="symbols" onclick="switchLegendTab('symbols')">SYMBOLS</div>
+      <div class="legend-tab active" data-legend-tab="categories" onclick="switchLegendTab('categories')"><span class="tab-led"></span>CATEGORIES</div>
+      <div class="legend-tab" data-legend-tab="symbols" onclick="switchLegendTab('symbols')"><span class="tab-led"></span>SYMBOLS</div>
     </div>
     <div id="legendRows"></div>
   </div>
@@ -202,7 +205,7 @@
         <div class="hva-name">MARK AS HVA</div>
         <div class="hva-desc">Pin gets star prefix + amber edge in list</div>
       </div>
-      <div class="hva-led"></div>
+      <div class="led-housing"><span class="led-indicator" id="hvaLed"></span></div>
     </div>
 
     <div id="visitRow" style="display:none;">
@@ -317,7 +320,7 @@
         <div class="settings-name">SHOW REGION BOUNDARIES</div>
         <div class="settings-desc" id="boundaryToggleDesc">Boundaries hidden</div>
       </div>
-      <div class="settings-action" id="boundaryToggleIndicator">●</div>
+      <div class="led-housing"><span class="led-indicator" id="boundaryToggleIndicator"></span></div>
     </div>
 
     <div class="settings-row" onclick="fetchAllBoundaries()">
@@ -361,10 +364,10 @@
         <div class="settings-desc">How opaque unexplored areas appear</div>
       </div>
       <div class="cat-filter-row" id="fogDensityRow" style="margin: 0;">
-        <div class="cat-chip" data-fog="CLEAR">CLEAR</div>
-        <div class="cat-chip" data-fog="LIGHT">LIGHT</div>
-        <div class="cat-chip" data-fog="MEDIUM">MEDIUM</div>
-        <div class="cat-chip" data-fog="HEAVY">HEAVY</div>
+        <div class="cat-chip with-led" data-fog="CLEAR"><span class="led-indicator"></span>CLEAR</div>
+        <div class="cat-chip with-led" data-fog="LIGHT"><span class="led-indicator"></span>LIGHT</div>
+        <div class="cat-chip with-led" data-fog="MEDIUM"><span class="led-indicator"></span>MEDIUM</div>
+        <div class="cat-chip with-led" data-fog="HEAVY"><span class="led-indicator"></span>HEAVY</div>
       </div>
     </div>
 
@@ -383,7 +386,7 @@
         <div class="settings-name">SHOW TRAIL ON MAP</div>
         <div class="settings-desc" id="trailToggleDesc">Trail visible</div>
       </div>
-      <div class="settings-action" id="trailToggleIndicator">●</div>
+      <div class="led-housing"><span class="led-indicator" id="trailToggleIndicator"></span></div>
     </div>
 
     <div class="settings-row" onclick="clearTrail()">
@@ -442,10 +445,12 @@
   <div class="sheet-title">LOG</div>
   <div class="log-tabs">
     <div class="log-tab" data-tab="journal" onclick="switchLogTab('journal')">
+      <span class="tab-led"></span>
       <span class="label">JOURNAL</span>
       <span class="count" id="logJournalCount">0</span>
     </div>
     <div class="log-tab" data-tab="assets" onclick="switchLogTab('assets')">
+      <span class="tab-led"></span>
       <span class="label">ASSETS</span>
       <span class="count" id="logAssetsCount">0</span>
     </div>
@@ -455,10 +460,10 @@
   <div class="log-tab-content" id="logTabJournal">
     <div style="padding: 0 0 6px;">
       <div class="cat-filter-row" id="journalRangeRow">
-        <div class="cat-chip active" data-range="today">TODAY</div>
-        <div class="cat-chip" data-range="week">7 DAYS</div>
-        <div class="cat-chip" data-range="month">30 DAYS</div>
-        <div class="cat-chip" data-range="all">ALL</div>
+        <div class="cat-chip with-led active" data-range="today"><span class="led-indicator on"></span>TODAY</div>
+        <div class="cat-chip with-led" data-range="week"><span class="led-indicator"></span>7 DAYS</div>
+        <div class="cat-chip with-led" data-range="month"><span class="led-indicator"></span>30 DAYS</div>
+        <div class="cat-chip with-led" data-range="all"><span class="led-indicator"></span>ALL</div>
       </div>
     </div>
     <div class="sheet-body" id="journalBody"></div>

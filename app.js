@@ -644,7 +644,7 @@ async function updateRegion(lat, lng) {
       saveRegions();
     }
     document.getElementById('regionTitle').textContent = '▾ ' + region.name;
-    document.getElementById('sectorTag').textContent =
+    document.getElementById('sectorTagText').textContent =
       region.name.replace(' REGION', '') + ' · ' + sid + ' · ' + region.revealedSectors.length + ' SCT';
   }
 }
@@ -936,7 +936,7 @@ function toggleBoundaries() {
   const desc = document.getElementById('boundaryToggleDesc');
   if (desc) desc.textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
   const indicator = document.getElementById('boundaryToggleIndicator');
-  if (indicator) indicator.style.color = prefShowBoundaries ? '#f0a040' : '#3a3128';
+  if (indicator) indicator.classList.toggle('on', prefShowBoundaries);
 }
 
 // ===== UI HELPERS =====
@@ -1367,7 +1367,7 @@ window.addEventListener('error', (e) => {
 
 // ===== GPS =====
 function setStatus(text, color) {
-  document.getElementById('sectorTag').textContent = text;
+  document.getElementById('sectorTagText').textContent = text;
   if (color) document.getElementById('gpsDot').style.color = color;
   dbg('STATUS: ' + text);
 }
@@ -1713,8 +1713,9 @@ function buildShapeRow() {
   row.innerHTML = '';
   POI_SHAPES.forEach(s => {
     const chip = document.createElement('div');
-    chip.className = 'cat-chip' + (selectedShape === s.id ? ' active' : '');
-    chip.textContent = s.label;
+    const isActive = selectedShape === s.id;
+    chip.className = 'cat-chip with-led' + (isActive ? ' active' : '');
+    chip.innerHTML = `<span class="led-indicator${isActive ? ' on' : ''}"></span>${s.label}`;
     chip.onclick = () => {
       selectedShape = s.id;
       buildShapeRow();
@@ -1842,7 +1843,7 @@ function cardinal(deg) {
 function toggleTrail() {
   showTrail = !showTrail;
   document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
-  document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
+  document.getElementById('trailToggleIndicator').classList.toggle('on', showTrail);
   renderTrail();
   savePrefs();
 }
@@ -2040,10 +2041,13 @@ function toggleHVA() {
 
 function updateHVAUI() {
   const toggle = document.getElementById('hvaToggle');
+  const led = document.getElementById('hvaLed');
   if (editorHVA) {
     toggle.classList.add('on');
+    if (led) led.classList.add('on');
   } else {
     toggle.classList.remove('on');
+    if (led) led.classList.remove('on');
   }
 }
 
@@ -2153,8 +2157,9 @@ function buildCatFilterRow() {
   const chips = [{ id: 'ALL', label: 'ALL' }, ...CATEGORIES.map(c => ({ id: c.id, label: c.label }))];
   chips.forEach(c => {
     const chip = document.createElement('div');
-    chip.className = 'cat-chip' + (activeCategoryFilter === c.id ? ' active' : '');
-    chip.textContent = c.label;
+    const isActive = activeCategoryFilter === c.id;
+    chip.className = 'cat-chip with-led' + (isActive ? ' active' : '');
+    chip.innerHTML = `<span class="led-indicator${isActive ? ' on' : ''}"></span>${c.label}`;
     chip.onclick = () => {
       activeCategoryFilter = c.id;
       savePrefs();
@@ -2363,8 +2368,14 @@ function setupJournalRangeChips() {
   const chips = document.querySelectorAll('#journalRangeRow .cat-chip');
   chips.forEach(chip => {
     chip.onclick = () => {
-      chips.forEach(c => c.classList.remove('active'));
+      chips.forEach(c => {
+        c.classList.remove('active');
+        const led = c.querySelector('.led-indicator');
+        if (led) led.classList.remove('on');
+      });
       chip.classList.add('active');
+      const led = chip.querySelector('.led-indicator');
+      if (led) led.classList.add('on');
       journalRange = chip.dataset.range;
       renderJournalBody();
     };
@@ -2569,10 +2580,10 @@ function openSettingsSheet() {
   document.getElementById('regionCountDesc').textContent =
     regions.length + (regions.length === 1 ? ' region' : ' regions');
   document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
-  document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
+  document.getElementById('trailToggleIndicator').classList.toggle('on', showTrail);
   document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
   document.getElementById('boundaryToggleDesc').textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
-  document.getElementById('boundaryToggleIndicator').style.color = prefShowBoundaries ? '#f0a040' : '#3a3128';
+  document.getElementById('boundaryToggleIndicator').classList.toggle('on', prefShowBoundaries);
   setupFogDensityChips();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('settingsSheet').classList.add('open');
@@ -2581,11 +2592,18 @@ function openSettingsSheet() {
 function setupFogDensityChips() {
   const chips = document.querySelectorAll('#fogDensityRow .cat-chip');
   chips.forEach(chip => {
-    if (chip.dataset.fog === prefFogOpacity) chip.classList.add('active');
-    else chip.classList.remove('active');
+    const isActive = chip.dataset.fog === prefFogOpacity;
+    chip.classList.toggle('active', isActive);
+    const led = chip.querySelector('.led-indicator');
+    if (led) led.classList.toggle('on', isActive);
     chip.onclick = () => {
       prefFogOpacity = chip.dataset.fog;
-      chips.forEach(c => c.classList.toggle('active', c.dataset.fog === prefFogOpacity));
+      chips.forEach(c => {
+        const a = c.dataset.fog === prefFogOpacity;
+        c.classList.toggle('active', a);
+        const l = c.querySelector('.led-indicator');
+        if (l) l.classList.toggle('on', a);
+      });
       savePrefs();
       renderFog();
     };

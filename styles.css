@@ -29,6 +29,80 @@
     -webkit-touch-callout: none;
   }
 
+  /* ========================= LED INDICATOR (UNIVERSAL) =========================
+     Reusable physical indicator component. Use everywhere an "active state"
+     needs a visible source (settings toggles, filter chips, HVA, tabs).
+     - .led-indicator         : the bulb itself, off (dark dome)
+     - .led-indicator.on      : amber lit bulb with localised glow + specular
+     - .led-indicator.on.green: GPS lock / OK
+     - .led-indicator.on.red  : alarm / overdue
+     - .led-housing           : optional dark recessed socket to wrap the bulb
+                                in (gives it a believable origin) */
+  .led-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #2a2520 0%, #14110d 60%, #0a0604 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(0, 0, 0, 0.8),
+      inset 0 -0.5px 0 rgba(220, 190, 140, 0.1),
+      0 0.5px 0 rgba(220, 190, 140, 0.12);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .led-indicator.on {
+    background: radial-gradient(circle at 35% 30%, #ffe9b0 0%, #f0a040 40%, #c8731c 80%, #6e3a08 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 220, 140, 0.6),
+      inset 0 -1px 1px rgba(110, 58, 8, 0.8),
+      0 0 4px rgba(240, 160, 64, 0.7),
+      0 0 8px rgba(240, 160, 64, 0.4);
+  }
+  /* Tiny specular highlight on lit bulbs */
+  .led-indicator.on::after {
+    content: '';
+    position: absolute;
+    top: 18%;
+    left: 22%;
+    width: 25%;
+    height: 18%;
+    border-radius: 50%;
+    background: rgba(255, 240, 200, 0.85);
+    filter: blur(0.3px);
+  }
+  .led-indicator.on.green {
+    background: radial-gradient(circle at 35% 30%, #d8ffd0 0%, #4ac84a 40%, #1c6b1c 80%, #082408 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(216, 255, 208, 0.5),
+      inset 0 -1px 1px rgba(8, 36, 8, 0.8),
+      0 0 4px rgba(74, 200, 74, 0.6),
+      0 0 8px rgba(74, 200, 74, 0.35);
+  }
+  .led-indicator.on.red {
+    background: radial-gradient(circle at 35% 30%, #ffd0c8 0%, #f04a3f 40%, #a82318 80%, #380808 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 200, 180, 0.5),
+      inset 0 -1px 1px rgba(56, 8, 8, 0.8),
+      0 0 4px rgba(240, 74, 63, 0.7),
+      0 0 8px rgba(240, 74, 63, 0.35);
+  }
+  /* Recessed socket housing — wraps the LED to give it an origin */
+  .led-housing {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #1a1614, #0a0604);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.9),
+      inset 0 -0.5px 0 rgba(220, 190, 140, 0.12),
+      0 0.5px 0 rgba(220, 190, 140, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
   /* ========================= APP CONTAINER ========================= */
   #app {
     position: fixed;
@@ -199,20 +273,46 @@
     position: absolute;
     top: calc(var(--top-chrome-h) + 10px);
     left: 14px;
-    background: rgba(8, 6, 4, 0.75);
-    backdrop-filter: blur(2px);
-    border: 1px solid #3a3128;
-    padding: 4px 8px;
     z-index: 35;
+    display: inline-flex;
+    align-items: stretch;
+    background: linear-gradient(180deg, #2a2520, #14110d);
+    border: 1px solid #050403;
+    border-radius: 3px;
+    box-shadow:
+      inset 0 1px 0 rgba(220, 190, 140, 0.18),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.5),
+      0 2px 3px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+  .sector-plate {
+    background: linear-gradient(180deg, #3a3128, #1f1a14);
+    padding: 4px 6px;
     font-family: 'B612 Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.2em;
+    font-size: 7px;
+    letter-spacing: 0.25em;
+    color: #c8b896;
+    font-weight: 700;
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.7),
+      0 -1px 0 rgba(220, 190, 140, 0.15);
+    border-right: 1px solid #050403;
+    display: flex;
+    align-items: center;
+  }
+  .sector-screen {
+    background: #050403;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+    padding: 4px 10px;
+    font-family: 'VT323', monospace;
+    font-size: 13px;
+    letter-spacing: 0.12em;
     color: #f0a040;
     text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
-    box-shadow:
-      inset 0 1px 0 rgba(220, 190, 140, 0.15),
-      0 1px 2px rgba(0, 0, 0, 0.6);
-    font-weight: 700;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   /* ========================= MAP OVERLAY BUTTONS (right side) ========================= */
@@ -539,6 +639,7 @@
     border: 1px solid #2a2520;
     border-radius: 4px;
     margin-bottom: 10px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
   }
   .log-tab {
     padding: 8px 10px;
@@ -566,14 +667,33 @@
     text-align: center;
   }
   .log-tab.active {
-    background: linear-gradient(180deg, #322a24 0%, #1f1a14 100%);
+    background: #050403;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.9),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.6);
     color: #f0a040;
-    box-shadow: inset 0 1px 0 rgba(240, 160, 64, 0.25);
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
   }
   .log-tab.active .count {
     background: rgba(240, 160, 64, 0.18);
     color: #f0a040;
+  }
+
+  /* Tiny LED dot inside tab labels — universal pattern for log + legend tabs */
+  .tab-led {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #1a1614, #0a0604);
+    flex-shrink: 0;
+    box-shadow: inset 0 0.5px 0.5px rgba(0, 0, 0, 0.8);
+  }
+  .log-tab.active .tab-led,
+  .legend-tab.active .tab-led {
+    background: radial-gradient(circle at 35% 30%, #ffe9b0 0%, #f0a040 50%, #c8731c 100%);
+    box-shadow:
+      0 0 3px rgba(240, 160, 64, 0.8),
+      0 0 6px rgba(240, 160, 64, 0.4);
   }
   .log-tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
   .log-tab-content.active { display: flex; }
@@ -1155,18 +1275,6 @@
     letter-spacing: 0.1em;
     margin-top: 2px;
   }
-  .hva-toggle .hva-led {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #1a1612;
-    box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.8);
-  }
-  .hva-toggle.on .hva-led {
-    background: radial-gradient(circle at 30% 30%, #fff0c0, #f0a040 55%, #b8731c 100%);
-    box-shadow: 0 0 5px #f0a040, 0 0 10px rgba(240, 160, 64, 0.5);
-  }
-
   /* Journal rows */
   .journal-day-header {
     font-size: 8px;
@@ -1440,6 +1548,7 @@
     border-radius: 3px;
     margin-bottom: 6px;
     flex-shrink: 0;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
   }
   .legend-tab {
     padding: 5px 4px;
@@ -1452,12 +1561,18 @@
     font-weight: 700;
     color: #6e6354;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
   }
   .legend-tab.active {
-    background: linear-gradient(180deg, #322a24 0%, #1f1a14 100%);
+    background: #050403;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.9),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.6);
     color: #f0a040;
-    box-shadow: inset 0 1px 0 rgba(240, 160, 64, 0.25);
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
+    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
   }
   .legend-header {
     font-size: 7px;
@@ -1594,6 +1709,29 @@
       0 1px 0 rgba(0, 0, 0, 0.7),
       0 -1px 0 rgba(220, 190, 140, 0.1);
     box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.15);
+  }
+  /* Chips with embedded LED indicator — text stays matte cream throughout;
+     the LED is the only source signaling active state. Subtle border shift on
+     active so the chip still feels distinct. */
+  .cat-chip.with-led {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px 5px 6px;
+    color: #c8b896;
+  }
+  .cat-chip.with-led .led-indicator {
+    width: 6px;
+    height: 6px;
+  }
+  .cat-chip.with-led.active {
+    color: #d4c8b0;
+    border-color: #4a3d2c;
+    background: linear-gradient(180deg, #2a2520, #14110d);
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.7),
+      0 -1px 0 rgba(220, 190, 140, 0.1);
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.12);
   }
   .list-sort {
     background: #050403;
