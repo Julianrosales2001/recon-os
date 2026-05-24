@@ -47,6 +47,26 @@ const POI_SHAPES = [
   { id: 'ICON', label: 'ICON' },
 ];
 
+// ===== MISSIONS / OBJECTIVES =====
+// Each mission: {
+//   id, title, notes, priority ('normal'|'urgent'),
+//   status ('active'|'complete'), created, completed,
+//   lat, lng, poiId, deadline
+// }
+let missions = [];
+let activeObjectivesTab = 'active';       // 'active' | 'complete' | 'all'
+let objectivesSearchQuery = '';
+let objectivesSortMode = 'smart';         // 'smart' | 'deadline' | 'created' | 'priority' | 'distance'
+let missionMarkerLayer = null;
+let editingMissionId = null;
+// Map-picking mode for missions
+let missionPickMode = false;
+let pendingMissionDraft = null;           // saved form state during map-pick
+// Map-picking mode for POI link
+let missionPoiPickMode = false;
+// Draft autosave (lossless edit recovery)
+const MISSION_DRAFT_KEY = 'recon.os.missionDraft';
+
 // ===== STATE =====
 let userPos = null;             // {lat, lng}
 let lastFix = null;             // timestamp of last good GPS fix
@@ -160,6 +180,18 @@ function loadPOIs() {
 }
 function savePOIs() {
   localStorage.setItem('recon.os.pois', JSON.stringify(pois));
+}
+
+function loadMissions() {
+  try {
+    const raw = localStorage.getItem('recon.os.missions');
+    missions = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    missions = [];
+  }
+}
+function saveMissions() {
+  localStorage.setItem('recon.os.missions', JSON.stringify(missions));
 }
 
 function loadFog() {
@@ -339,6 +371,8 @@ function loadPrefs() {
     if (typeof p.activeLogTab === 'string') activeLogTab = p.activeLogTab;
     if (typeof p.showBoundaries === 'boolean') prefShowBoundaries = p.showBoundaries;
     if (typeof p.activeLegendTab === 'string') activeLegendTab = p.activeLegendTab;
+    if (typeof p.activeObjectivesTab === 'string') activeObjectivesTab = p.activeObjectivesTab;
+    if (typeof p.objectivesSortMode === 'string') objectivesSortMode = p.objectivesSortMode;
   } catch (e) { /* ignore */ }
 }
 
@@ -357,6 +391,8 @@ function savePrefs() {
       activeLogTab: activeLogTab,
       showBoundaries: prefShowBoundaries,
       activeLegendTab: activeLegendTab,
+      activeObjectivesTab: activeObjectivesTab,
+      objectivesSortMode: objectivesSortMode,
     }));
   }, 500);
 }
@@ -1006,7 +1042,9 @@ function initMap() {
   });
 
   markerLayer = L.layerGroup().addTo(map);
+  missionMarkerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
+  renderMissionMarkers();
 
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
@@ -1680,14 +1718,18 @@ function openClassifySheet(poiId) {
 
   // Show visit info only for classified POIs
   const visitRow = document.getElementById('visitRow');
+  const poiObjectiveRow = document.getElementById('poiObjectiveRow');
   if (poi.category) {
     visitRow.style.display = 'block';
     document.getElementById('visitNum').textContent = String(poi.visits || 0).padStart(3, '0');
     document.getElementById('visitLast').textContent = poi.lastVisited
       ? 'LAST: ' + new Date(poi.lastVisited).toLocaleDateString()
       : 'NEVER VISITED';
+    poiObjectiveRow.style.display = 'block';
+    renderPoiLinkedMissions(poi.id);
   } else {
     visitRow.style.display = 'none';
+    poiObjectiveRow.style.display = 'none';
   }
 
   // Distance + bearing (updates live as user moves)
@@ -2485,6 +2527,8 @@ function closeSheet() {
   document.getElementById('logSheet').classList.remove('open');
   document.getElementById('searchSheet').classList.remove('open');
   document.getElementById('statsSheet').classList.remove('open');
+  document.getElementById('objectivesSheet').classList.remove('open');
+  document.getElementById('missionFormSheet').classList.remove('open');
   editingId = null;
   liveNavPoiId = null;
   deselectPOI();
@@ -2633,13 +2677,14 @@ function showRegionsList() {
 
 function exportData() {
   const data = {
-    version: 5,
+    version: 6,
     exported: new Date().toISOString(),
     pois: pois,
     fog: [...revealedCells],
     regions: regions,
     journal: journalEntries,
     trail: todayTrail,
+    missions: missions,
     prefs: {
       showTrail: showTrail,
       activeCategoryFilter: activeCategoryFilter,
@@ -2648,6 +2693,8 @@ function exportData() {
       listSortMode: listSortMode,
       legendOpen: prefLegendOpen,
       fogOpacity: prefFogOpacity,
+      activeObjectivesTab: activeObjectivesTab,
+      objectivesSortMode: objectivesSortMode,
     },
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2659,7 +2706,7 @@ function exportData() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  const counts = pois.length + ' POIs · ' + revealedCells.size + ' fog cells · ' + regions.length + ' regions';
+  const counts = pois.length + ' POIs · ' + revealedCells.size + ' fog cells · ' + regions.length + ' regions · ' + missions.length + ' objectives';
   showToast('FULL BACKUP DOWNLOADED · ' + counts);
 }
 
@@ -2681,7 +2728,8 @@ document.getElementById('importFile').addEventListener('change', (e) => {
                    data.pois.length + ' POIs\n' +
                    (data.fog ? data.fog.length : 0) + ' fog cells\n' +
                    (data.regions ? data.regions.length : 0) + ' regions\n' +
-                   (data.journal ? data.journal.length : 0) + ' journal entries\n\n' +
+                   (data.journal ? data.journal.length : 0) + ' journal entries\n' +
+                   (data.missions ? data.missions.length : 0) + ' objectives\n\n' +
                    'Your current data will be lost.')) {
         return;
       }
@@ -2705,6 +2753,11 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         saveTrail();
         renderTrail();
       }
+      if (data.missions) {
+        missions = data.missions;
+        saveMissions();
+        renderMissionMarkers();
+      }
       if (data.prefs) {
         if (typeof data.prefs.showTrail === 'boolean') showTrail = data.prefs.showTrail;
         if (typeof data.prefs.activeCategoryFilter === 'string') activeCategoryFilter = data.prefs.activeCategoryFilter;
@@ -2715,12 +2768,14 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         if (typeof data.prefs.fogOpacity === 'string' && FOG_OPACITY_VALUES[data.prefs.fogOpacity]) {
           prefFogOpacity = data.prefs.fogOpacity;
         }
+        if (typeof data.prefs.activeObjectivesTab === 'string') activeObjectivesTab = data.prefs.activeObjectivesTab;
+        if (typeof data.prefs.objectivesSortMode === 'string') objectivesSortMode = data.prefs.objectivesSortMode;
         savePrefs();
       }
       renderAllMarkers();
       updatePendingCount();
       closeSheet();
-      showToast('IMPORT COMPLETE · ' + pois.length + ' POIs');
+      showToast('IMPORT COMPLETE · ' + pois.length + ' POIs · ' + missions.length + ' objectives');
     } catch (err) {
       alert('Could not parse file: ' + err.message);
     }
@@ -2945,9 +3000,830 @@ function previewAndDropFromSearch(lat, lng, suggestedName) {
 }
 
 
+// ============================================================================
+// ===== MISSIONS / OBJECTIVES ================================================
+// ============================================================================
+
+// Marker color palette (electric blue / urgent red)
+const MISSION_COLORS = {
+  normal: {
+    light: '#7cdfff',
+    mid:   '#2eb5ff',
+    dark:  '#0a4070',
+    stroke:'#050811',
+  },
+  urgent: {
+    light: '#ffd0c8',
+    mid:   '#f04a3f',
+    dark:  '#4a0808',
+    stroke:'#180404',
+  },
+};
+
+// ---------- OBJECTIVES sheet open/close/tabs ----------
+
+function openObjectivesSheet() {
+  document.getElementById('objectivesSearch').value = objectivesSearchQuery;
+  document.getElementById('objectivesSort').value = objectivesSortMode;
+  document.getElementById('objQuickAddInput').value = '';
+  switchObjectivesTab(activeObjectivesTab);
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('objectivesSheet').classList.add('open');
+}
+
+function switchObjectivesTab(tabId) {
+  activeObjectivesTab = tabId;
+  document.querySelectorAll('#objectivesSheet .obj-tab').forEach(t => {
+    const active = t.dataset.objTab === tabId;
+    t.classList.toggle('active', active);
+    const led = t.querySelector('.tab-led');
+    if (led) {} // styled via .obj-tab.active .tab-led in CSS
+  });
+  renderObjectivesList();
+  savePrefs();
+}
+
+function onObjectivesSortChange() {
+  objectivesSortMode = document.getElementById('objectivesSort').value;
+  savePrefs();
+  renderObjectivesList();
+}
+
+// ---------- Filtering & sorting ----------
+
+function getFilteredMissions() {
+  let list = missions.slice();
+
+  // Tab filter
+  if (activeObjectivesTab === 'active')   list = list.filter(m => m.status === 'active');
+  if (activeObjectivesTab === 'complete') list = list.filter(m => m.status === 'complete');
+  // 'all' = no status filter
+
+  // Search filter
+  const q = (document.getElementById('objectivesSearch')?.value || '').trim().toLowerCase();
+  objectivesSearchQuery = q;
+  if (q) {
+    list = list.filter(m =>
+      (m.title || '').toLowerCase().includes(q) ||
+      (m.notes || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  const priorityRank = { urgent: 0, normal: 1 };
+  list.sort((a, b) => {
+    switch (objectivesSortMode) {
+      case 'deadline': {
+        // missions without deadline go to end
+        const ad = a.deadline ?? Infinity;
+        const bd = b.deadline ?? Infinity;
+        if (ad !== bd) return ad - bd;
+        return b.created - a.created;
+      }
+      case 'priority': {
+        const dp = priorityRank[a.priority] - priorityRank[b.priority];
+        if (dp !== 0) return dp;
+        return b.created - a.created;
+      }
+      case 'distance': {
+        if (!userPos) return b.created - a.created;
+        const aHas = (a.lat != null && a.lng != null);
+        const bHas = (b.lat != null && b.lng != null);
+        if (!aHas && !bHas) return b.created - a.created;
+        if (!aHas) return 1;
+        if (!bHas) return -1;
+        return metersBetween(userPos.lat, userPos.lng, a.lat, a.lng) -
+               metersBetween(userPos.lat, userPos.lng, b.lat, b.lng);
+      }
+      case 'created':
+        return b.created - a.created;
+      case 'smart':
+      default: {
+        // Urgent first, then by nearest deadline, then newest
+        const dp = priorityRank[a.priority] - priorityRank[b.priority];
+        if (dp !== 0) return dp;
+        const ad = a.deadline ?? Infinity;
+        const bd = b.deadline ?? Infinity;
+        if (ad !== bd) return ad - bd;
+        return b.created - a.created;
+      }
+    }
+  });
+  return list;
+}
+
+// ---------- Rendering ----------
+
+function renderObjectivesList() {
+  const body = document.getElementById('objectivesBody');
+  if (!body) return;
+  const list = getFilteredMissions();
+
+  // Update tab counts (always show totals regardless of search/sort)
+  const activeTotal = missions.filter(m => m.status === 'active').length;
+  const completeTotal = missions.filter(m => m.status === 'complete').length;
+  document.getElementById('objActiveCount').textContent = activeTotal;
+  document.getElementById('objCompleteCount').textContent = completeTotal;
+  document.getElementById('objAllCount').textContent = missions.length;
+
+  // Render
+  body.innerHTML = '';
+  if (list.length === 0) {
+    let msg;
+    if (missions.length === 0) {
+      msg = '<div class="empty-state"><div class="big">NO OBJECTIVES</div>Add your first task with QUICK ADD above.</div>';
+    } else if (objectivesSearchQuery) {
+      msg = '<div class="empty-state"><div class="big">NO MATCHES</div>No objectives match your search.</div>';
+    } else if (activeObjectivesTab === 'active') {
+      msg = '<div class="empty-state"><div class="big">ALL CLEAR</div>No active objectives. Nicely done.</div>';
+    } else if (activeObjectivesTab === 'complete') {
+      msg = '<div class="empty-state"><div class="big">NOTHING COMPLETED</div>Finished missions will show here.</div>';
+    } else {
+      msg = '<div class="empty-state"><div class="big">EMPTY</div>No objectives match the current view.</div>';
+    }
+    body.innerHTML = msg;
+    return;
+  }
+  list.forEach(m => body.appendChild(buildMissionCard(m)));
+}
+
+function buildMissionCard(m) {
+  const card = document.createElement('div');
+  card.className = 'mission-card';
+  if (m.priority === 'urgent' && m.status === 'active') card.classList.add('urgent');
+  if (m.status === 'complete') card.classList.add('complete');
+
+  // Card click opens detail/edit form
+  card.onclick = (ev) => {
+    if (ev.target.closest('.mission-checkbox')) return;  // checkbox handles its own clicks
+    openMissionForm(m.id);
+  };
+
+  // Status flag chip
+  let flagClass, flagText;
+  if (m.status === 'complete') { flagClass = 'complete'; flagText = '✓ DONE'; }
+  else if (m.priority === 'urgent') { flagClass = 'urgent'; flagText = '▶ URGENT'; }
+  else { flagClass = 'active'; flagText = '▶ ACTIVE'; }
+
+  // Build the meta row
+  const metaParts = [];
+  if (m.deadline) {
+    const now = Date.now();
+    const diff = m.deadline - now;
+    const overdue = diff < 0;
+    let label;
+    if (m.status === 'complete') {
+      label = 'DUE ' + formatDeadlineAbsolute(m.deadline);
+    } else if (overdue) {
+      label = 'OVERDUE · ' + formatDuration(-diff);
+    } else {
+      label = 'DUE IN ' + formatDuration(diff);
+    }
+    metaParts.push(`<div class="chip deadline${overdue && m.status==='active' ? ' deadline-overdue' : ''}">
+      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l2 1"/></svg>
+      ${label}
+    </div>`);
+  }
+  if (m.poiId) {
+    const linkedPoi = pois.find(p => p.id === m.poiId);
+    const poiName = linkedPoi ? (linkedPoi.name || ('POI-' + linkedPoi.id.slice(-6))) : 'MISSING POI';
+    metaParts.push(`<div class="chip poi">
+      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 1L6 11M2 6l4-4 4 4"/></svg>
+      POI: ${escapeHtml(poiName)}
+    </div>`);
+  }
+  if (m.lat != null && m.lng != null && userPos && m.status === 'active') {
+    const distM = metersBetween(userPos.lat, userPos.lng, m.lat, m.lng);
+    const distFt = distM * 3.28084;
+    const distLabel = distFt < 528 ? Math.round(distFt) + ' FT' : (distM / 1609.34).toFixed(1) + ' MI';
+    const brg = bearingDeg(userPos.lat, userPos.lng, m.lat, m.lng);
+    const cardinal = bearingToCardinal(brg);
+    metaParts.push(`<div class="chip distance">
+      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 1l3 5-3 5-3-5z"/></svg>
+      ${distLabel} · ${cardinal}
+    </div>`);
+  }
+  if (m.status === 'complete' && m.completed) {
+    metaParts.push(`<div class="chip">
+      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6.5l2.2 2L9 4.5"/></svg>
+      COMPLETED ${formatRelativeDate(m.completed)}
+    </div>`);
+  }
+
+  card.innerHTML = `
+    <div class="mission-header">
+      <div class="mission-checkbox" onclick="toggleMissionComplete(event, '${m.id}')">
+        <svg viewBox="0 0 12 12" fill="none" stroke="#6a9a5a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6.5l2.2 2L9 4.5"/>
+        </svg>
+      </div>
+      <div class="mission-flag ${flagClass}">${flagText}</div>
+      <div class="mission-title-wrap">
+        <div class="mission-title">${escapeHtml(m.title)}</div>
+        ${m.notes ? `<div class="mission-notes">${escapeHtml(m.notes)}</div>` : ''}
+      </div>
+    </div>
+    ${metaParts.length ? `<div class="mission-meta">${metaParts.join('')}</div>` : ''}
+  `;
+  return card;
+}
+
+// Convert a millisecond duration into "2H 14M" / "4D" / "3W" form
+function formatDuration(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return totalMin + 'M';
+  const totalHr = Math.floor(totalMin / 60);
+  if (totalHr < 24) return totalHr + 'H ' + (totalMin % 60) + 'M';
+  const totalDay = Math.floor(totalHr / 24);
+  if (totalDay < 14) return totalDay + 'D ' + (totalHr % 24) + 'H';
+  return totalDay + 'D';
+}
+function formatRelativeDate(ts) {
+  const d = new Date(ts);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'TODAY';
+  if (d.toDateString() === yest.toDateString()) return 'YESTERDAY';
+  const diff = today - d;
+  const days = Math.floor(diff / (24 * 3600 * 1000));
+  if (days < 7) return days + ' DAYS AGO';
+  if (days < 30) return Math.floor(days / 7) + ' WEEKS AGO';
+  return Math.floor(days / 30) + ' MONTHS AGO';
+}
+function formatDeadlineAbsolute(ts) {
+  const d = new Date(ts);
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return d.getDate() + ' ' + months[d.getMonth()];
+}
+
+// ---------- Quick-add ----------
+
+function commitQuickAddMission() {
+  const input = document.getElementById('objQuickAddInput');
+  const title = input.value.trim();
+  if (!title) return;
+  const m = {
+    id: 'MSN-' + Date.now(),
+    title: title,
+    notes: '',
+    priority: 'normal',
+    status: 'active',
+    created: Date.now(),
+    completed: null,
+    lat: null,
+    lng: null,
+    poiId: null,
+    deadline: null,
+  };
+  missions.push(m);
+  saveMissions();
+  logEvent('mission-create', m.id, 'Created: ' + title);
+  input.value = '';
+  renderObjectivesList();
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+// Submit quick-add on Enter
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'objQuickAddInput') {
+    e.preventDefault();
+    commitQuickAddMission();
+  }
+});
+
+// ---------- Mission form ----------
+
+let _missionFormPriority = 'normal';
+let _missionFormLocMode = 'none';
+let _missionFormLat = null;
+let _missionFormLng = null;
+let _missionFormPoiId = null;
+
+function openMissionForm(missionId) {
+  editingMissionId = missionId || null;
+  const m = missionId ? missions.find(x => x.id === missionId) : null;
+
+  // Restore form-draft autosave if creating new and a draft exists
+  const draft = missionId ? null : loadMissionDraft();
+
+  document.getElementById('missionFormTitle').textContent = m ? 'EDIT OBJECTIVE' : 'NEW OBJECTIVE';
+  document.getElementById('missionSaveLabel').textContent = m ? 'SAVE' : 'CREATE';
+  document.getElementById('missionDeleteBtn').style.display = m ? 'flex' : 'none';
+
+  // Title
+  document.getElementById('missionTitle').value = m ? m.title : (draft?.title || '');
+  // Notes
+  document.getElementById('missionNotes').value = m ? (m.notes || '') : (draft?.notes || '');
+
+  // Priority
+  _missionFormPriority = m ? (m.priority || 'normal') : (draft?.priority || 'normal');
+  applyMissionPriorityUI();
+
+  // Location
+  if (m) {
+    if (m.poiId) {
+      _missionFormLocMode = 'poi'; _missionFormPoiId = m.poiId;
+      const p = pois.find(p => p.id === m.poiId);
+      _missionFormLat = p ? p.lat : null;
+      _missionFormLng = p ? p.lng : null;
+    } else if (m.lat != null && m.lng != null) {
+      _missionFormLocMode = 'map'; _missionFormLat = m.lat; _missionFormLng = m.lng;
+      _missionFormPoiId = null;
+    } else {
+      _missionFormLocMode = 'none';
+      _missionFormLat = null; _missionFormLng = null; _missionFormPoiId = null;
+    }
+  } else if (draft) {
+    _missionFormLocMode = draft.locMode || 'none';
+    _missionFormLat = draft.lat; _missionFormLng = draft.lng;
+    _missionFormPoiId = draft.poiId;
+  } else {
+    _missionFormLocMode = 'none';
+    _missionFormLat = null; _missionFormLng = null; _missionFormPoiId = null;
+  }
+  applyMissionLocUI();
+
+  // Deadline
+  const dlInput = document.getElementById('missionDeadline');
+  if (m && m.deadline) {
+    dlInput.value = toDatetimeLocal(new Date(m.deadline));
+  } else if (draft?.deadline) {
+    dlInput.value = draft.deadline;
+  } else {
+    dlInput.value = '';
+  }
+
+  // Wire autosave
+  setupMissionFormAutosave();
+
+  // Open sheet
+  closeAllSheets();
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('missionFormSheet').classList.add('open');
+}
+
+function toDatetimeLocal(d) {
+  // datetime-local input wants 'YYYY-MM-DDTHH:MM' in LOCAL time
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+         'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function selectMissionPriority(p) {
+  _missionFormPriority = p;
+  applyMissionPriorityUI();
+  saveMissionDraft();
+}
+function applyMissionPriorityUI() {
+  document.querySelectorAll('#missionPriorityRow .cat-chip').forEach(chip => {
+    const a = chip.dataset.priority === _missionFormPriority;
+    chip.classList.toggle('active', a);
+    const led = chip.querySelector('.led-indicator');
+    if (led) led.classList.toggle('on', a);
+  });
+}
+
+function selectMissionLocMode(mode) {
+  // Special modes that need extra interaction
+  if (mode === 'here') {
+    if (!userPos) {
+      showMissionLocStatus('GPS unavailable — try later', 'error');
+      return;
+    }
+    _missionFormLocMode = 'map';  // store as plain coords (same shape)
+    _missionFormLat = userPos.lat;
+    _missionFormLng = userPos.lng;
+    _missionFormPoiId = null;
+    applyMissionLocUI();
+    showMissionLocStatus(`Set at current position (${userPos.lat.toFixed(4)}, ${userPos.lng.toFixed(4)})`, 'ok');
+    saveMissionDraft();
+    return;
+  }
+  if (mode === 'poi') {
+    // Choose a POI by id — simplest UX: prompt with the POI list
+    pickPoiForMission();
+    return;
+  }
+  if (mode === 'map') {
+    startMissionMapPick();
+    return;
+  }
+  // none
+  _missionFormLocMode = 'none';
+  _missionFormLat = null;
+  _missionFormLng = null;
+  _missionFormPoiId = null;
+  applyMissionLocUI();
+  hideMissionLocStatus();
+  saveMissionDraft();
+}
+function applyMissionLocUI() {
+  // Map "stored shape" → UI mode (none, here-style, poi, map)
+  let uiMode;
+  if (_missionFormPoiId) uiMode = 'poi';
+  else if (_missionFormLat != null && _missionFormLng != null) uiMode = 'map';
+  else uiMode = 'none';
+
+  document.querySelectorAll('#missionLocRow .loc-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.loc === uiMode);
+  });
+
+  if (uiMode === 'poi') {
+    const p = pois.find(p => p.id === _missionFormPoiId);
+    if (p) showMissionLocStatus('Linked to POI: ' + (p.name || ('POI-' + p.id.slice(-6))), 'ok');
+    else showMissionLocStatus('Linked POI not found', 'error');
+  } else if (uiMode === 'map') {
+    showMissionLocStatus(`Coords: ${_missionFormLat.toFixed(4)}, ${_missionFormLng.toFixed(4)}`, 'ok');
+  } else {
+    hideMissionLocStatus();
+  }
+}
+function showMissionLocStatus(text, kind) {
+  const el = document.getElementById('missionLocStatus');
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.color = (kind === 'error') ? '#d96850' : '#d68a3a';
+}
+function hideMissionLocStatus() {
+  const el = document.getElementById('missionLocStatus');
+  el.style.display = 'none';
+  el.textContent = '';
+}
+
+// Simple POI picker: classified POIs sorted by distance
+function pickPoiForMission() {
+  const classified = pois.filter(p => p.category);
+  if (classified.length === 0) {
+    alert('No classified POIs yet. Drop and classify a POI first, or use PICK ON MAP / DROP AT HERE.');
+    return;
+  }
+  const sorted = classified.slice().sort((a, b) => {
+    if (!userPos) return 0;
+    return metersBetween(userPos.lat, userPos.lng, a.lat, a.lng) -
+           metersBetween(userPos.lat, userPos.lng, b.lat, b.lng);
+  });
+  const lines = sorted.slice(0, 12).map((p, i) => {
+    const name = p.name || ('POI-' + p.id.slice(-6));
+    let dist = '';
+    if (userPos) {
+      const dM = metersBetween(userPos.lat, userPos.lng, p.lat, p.lng);
+      const dFt = dM * 3.28084;
+      dist = dFt < 528 ? ' (' + Math.round(dFt) + ' ft)' : ' (' + (dM/1609.34).toFixed(1) + ' mi)';
+    }
+    return (i + 1) + '. ' + name + dist;
+  });
+  const input = prompt('Link to which POI? Enter number 1-' + sorted.length + ':\n\n' + lines.join('\n'));
+  if (!input) return;
+  const idx = parseInt(input.trim(), 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= sorted.length) return;
+  const chosen = sorted[idx];
+  _missionFormPoiId = chosen.id;
+  _missionFormLat = chosen.lat;
+  _missionFormLng = chosen.lng;
+  applyMissionLocUI();
+  saveMissionDraft();
+}
+
+// ---------- Map-pick mode ----------
+
+function startMissionMapPick() {
+  // Save the current in-progress form so we can restore it after the user picks
+  pendingMissionDraft = readMissionFormState();
+  saveMissionDraft();
+  missionPickMode = true;
+  // Hide form, show pick bar
+  closeAllSheets();
+  document.getElementById('missionPickBar').classList.add('visible');
+  // Recenter map for picking
+  if (userPos) map.setView([userPos.lat, userPos.lng], Math.max(map.getZoom(), 16), { animate: true });
+  // Show the existing reposition crosshair (it's a screen-center crosshair)
+  document.getElementById('repositionCrosshair').classList.add('visible');
+  showToast('PAN MAP TO PICK A LOCATION');
+}
+
+function confirmMissionMapPick() {
+  if (!missionPickMode) return;
+  const c = map.getCenter();
+  _missionFormLat = c.lat;
+  _missionFormLng = c.lng;
+  _missionFormPoiId = null;
+  endMissionMapPick();
+  openMissionFormResumed();
+}
+
+function cancelMissionMapPick() {
+  if (!missionPickMode) return;
+  endMissionMapPick();
+  openMissionFormResumed();
+}
+
+function endMissionMapPick() {
+  missionPickMode = false;
+  document.getElementById('missionPickBar').classList.remove('visible');
+  document.getElementById('repositionCrosshair').classList.remove('visible');
+}
+
+function openMissionFormResumed() {
+  // Reopen mission form using the saved draft + new coords (or no coords if cancelled)
+  openMissionForm(editingMissionId);  // openMissionForm re-reads from draft for new missions
+}
+
+// ---------- Save / Delete ----------
+
+function readMissionFormState() {
+  return {
+    title: document.getElementById('missionTitle').value.trim(),
+    notes: document.getElementById('missionNotes').value.trim(),
+    priority: _missionFormPriority,
+    locMode: _missionFormLocMode,
+    lat: _missionFormLat,
+    lng: _missionFormLng,
+    poiId: _missionFormPoiId,
+    deadline: document.getElementById('missionDeadline').value,
+  };
+}
+
+function saveMissionForm() {
+  const title = document.getElementById('missionTitle').value.trim();
+  if (!title) {
+    alert('Title is required.');
+    return;
+  }
+  const notes = document.getElementById('missionNotes').value.trim();
+  const deadlineRaw = document.getElementById('missionDeadline').value;
+  const deadline = deadlineRaw ? new Date(deadlineRaw).getTime() : null;
+
+  if (editingMissionId) {
+    // EDIT existing
+    const m = missions.find(x => x.id === editingMissionId);
+    if (!m) { cancelMissionForm(); return; }
+    const before = JSON.parse(JSON.stringify(m));
+    m.title = title;
+    m.notes = notes;
+    m.priority = _missionFormPriority;
+    m.lat = _missionFormLat;
+    m.lng = _missionFormLng;
+    m.poiId = _missionFormPoiId;
+    m.deadline = deadline;
+    saveMissions();
+    logEvent('mission-edit', m.id, 'Edited: ' + title);
+    pushUndo('Restore previous values for "' + title + '"', () => {
+      const x = missions.find(x => x.id === editingMissionId);
+      if (!x) return;
+      Object.assign(x, before);
+      saveMissions();
+      renderObjectivesList();
+      renderMissionMarkers();
+    });
+    showToast('OBJECTIVE SAVED');
+  } else {
+    // NEW
+    const m = {
+      id: 'MSN-' + Date.now(),
+      title: title,
+      notes: notes,
+      priority: _missionFormPriority,
+      status: 'active',
+      created: Date.now(),
+      completed: null,
+      lat: _missionFormLat,
+      lng: _missionFormLng,
+      poiId: _missionFormPoiId,
+      deadline: deadline,
+    };
+    missions.push(m);
+    saveMissions();
+    logEvent('mission-create', m.id, 'Created: ' + title);
+    pushUndo('Delete "' + title + '"', () => {
+      missions = missions.filter(x => x.id !== m.id);
+      saveMissions();
+      renderObjectivesList();
+      renderMissionMarkers();
+    });
+    showToast('OBJECTIVE CREATED');
+  }
+  clearMissionDraft();
+  editingMissionId = null;
+  closeSheet();
+  renderMissionMarkers();
+  // If objectives sheet was previously open, reopen it
+  setTimeout(() => openObjectivesSheet(), 60);
+}
+
+function cancelMissionForm() {
+  editingMissionId = null;
+  clearMissionDraft();
+  closeSheet();
+  setTimeout(() => openObjectivesSheet(), 60);
+}
+
+function deleteMissionFromForm() {
+  if (!editingMissionId) return;
+  const m = missions.find(x => x.id === editingMissionId);
+  if (!m) return;
+  if (!confirm('Delete "' + m.title + '"?')) return;
+  const beforeSnapshot = JSON.parse(JSON.stringify(m));
+  missions = missions.filter(x => x.id !== editingMissionId);
+  saveMissions();
+  logEvent('mission-delete', m.id, 'Deleted: ' + m.title);
+  pushUndo('Restore "' + m.title + '"', () => {
+    missions.push(beforeSnapshot);
+    saveMissions();
+    renderObjectivesList();
+    renderMissionMarkers();
+  });
+  showToast('OBJECTIVE DELETED');
+  editingMissionId = null;
+  clearMissionDraft();
+  closeSheet();
+  renderMissionMarkers();
+  setTimeout(() => openObjectivesSheet(), 60);
+}
+
+// ---------- Toggle complete (checkbox on card) ----------
+
+function toggleMissionComplete(ev, missionId) {
+  if (ev) { ev.stopPropagation(); }
+  const m = missions.find(x => x.id === missionId);
+  if (!m) return;
+  const wasComplete = m.status === 'complete';
+  if (wasComplete) {
+    m.status = 'active';
+    m.completed = null;
+    logEvent('mission-reopen', m.id, 'Reopened: ' + m.title);
+    showToast('REOPENED');
+  } else {
+    m.status = 'complete';
+    m.completed = Date.now();
+    logEvent('mission-complete', m.id, 'Completed: ' + m.title);
+    showToast('OBJECTIVE COMPLETE');
+    if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+  }
+  saveMissions();
+  pushUndo(wasComplete ? 'Mark "' + m.title + '" complete again' : 'Reopen "' + m.title + '"', () => {
+    const x = missions.find(x => x.id === missionId);
+    if (!x) return;
+    if (wasComplete) { x.status = 'complete'; x.completed = Date.now(); }
+    else { x.status = 'active'; x.completed = null; }
+    saveMissions();
+    renderObjectivesList();
+    renderMissionMarkers();
+  });
+  renderObjectivesList();
+  renderMissionMarkers();
+}
+
+// ---------- Form draft autosave (survives accidental close) ----------
+
+function setupMissionFormAutosave() {
+  ['missionTitle', 'missionNotes', 'missionDeadline'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.oninput = saveMissionDraft;
+  });
+}
+function saveMissionDraft() {
+  if (editingMissionId) return;  // don't autosave when editing existing
+  try {
+    localStorage.setItem(MISSION_DRAFT_KEY, JSON.stringify(readMissionFormState()));
+  } catch (e) {}
+}
+function loadMissionDraft() {
+  try {
+    const raw = localStorage.getItem(MISSION_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function clearMissionDraft() {
+  localStorage.removeItem(MISSION_DRAFT_KEY);
+}
+
+// ---------- Map markers (diamond reticle, blue/red) ----------
+
+function makeMissionIcon(priority, sizePx) {
+  const size = sizePx || 32;
+  const c = MISSION_COLORS[priority] || MISSION_COLORS.normal;
+  const pulseClass = priority === 'urgent' ? 'mission-marker-pulse-urgent' : 'mission-marker-pulse';
+  const gradId = 'msn-' + priority + '-' + Math.floor(Math.random() * 1e9);
+  // Inset reticle: outer diamond filled, inner diamond hollow, center dot
+  const svg = `
+    <svg viewBox="-22 -22 44 44" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" class="${pulseClass}">
+      <defs>
+        <radialGradient id="${gradId}" cx="35%" cy="30%">
+          <stop offset="0" stop-color="${c.light}"/>
+          <stop offset="0.5" stop-color="${c.mid}"/>
+          <stop offset="1" stop-color="${c.dark}"/>
+        </radialGradient>
+      </defs>
+      <path d="M0 -20 L20 0 L0 20 L-20 0 Z" fill="url(#${gradId})" stroke="${c.stroke}" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M0 -12 L12 0 L0 12 L-12 0 Z" fill="none" stroke="${c.stroke}" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="2.5" fill="${c.stroke}"/>
+    </svg>
+  `;
+  return L.divIcon({
+    html: '<div class="mission-marker-wrap" style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));">' + svg + '</div>',
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+function renderMissionMarkers() {
+  if (!missionMarkerLayer) return;
+  missionMarkerLayer.clearLayers();
+  missions.forEach(m => {
+    if (m.status !== 'active') return;       // completed missions are invisible on map
+    if (m.lat == null || m.lng == null) return;
+    const marker = L.marker([m.lat, m.lng], {
+      icon: makeMissionIcon(m.priority || 'normal'),
+    });
+    marker.on('click', () => openMissionForm(m.id));
+    marker.addTo(missionMarkerLayer);
+  });
+}
+
+// ---------- Helper: bearing-to-cardinal (used in card meta) ----------
+
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const toRad = x => x * Math.PI / 180;
+  const toDeg = x => x * 180 / Math.PI;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360;
+}
+function bearingToCardinal(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// ---------- POI ↔ Mission linkage helpers ----------
+
+let pendingPoiIdForObjective = null;
+
+function addObjectiveForCurrentPoi() {
+  if (!editingId) return;
+  // Snapshot the POI id BEFORE closeSheet (which clears editingId)
+  pendingPoiIdForObjective = editingId;
+  closeSheet();
+  setTimeout(() => {
+    // Open new mission form, then override the location to link to this POI
+    editingMissionId = null;
+    openMissionForm(null);
+    const poi = pois.find(p => p.id === pendingPoiIdForObjective);
+    if (poi) {
+      _missionFormPoiId = poi.id;
+      _missionFormLat = poi.lat;
+      _missionFormLng = poi.lng;
+      applyMissionLocUI();
+    }
+    pendingPoiIdForObjective = null;
+  }, 60);
+}
+
+function renderPoiLinkedMissions(poiId) {
+  const container = document.getElementById('poiLinkedMissions');
+  if (!container) return;
+  const linked = missions.filter(m => m.poiId === poiId);
+  if (linked.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = '';
+  linked.forEach(m => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:6px; padding:6px 8px; background:#050403; border:1px solid #2a2520; border-radius:2px; margin-top:4px; cursor:pointer; box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);';
+    const flag = m.status === 'complete' ? '✓' : (m.priority === 'urgent' ? '!' : '▶');
+    const flagColor = m.status === 'complete' ? '#6a9a5a' : (m.priority === 'urgent' ? '#d96850' : '#6ab3e0');
+    row.innerHTML = `
+      <span style="color:${flagColor}; font-family: 'B612 Mono', monospace; font-size: 10px; font-weight: 700;">${flag}</span>
+      <span style="flex:1; color:#d4c8b0; font-family:'IBM Plex Mono', monospace; font-size:11px; ${m.status === 'complete' ? 'text-decoration:line-through; opacity:0.6;' : ''}">${escapeHtml(m.title)}</span>
+    `;
+    row.onclick = (ev) => {
+      ev.stopPropagation();
+      closeSheet();
+      setTimeout(() => openMissionForm(m.id), 60);
+    };
+    container.appendChild(row);
+  });
+}
+
+
+// ---------- closeAllSheets helper (used by mission-form transitions) ----------
+
+function closeAllSheets() {
+  // Doesn't change overlay state; just removes .open from each known sheet
+  ['classifySheet','pendingSheet','settingsSheet','logSheet','searchSheet','statsSheet','objectivesSheet','missionFormSheet'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('open');
+  });
+}
+
+
 // ===== INIT =====
 loadPrefs();
 loadPOIs();
+loadMissions();
 loadFog();
 loadRegions();
 loadJournal();

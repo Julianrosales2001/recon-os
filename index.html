@@ -104,6 +104,10 @@
           <div class="socket"></div>
           <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="pendingLabel">PENDING</span></div></div>
         </div>
+        <div class="toggle-btn" onclick="openObjectivesSheet()">
+          <div class="socket"></div>
+          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="objectivesLabel">OBJECTV</span></div></div>
+        </div>
         <div class="toggle-btn" onclick="openSettingsSheet()">
           <div class="socket"></div>
           <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">MENU</span></div></div>
@@ -217,6 +221,12 @@
         </div>
         <button type="button" class="visit-log-btn" onclick="manualLogVisit()">+ LOG VISIT</button>
       </div>
+    </div>
+
+    <div id="poiObjectiveRow" style="display:none;">
+      <div class="field-label">OBJECTIVES</div>
+      <button type="button" class="visit-log-btn" style="width:100%;" onclick="addObjectiveForCurrentPoi()">+ ADD OBJECTIVE HERE</button>
+      <div id="poiLinkedMissions" style="margin-top: 6px;"></div>
     </div>
 
     <div id="navInfoRow" style="display:none;">
@@ -520,6 +530,136 @@
       <div class="socket"></div>
       <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
     </div>
+  </div>
+</div>
+
+<!-- OBJECTIVES SHEET (mission/task list) -->
+<div class="sheet" id="objectivesSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">OBJECTIVES</div>
+
+  <!-- Tabs -->
+  <div class="obj-tabs">
+    <div class="obj-tab" data-obj-tab="active" onclick="switchObjectivesTab('active')">
+      <span class="tab-led"></span>
+      <span class="label">ACTIVE</span>
+      <span class="count" id="objActiveCount">0</span>
+    </div>
+    <div class="obj-tab" data-obj-tab="complete" onclick="switchObjectivesTab('complete')">
+      <span class="tab-led"></span>
+      <span class="label">COMPLETE</span>
+      <span class="count" id="objCompleteCount">0</span>
+    </div>
+    <div class="obj-tab" data-obj-tab="all" onclick="switchObjectivesTab('all')">
+      <span class="tab-led"></span>
+      <span class="label">ALL</span>
+      <span class="count" id="objAllCount">0</span>
+    </div>
+  </div>
+
+  <div style="padding: 0 0 8px;">
+    <input class="field-input list-search" id="objectivesSearch" placeholder="SEARCH OBJECTIVES..." oninput="renderObjectivesList()" autocomplete="off" autocorrect="off" autocapitalize="off" />
+    <select class="list-sort" id="objectivesSort" onchange="onObjectivesSortChange()" style="width:100%; margin-top:6px;">
+      <option value="smart">SMART (URGENT + DEADLINE)</option>
+      <option value="deadline">BY DEADLINE</option>
+      <option value="created">NEWEST CREATED</option>
+      <option value="priority">BY PRIORITY</option>
+      <option value="distance">BY DISTANCE</option>
+    </select>
+  </div>
+
+  <!-- Quick-add row: title-only mission creation in one tap -->
+  <div class="obj-quick-add">
+    <input class="field-input" id="objQuickAddInput" placeholder="+ QUICK ADD OBJECTIVE..." autocomplete="off" autocorrect="off" autocapitalize="on" />
+    <button type="button" class="obj-quick-add-btn" onclick="commitQuickAddMission()">ADD</button>
+  </div>
+
+  <!-- "+ NEW OBJECTIVE" full-form button -->
+  <div class="new-obj-btn" onclick="openMissionForm(null)">
+    <span class="plus">+</span>
+    <span>NEW OBJECTIVE (FULL FORM)</span>
+  </div>
+
+  <div class="sheet-body" id="objectivesBody">
+    <!-- Mission cards injected by JS -->
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MISSION CREATE/EDIT FORM SHEET -->
+<div class="sheet" id="missionFormSheet">
+  <div class="grip"></div>
+  <div class="sheet-title" id="missionFormTitle">NEW OBJECTIVE</div>
+  <div class="sheet-body" style="padding: 0 4px;">
+
+    <div class="field-label">TITLE</div>
+    <input class="field-input" id="missionTitle" placeholder="WHAT NEEDS DOING..." autocomplete="off" />
+
+    <div class="field-label">NOTES (OPTIONAL)</div>
+    <textarea class="field-input notes" id="missionNotes" placeholder="DETAILS, CONTEXT, REMINDERS..."></textarea>
+
+    <div class="field-label">PRIORITY</div>
+    <div class="cat-filter-row" id="missionPriorityRow" style="margin-bottom: 8px;">
+      <div class="cat-chip with-led active" data-priority="normal" onclick="selectMissionPriority('normal')"><span class="led-indicator on"></span>NORMAL</div>
+      <div class="cat-chip with-led" data-priority="urgent" onclick="selectMissionPriority('urgent')"><span class="led-indicator"></span>URGENT</div>
+    </div>
+
+    <div class="field-label">LOCATION</div>
+    <div class="loc-row" id="missionLocRow">
+      <div class="loc-chip active" data-loc="none" onclick="selectMissionLocMode('none')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="7.5"/><line x1="3.5" y1="3.5" x2="14.5" y2="14.5"/></svg>
+        NO LOCATION
+      </div>
+      <div class="loc-chip" data-loc="here" onclick="selectMissionLocMode('here')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="9" cy="9" r="6"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>
+        DROP AT HERE
+      </div>
+      <div class="loc-chip" data-loc="poi" onclick="selectMissionLocMode('poi')">
+        <svg viewBox="-9 -15 18 21" fill="none"><line x1="0" y1="0" x2="0" y2="-13" stroke="currentColor" stroke-width="1.2"/><path d="M0 -13 L7 -10 L0 -7 Z" fill="currentColor"/></svg>
+        LINK TO POI
+      </div>
+      <div class="loc-chip" data-loc="map" onclick="selectMissionLocMode('map')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="7.5"/><line x1="9" y1="2" x2="9" y2="16"/><line x1="2" y1="9" x2="16" y2="9"/></svg>
+        PICK ON MAP
+      </div>
+    </div>
+    <div class="loc-status" id="missionLocStatus" style="display:none;"></div>
+
+    <div class="field-label">DEADLINE (OPTIONAL)</div>
+    <input class="field-input" id="missionDeadline" type="datetime-local" />
+    <div class="loc-status" id="missionDeadlineStatus" style="display:none;"></div>
+
+  </div>
+  <div class="sheet-actions" id="missionFormActions">
+    <div class="action-btn" onclick="cancelMissionForm()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
+    </div>
+    <div class="action-btn" onclick="deleteMissionFromForm()" id="missionDeleteBtn" style="display:none;">
+      <div class="socket"></div>
+      <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
+    </div>
+    <div class="action-btn" onclick="saveMissionForm()">
+      <div class="socket"></div>
+      <div class="cap"><div class="lcd"><span class="lcd-text" id="missionSaveLabel">CREATE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MISSION MAP PICK BAR (slides up when user is picking a location on the map) -->
+<div id="missionPickBar" class="reposition-bar">
+  <div class="reposition-bar-info">
+    <div class="reposition-bar-label">PICK OBJECTIVE LOCATION</div>
+    <div class="reposition-bar-name">PAN MAP &middot; TAP CONFIRM</div>
+  </div>
+  <div class="reposition-bar-buttons">
+    <button type="button" class="reposition-cancel" onclick="cancelMissionMapPick()">CANCEL</button>
+    <button type="button" class="reposition-confirm" onclick="confirmMissionMapPick()">POSITION HERE</button>
   </div>
 </div>
 
