@@ -571,6 +571,25 @@
   .log-tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
   .log-tab-content.active { display: flex; }
 
+  /* Region boundary label — floats at polygon centroid */
+  .region-label {
+    font-family: 'B612 Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    font-weight: 700;
+    color: #d68a3a;
+    text-shadow:
+      0 0 4px rgba(8, 6, 4, 0.95),
+      0 0 8px rgba(8, 6, 4, 0.8),
+      1px 1px 0 #050403,
+      -1px 1px 0 #050403,
+      1px -1px 0 #050403,
+      -1px -1px 0 #050403;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
   /* SEARCH sheet — hint text under input */
   .search-hint {
     font-family: 'B612 Mono', monospace;

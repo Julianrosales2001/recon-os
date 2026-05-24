@@ -62,6 +62,7 @@ let showTrail = true;           // user toggle, default on
 let map = null;
 let userMarker = null;
 let markerLayer = null;
+let boundaryLayer = null;       // Leaflet layer group for region boundary polygons
 let fogPolygon = null;          // Leaflet polygon representing fog with holes
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
@@ -336,6 +337,7 @@ function loadPrefs() {
     if (typeof p.legendOpen === 'boolean') prefLegendOpen = p.legendOpen;
     if (typeof p.fogOpacity === 'string' && FOG_OPACITY_VALUES[p.fogOpacity]) prefFogOpacity = p.fogOpacity;
     if (typeof p.activeLogTab === 'string') activeLogTab = p.activeLogTab;
+    if (typeof p.showBoundaries === 'boolean') prefShowBoundaries = p.showBoundaries;
   } catch (e) { /* ignore */ }
 }
 
@@ -352,12 +354,14 @@ function savePrefs() {
       legendOpen: prefLegendOpen,
       fogOpacity: prefFogOpacity,
       activeLogTab: activeLogTab,
+      showBoundaries: prefShowBoundaries,
     }));
   }, 500);
 }
 
 let prefLegendOpen = false;
 let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
+let prefShowBoundaries = false;
 
 const FOG_OPACITY_VALUES = {
   CLEAR: 0.35,
@@ -647,6 +651,128 @@ function getCurrentRegion() {
   return regions.find(r => r.id === currentRegionId);
 }
 
+// ===== REGION BOUNDARIES =====
+// Fetch the OSM admin polygon for a region and store it. Polygon comes back as
+// GeoJSON-style coordinates in [lng, lat] order; we'll convert to Leaflet's
+// [lat, lng] order when rendering.
+async function fetchBoundaryForRegion(regionId, opts) {
+  opts = opts || {};
+  const region = regions.find(r => r.id === regionId);
+  if (!region) return false;
+
+  // Use the region's origin point — most reliable way to look it up again
+  const url = 'https://nominatim.openstreetmap.org/reverse' +
+              '?format=json&lat=' + region.originLat + '&lon=' + region.originLng +
+              '&zoom=10&polygon_geojson=1&addressdetails=1';
+
+  try {
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.geojson || !data.geojson.coordinates) return false;
+
+    // Some places only return a Point or LineString — we want polygons.
+    const t = data.geojson.type;
+    if (t !== 'Polygon' && t !== 'MultiPolygon') return false;
+
+    region.boundary = {
+      type: t,
+      coords: data.geojson.coordinates,
+      fetched: Date.now(),
+    };
+    saveRegions();
+    if (!opts.silent) showToast('BOUNDARY FETCHED · ' + region.name.replace(' REGION', ''));
+    renderBoundaries();
+    return true;
+  } catch (e) {
+    if (!opts.silent) showToast('FETCH FAILED · CHECK CONNECTION');
+    return false;
+  }
+}
+
+async function fetchAllBoundaries() {
+  const targets = regions.filter(r => !r.boundary);
+  if (targets.length === 0) {
+    showToast('ALL BOUNDARIES ALREADY FETCHED');
+    return;
+  }
+  showToast('FETCHING ' + targets.length + ' BOUNDARIES...');
+  let ok = 0, fail = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const success = await fetchBoundaryForRegion(targets[i].id, { silent: true });
+    if (success) ok++; else fail++;
+    // Nominatim's free tier limit is 1 req/sec — wait 1.1s between calls
+    if (i < targets.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1100));
+    }
+  }
+  showToast('FETCHED · ' + ok + ' OK · ' + fail + ' FAILED');
+  // Refresh the settings sheet listing if it's open
+  if (document.getElementById('settingsSheet').classList.contains('open')) {
+    openSettingsSheet();
+  }
+}
+
+// Convert GeoJSON coordinates ([lng, lat] order, deeply nested by type) to
+// Leaflet-compatible coords ([lat, lng] order, same nesting).
+function geoJsonToLeafletCoords(geoType, coords) {
+  if (geoType === 'Polygon') {
+    // coords = [ ring, ring, ... ] where ring = [ [lng,lat], [lng,lat], ... ]
+    return coords.map(ring => ring.map(pt => [pt[1], pt[0]]));
+  } else if (geoType === 'MultiPolygon') {
+    // coords = [ polygon, polygon, ... ] where each polygon = [ ring, ring, ... ]
+    return coords.map(poly => poly.map(ring => ring.map(pt => [pt[1], pt[0]])));
+  }
+  return [];
+}
+
+function renderBoundaries() {
+  if (!boundaryLayer) return;
+  boundaryLayer.clearLayers();
+  if (!prefShowBoundaries) return;
+  regions.forEach(r => {
+    if (!r.boundary) return;
+    const latlngs = geoJsonToLeafletCoords(r.boundary.type, r.boundary.coords);
+    if (latlngs.length === 0) return;
+    // L.polygon handles arrays of rings (Polygon) or arrays of arrays of rings (MultiPolygon)
+    const poly = L.polygon(latlngs, {
+      pane: 'boundaryPane',
+      color: '#d68a3a',
+      weight: 2.2,
+      dashArray: '6 4',
+      opacity: 0.85,
+      fillColor: '#d68a3a',
+      fillOpacity: 0.04,
+      interactive: false,
+      smoothFactor: 0.5,
+    });
+    poly.addTo(boundaryLayer);
+
+    // Floating label at the polygon's bounds center
+    const bounds = poly.getBounds();
+    const center = bounds.getCenter();
+    const labelText = r.name.replace(' REGION', '');
+    const labelIcon = L.divIcon({
+      html: `<div class="region-label">${escapeHtml(labelText)}</div>`,
+      className: '',
+      iconSize: [120, 18],
+      iconAnchor: [60, 9],
+    });
+    L.marker(center, { icon: labelIcon, pane: 'boundaryPane', interactive: false })
+      .addTo(boundaryLayer);
+  });
+}
+
+function toggleBoundaries() {
+  prefShowBoundaries = !prefShowBoundaries;
+  savePrefs();
+  renderBoundaries();
+  const desc = document.getElementById('boundaryToggleDesc');
+  if (desc) desc.textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
+  const indicator = document.getElementById('boundaryToggleIndicator');
+  if (indicator) indicator.style.color = prefShowBoundaries ? '#f0a040' : '#3a3128';
+}
+
 // ===== UI HELPERS =====
 function showToast(message) {
   const t = document.getElementById('toast');
@@ -701,6 +827,13 @@ function initMap() {
   map.createPane('fogPane');
   map.getPane('fogPane').style.zIndex = 250;
   map.getPane('fogPane').style.pointerEvents = 'none';
+
+  // Pane for region boundary outlines — above fog, below markers
+  map.createPane('boundaryPane');
+  map.getPane('boundaryPane').style.zIndex = 350;
+  map.getPane('boundaryPane').style.pointerEvents = 'none';
+
+  boundaryLayer = L.layerGroup({ pane: 'boundaryPane' }).addTo(map);
 
   markerLayer = L.layerGroup().addTo(map);
   renderAllMarkers();
@@ -2229,6 +2362,8 @@ function openSettingsSheet() {
   document.getElementById('trailToggleDesc').textContent = showTrail ? 'Trail visible' : 'Trail hidden';
   document.getElementById('trailToggleIndicator').style.color = showTrail ? '#f0a040' : '#3a3128';
   document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
+  document.getElementById('boundaryToggleDesc').textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
+  document.getElementById('boundaryToggleIndicator').style.color = prefShowBoundaries ? '#f0a040' : '#3a3128';
   setupFogDensityChips();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('settingsSheet').classList.add('open');
@@ -2243,7 +2378,7 @@ function setupFogDensityChips() {
       prefFogOpacity = chip.dataset.fog;
       chips.forEach(c => c.classList.toggle('active', c.dataset.fog === prefFogOpacity));
       savePrefs();
-      renderFog();  // re-render with new opacity
+      renderFog();
     };
   });
 }
@@ -2256,10 +2391,17 @@ function showRegionsList() {
   const lines = regions.map((r, i) => {
     const isCurrent = r.id === currentRegionId;
     const star = isCurrent ? '★ ' : '  ';
-    return `${star}${i+1}. ${r.name}\n   ${r.revealedSectors.length} sectors · est. ${new Date(r.created).toLocaleDateString()}`;
+    const boundary = r.boundary ? '✓ boundary' : '— no boundary';
+    return `${star}${i+1}. ${r.name}\n   ${r.revealedSectors.length} sectors · ${boundary}`;
   });
+  // Build a prompt: pick a region to fetch a missing boundary
+  const missing = regions.filter(r => !r.boundary);
+  let extra = '';
+  if (missing.length > 0) {
+    extra = '\n\n' + missing.length + ' region(s) missing boundaries.\nUse FETCH ALL BOUNDARIES in settings.';
+  }
   alert('ACTIVE REGIONS:\n\n' + lines.join('\n\n') +
-        '\n\n(Star = current region)');
+        '\n\n(★ = current region)' + extra);
 }
 
 function exportData() {
@@ -2588,3 +2730,4 @@ startGPS();
 updatePendingCount();
 renderTrail();
 applyLegendPref();
+renderBoundaries();

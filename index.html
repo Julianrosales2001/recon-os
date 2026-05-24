@@ -309,6 +309,22 @@
       <div class="settings-action">→</div>
     </div>
 
+    <div class="settings-row" onclick="toggleBoundaries()">
+      <div>
+        <div class="settings-name">SHOW REGION BOUNDARIES</div>
+        <div class="settings-desc" id="boundaryToggleDesc">Boundaries hidden</div>
+      </div>
+      <div class="settings-action" id="boundaryToggleIndicator">●</div>
+    </div>
+
+    <div class="settings-row" onclick="fetchAllBoundaries()">
+      <div>
+        <div class="settings-name">FETCH ALL BOUNDARIES</div>
+        <div class="settings-desc">Download missing region outlines</div>
+      </div>
+      <div class="settings-action">↓</div>
+    </div>
+
     <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ DATA</div>
 
     <div class="settings-row" onclick="exportData()">
