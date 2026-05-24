@@ -90,9 +90,9 @@
         </div>
       </div>
       <div class="toggle-row">
-        <div class="toggle-btn" onclick="openListSheet()">
+        <div class="toggle-btn" onclick="openSearchSheet()">
           <div class="socket"></div>
-          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">LIST</span></div></div>
+          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">SEARCH</span></div></div>
         </div>
         <div class="toggle-btn" onclick="openPendingSheet()">
           <div class="socket"></div>
@@ -280,43 +280,6 @@
   </div>
 </div>
 
-<!-- LIST SHEET -->
-<div class="sheet" id="listSheet">
-  <div class="grip"></div>
-  <div class="sheet-title">ALL ASSETS · <span id="listCount">0</span></div>
-  <div style="padding: 0 0 8px;">
-    <select class="list-sort" id="listRegion" onchange="renderListBody()" style="width:100%; margin-bottom:6px;">
-      <option value="ALL">ALL REGIONS</option>
-    </select>
-    <input class="field-input list-search" id="listSearch" placeholder="SEARCH NAME, NOTES, CATEGORY..." oninput="renderListBody()" />
-    <div class="list-controls">
-      <div class="cat-filter-row" id="catFilterRow">
-        <!-- chips injected by JS -->
-      </div>
-      <select class="list-sort" id="listSort" onchange="renderListBody()">
-        <option value="created_desc">NEWEST</option>
-        <option value="created_asc">OLDEST</option>
-        <option value="name_asc">NAME A-Z</option>
-        <option value="distance_asc">NEAREST</option>
-        <option value="visits_desc">MOST VISITED</option>
-        <option value="category_asc">BY CATEGORY</option>
-      </select>
-    </div>
-    <select class="list-sort" id="listTypeFilter" onchange="onTypeFilterChange()" style="width:100%; margin-top:6px;">
-      <option value="ALL">ALL SYMBOLS</option>
-    </select>
-  </div>
-  <div class="sheet-body" id="listBody">
-    <!-- POI list injected by JS -->
-  </div>
-  <div class="sheet-actions">
-    <div class="action-btn" onclick="closeSheet()">
-      <div class="socket"></div>
-      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
-    </div>
-  </div>
-</div>
-
 <!-- PENDING SHEET (unclassified) -->
 <div class="sheet" id="pendingSheet">
   <div class="grip"></div>
@@ -454,19 +417,80 @@
   </div>
 </div>
 
-<!-- JOURNAL SHEET -->
-<div class="sheet" id="journalSheet">
+<!-- LOG SHEET (dual-tab: JOURNAL + ASSETS) -->
+<div class="sheet" id="logSheet">
   <div class="grip"></div>
-  <div class="sheet-title">FIELD JOURNAL · <span id="journalCount">0</span></div>
-  <div style="padding: 0 0 6px;">
-    <div class="cat-filter-row" id="journalRangeRow">
-      <div class="cat-chip active" data-range="today">TODAY</div>
-      <div class="cat-chip" data-range="week">7 DAYS</div>
-      <div class="cat-chip" data-range="month">30 DAYS</div>
-      <div class="cat-chip" data-range="all">ALL</div>
+  <div class="sheet-title">LOG</div>
+  <div class="log-tabs">
+    <div class="log-tab" data-tab="journal" onclick="switchLogTab('journal')">
+      <span class="label">JOURNAL</span>
+      <span class="count" id="logJournalCount">0</span>
+    </div>
+    <div class="log-tab" data-tab="assets" onclick="switchLogTab('assets')">
+      <span class="label">ASSETS</span>
+      <span class="count" id="logAssetsCount">0</span>
     </div>
   </div>
-  <div class="sheet-body" id="journalBody"></div>
+
+  <!-- JOURNAL TAB CONTENT -->
+  <div class="log-tab-content" id="logTabJournal">
+    <div style="padding: 0 0 6px;">
+      <div class="cat-filter-row" id="journalRangeRow">
+        <div class="cat-chip active" data-range="today">TODAY</div>
+        <div class="cat-chip" data-range="week">7 DAYS</div>
+        <div class="cat-chip" data-range="month">30 DAYS</div>
+        <div class="cat-chip" data-range="all">ALL</div>
+      </div>
+    </div>
+    <div class="sheet-body" id="journalBody"></div>
+  </div>
+
+  <!-- ASSETS TAB CONTENT -->
+  <div class="log-tab-content" id="logTabAssets">
+    <div style="padding: 0 0 8px;">
+      <select class="list-sort" id="listRegion" onchange="renderListBody()" style="width:100%; margin-bottom:6px;">
+        <option value="ALL">ALL REGIONS</option>
+      </select>
+      <input class="field-input list-search" id="listSearch" placeholder="SEARCH NAME, NOTES, CATEGORY..." oninput="renderListBody()" />
+      <div class="list-controls">
+        <div class="cat-filter-row" id="catFilterRow">
+          <!-- chips injected by JS -->
+        </div>
+        <select class="list-sort" id="listSort" onchange="renderListBody()">
+          <option value="created_desc">NEWEST</option>
+          <option value="created_asc">OLDEST</option>
+          <option value="name_asc">NAME A-Z</option>
+          <option value="distance_asc">NEAREST</option>
+          <option value="visits_desc">MOST VISITED</option>
+          <option value="category_asc">BY CATEGORY</option>
+        </select>
+      </div>
+      <select class="list-sort" id="listTypeFilter" onchange="onTypeFilterChange()" style="width:100%; margin-top:6px;">
+        <option value="ALL">ALL SYMBOLS</option>
+      </select>
+    </div>
+    <div class="sheet-body" id="listBody"></div>
+  </div>
+
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH SHEET (address/coordinate lookup) -->
+<div class="sheet" id="searchSheet">
+  <div class="grip"></div>
+  <div class="sheet-title">SEARCH</div>
+  <div style="padding: 0 0 8px;">
+    <input class="field-input list-search" id="searchInput" placeholder="ADDRESS, PLACE, OR LAT,LNG..." autocomplete="off" autocorrect="off" autocapitalize="off" />
+    <div class="search-hint" id="searchHint">Type to search · "29.74, -94.99" for coordinates</div>
+  </div>
+  <div class="sheet-body" id="searchResults">
+    <div class="empty-state"><div class="big">READY</div>Enter an address or coordinates to find a location.</div>
+  </div>
   <div class="sheet-actions">
     <div class="action-btn" onclick="closeSheet()">
       <div class="socket"></div>

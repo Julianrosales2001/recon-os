@@ -335,6 +335,7 @@ function loadPrefs() {
     if (typeof p.listSortMode === 'string') listSortMode = p.listSortMode;
     if (typeof p.legendOpen === 'boolean') prefLegendOpen = p.legendOpen;
     if (typeof p.fogOpacity === 'string' && FOG_OPACITY_VALUES[p.fogOpacity]) prefFogOpacity = p.fogOpacity;
+    if (typeof p.activeLogTab === 'string') activeLogTab = p.activeLogTab;
   } catch (e) { /* ignore */ }
 }
 
@@ -350,6 +351,7 @@ function savePrefs() {
       listSortMode: listSortMode,
       legendOpen: prefLegendOpen,
       fogOpacity: prefFogOpacity,
+      activeLogTab: activeLogTab,
     }));
   }, 500);
 }
@@ -1883,16 +1885,38 @@ function onTypeFilterChange() {
 }
 
 // ===== LIST SHEET =====
-function openListSheet() {
+// ===== LOG SHEET (dual-tab: JOURNAL + ASSETS) =====
+let activeLogTab = 'journal';  // 'journal' | 'assets' — persists in prefs
+
+function openLogSheet(initialTab) {
+  if (initialTab) activeLogTab = initialTab;
   document.getElementById('listSearch').value = listSearchQuery;
   document.getElementById('listSort').value = listSortMode;
   buildRegionDropdown();
   buildCatFilterRow();
   buildTypeFilterDropdown();
   renderListBody();
+  renderJournalBody();
+  switchLogTab(activeLogTab);
   document.getElementById('sheetOverlay').classList.add('open');
-  document.getElementById('listSheet').classList.add('open');
+  document.getElementById('logSheet').classList.add('open');
 }
+
+function switchLogTab(tabId) {
+  activeLogTab = tabId;
+  // Update tab chips
+  document.querySelectorAll('.log-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tabId);
+  });
+  // Show only the active tab content
+  document.getElementById('logTabJournal').classList.toggle('active', tabId === 'journal');
+  document.getElementById('logTabAssets').classList.toggle('active', tabId === 'assets');
+  savePrefs();
+}
+
+// Backward-compat: old call sites still use these names
+function openListSheet() { openLogSheet('assets'); }
+function openJournalSheet() { openLogSheet('journal'); }
 
 function renderListBody() {
   const body = document.getElementById('listBody');
@@ -1947,7 +1971,8 @@ function renderListBody() {
     }
   });
 
-  document.getElementById('listCount').textContent = classified.length;
+  const assetsCountEl = document.getElementById('logAssetsCount');
+  if (assetsCountEl) assetsCountEl.textContent = classified.length;
   body.innerHTML = '';
 
   if (classified.length === 0) {
@@ -2044,12 +2069,6 @@ function setupJournalRangeChips() {
 }
 setupJournalRangeChips();
 
-function openJournalSheet() {
-  renderJournalBody();
-  document.getElementById('sheetOverlay').classList.add('open');
-  document.getElementById('journalSheet').classList.add('open');
-}
-
 function renderJournalBody() {
   const body = document.getElementById('journalBody');
   body.innerHTML = '';
@@ -2067,7 +2086,9 @@ function renderJournalBody() {
     : now - ranges[journalRange];
 
   const filtered = journalEntries.filter(e => e.ts >= cutoff);
-  document.getElementById('journalCount').textContent = filtered.length;
+  // Update counts in BOTH tabs (LOG sheet shows both totals on its tab chips)
+  const journalCountEl = document.getElementById('logJournalCount');
+  if (journalCountEl) journalCountEl.textContent = filtered.length;
 
   if (filtered.length === 0) {
     body.innerHTML = '<div class="empty-state"><div class="big">NO ACTIVITY</div>No journal entries in this range.</div>';
@@ -2145,10 +2166,10 @@ function escapeHtml(s) {
 function closeSheet() {
   document.getElementById('sheetOverlay').classList.remove('open');
   document.getElementById('classifySheet').classList.remove('open');
-  document.getElementById('listSheet').classList.remove('open');
   document.getElementById('pendingSheet').classList.remove('open');
   document.getElementById('settingsSheet').classList.remove('open');
-  document.getElementById('journalSheet').classList.remove('open');
+  document.getElementById('logSheet').classList.remove('open');
+  document.getElementById('searchSheet').classList.remove('open');
   document.getElementById('statsSheet').classList.remove('open');
   editingId = null;
   liveNavPoiId = null;
@@ -2397,6 +2418,163 @@ function formatTimestamp(ts) {
   }
   return (d.getMonth()+1) + '/' + d.getDate();
 }
+
+// ===== SEARCH SHEET (address / coordinate lookup via Nominatim) =====
+let searchDebounceTimer = null;
+let searchActiveQuery = null;  // tracks latest query so stale responses are ignored
+
+function openSearchSheet() {
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('searchSheet').classList.add('open');
+  const input = document.getElementById('searchInput');
+  input.value = '';
+  document.getElementById('searchResults').innerHTML =
+    '<div class="empty-state"><div class="big">READY</div>Enter an address or coordinates to find a location.</div>';
+  setSearchHint('Type to search · "29.74, -94.99" for coordinates', 'idle');
+  // Focus the input with a small delay so iOS doesn't fight the sheet animation
+  setTimeout(() => { input.focus(); }, 350);
+  input.oninput = onSearchInput;
+}
+
+function setSearchHint(text, mode) {
+  const el = document.getElementById('searchHint');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'search-hint' + (mode === 'error' ? ' error' : mode === 'busy' ? ' busy' : '');
+}
+
+// Returns [lat, lng] if input parses as coordinates, else null.
+// Accepts formats like "29.74, -94.99" or "29.74 -94.99" or "29.74,-94.99".
+function parseCoordinates(input) {
+  const m = input.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return [lat, lng];
+}
+
+function onSearchInput() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+  if (!q) {
+    document.getElementById('searchResults').innerHTML =
+      '<div class="empty-state"><div class="big">READY</div>Enter an address or coordinates to find a location.</div>';
+    setSearchHint('Type to search · "29.74, -94.99" for coordinates', 'idle');
+    return;
+  }
+
+  // Coordinate shortcut — no network call needed
+  const coords = parseCoordinates(q);
+  if (coords) {
+    renderCoordinateResult(coords[0], coords[1]);
+    setSearchHint(`Coordinates parsed · ${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`, 'idle');
+    return;
+  }
+
+  if (q.length < 3) {
+    setSearchHint('Keep typing · ' + q.length + '/3 chars minimum', 'idle');
+    return;
+  }
+
+  // Debounce 450ms so we don't hammer Nominatim while user types
+  setSearchHint('Searching...', 'busy');
+  searchDebounceTimer = setTimeout(() => doSearch(q), 450);
+}
+
+async function doSearch(query) {
+  searchActiveQuery = query;
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+              encodeURIComponent(query) + '&limit=8&addressdetails=1';
+  try {
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    if (searchActiveQuery !== query) return;  // a newer query already started
+    if (!res.ok) {
+      setSearchHint('Search failed · ' + res.status, 'error');
+      return;
+    }
+    const data = await res.json();
+    if (searchActiveQuery !== query) return;
+    if (!data.length) {
+      document.getElementById('searchResults').innerHTML =
+        '<div class="empty-state"><div class="big">NO MATCHES</div>Try a different query or use coordinates.</div>';
+      setSearchHint('0 results for "' + query + '"', 'idle');
+      return;
+    }
+    renderSearchResults(data);
+    setSearchHint(data.length + ' result' + (data.length === 1 ? '' : 's'), 'idle');
+  } catch (e) {
+    if (searchActiveQuery !== query) return;
+    setSearchHint('Network error · check connection', 'error');
+  }
+}
+
+function renderSearchResults(results) {
+  const body = document.getElementById('searchResults');
+  body.innerHTML = '';
+  results.forEach(r => {
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lon);
+    const name = r.display_name.split(',')[0].trim();
+    const addr = r.display_name;
+    let metaParts = [];
+    if (userPos) {
+      const dM = metersBetween(userPos.lat, userPos.lng, lat, lng);
+      const dFt = dM * 3.28084;
+      metaParts.push(dFt < 528 ? Math.round(dFt) + ' FT' : (dM / 1609.34).toFixed(1) + ' MI');
+    }
+    metaParts.push(lat.toFixed(4) + ', ' + lng.toFixed(4));
+    const row = document.createElement('div');
+    row.className = 'search-result';
+    row.innerHTML = `
+      <div class="name">${escapeHtml(name)}</div>
+      <div class="addr">${escapeHtml(addr)}</div>
+      <div class="meta">${metaParts.join(' · ')}</div>
+    `;
+    row.onclick = () => previewAndDropFromSearch(lat, lng, name);
+    body.appendChild(row);
+  });
+}
+
+function renderCoordinateResult(lat, lng) {
+  const body = document.getElementById('searchResults');
+  let distHTML = '';
+  if (userPos) {
+    const dM = metersBetween(userPos.lat, userPos.lng, lat, lng);
+    const dFt = dM * 3.28084;
+    distHTML = dFt < 528 ? Math.round(dFt) + ' FT FROM YOU' : (dM / 1609.34).toFixed(1) + ' MI FROM YOU';
+  }
+  body.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'search-result';
+  row.innerHTML = `
+    <div class="name">COORDINATES</div>
+    <div class="addr">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+    <div class="meta">${distHTML || 'Tap to drop pin'}</div>
+  `;
+  row.onclick = () => previewAndDropFromSearch(lat, lng, '');
+  body.appendChild(row);
+}
+
+function previewAndDropFromSearch(lat, lng, suggestedName) {
+  closeSheet();
+  // Center map at the location and immediately drop a pending pin
+  setTimeout(() => {
+    map.setView([lat, lng], 17, { animate: true });
+    dropPinAt(lat, lng);
+    // If we have a suggested name from search, prefill it when the user
+    // taps the new pin (the pin is the most recent in pois)
+    if (suggestedName && pois.length > 0) {
+      const newPoi = pois[pois.length - 1];
+      newPoi.name = suggestedName;
+      savePOIs();
+    }
+    showToast('PIN DROPPED · TAP TO CLASSIFY');
+  }, 350);
+}
+
 
 // ===== INIT =====
 loadPrefs();
