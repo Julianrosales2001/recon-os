@@ -865,7 +865,7 @@ function renderBoundaries() {
   if (!prefShowBoundaries) return;
 
   // Tolerance for simplification (meters). Higher = less detail.
-  const SIMPLIFY_TOL_M = 120;
+  const SIMPLIFY_TOL_M = 400;
 
   // Collect label positions so we can hide colliding ones
   const placedLabels = [];  // each: { lat, lng, text, radius (px) }
