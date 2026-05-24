@@ -251,17 +251,6 @@
     gap: 8px;
     z-index: 40;
   }
-  .map-zoom-buttons {
-    position: absolute;
-    bottom: calc(var(--bot-chrome-h) + 12px);
-    left: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    z-index: 40;
-  }
-  .map-zoom-buttons .map-overlay-btn { width: 32px; height: 32px; }
-  .map-zoom-buttons .map-overlay-btn .cap { font-size: 20px; }
   .map-overlay-btn {
     width: 40px; height: 40px;
     position: relative;
@@ -1513,12 +1502,6 @@
     <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
     <div class="map-overlay-btn" id="legendBtn" onclick="toggleLegend()"><div class="socket"></div><div class="led"></div><div class="cap">⚐</div></div>
     <div class="map-overlay-btn" onclick="openJournalSheet()"><div class="socket"></div><div class="cap">▤</div></div>
-  </div>
-
-  <!-- ZOOM BUTTONS (bottom-left of map area) -->
-  <div class="map-zoom-buttons">
-    <div class="map-overlay-btn" onclick="map.zoomIn()"><div class="socket"></div><div class="cap">+</div></div>
-    <div class="map-overlay-btn" onclick="map.zoomOut()"><div class="socket"></div><div class="cap">−</div></div>
   </div>
 
   <!-- LEGEND PANEL (hidden by default) -->
