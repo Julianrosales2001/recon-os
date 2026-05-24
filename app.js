@@ -179,7 +179,7 @@ function loadPOIs() {
   }
 }
 function savePOIs() {
-  localStorage.setItem('recon.os.pois', JSON.stringify(pois));
+  safeSet('recon.os.pois', JSON.stringify(pois));
 }
 
 function loadMissions() {
@@ -191,7 +191,7 @@ function loadMissions() {
   }
 }
 function saveMissions() {
-  localStorage.setItem('recon.os.missions', JSON.stringify(missions));
+  safeSet('recon.os.missions', JSON.stringify(missions));
 }
 
 function loadFog() {
@@ -206,7 +206,7 @@ function saveFog() {
   // Throttled — saving on every cell add would thrash storage
   if (saveFog._timer) clearTimeout(saveFog._timer);
   saveFog._timer = setTimeout(() => {
-    localStorage.setItem('recon.os.fog', JSON.stringify([...revealedCells]));
+    safeSet('recon.os.fog', JSON.stringify([...revealedCells]));
   }, 2000);
 }
 
@@ -268,7 +268,7 @@ function loadRegions() {
   }
 }
 function saveRegions() {
-  localStorage.setItem('recon.os.regions', JSON.stringify(regions));
+  safeSet('recon.os.regions', JSON.stringify(regions));
 }
 
 // ===== JOURNAL =====
@@ -285,7 +285,7 @@ function saveJournal() {
   if (journalEntries.length > 1000) {
     journalEntries = journalEntries.slice(-1000);
   }
-  localStorage.setItem('recon.os.journal', JSON.stringify(journalEntries));
+  safeSet('recon.os.journal', JSON.stringify(journalEntries));
 }
 function logEvent(type, poiId, summary, meta) {
   journalEntries.push({
@@ -312,7 +312,7 @@ function loadTrail() {
 function saveTrail() {
   if (saveTrail._timer) clearTimeout(saveTrail._timer);
   saveTrail._timer = setTimeout(() => {
-    localStorage.setItem('recon.os.trail', JSON.stringify(todayTrail));
+    safeSet('recon.os.trail', JSON.stringify(todayTrail));
   }, 2000);
 }
 
@@ -379,7 +379,7 @@ function loadPrefs() {
 function savePrefs() {
   if (savePrefs._timer) clearTimeout(savePrefs._timer);
   savePrefs._timer = setTimeout(() => {
-    localStorage.setItem('recon.os.prefs', JSON.stringify({
+    safeSet('recon.os.prefs', JSON.stringify({
       showTrail: showTrail,
       activeCategoryFilter: activeCategoryFilter,
       activeTypeFilter: activeTypeFilter,
@@ -2628,9 +2628,93 @@ function openSettingsSheet() {
   document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
   document.getElementById('boundaryToggleDesc').textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
   document.getElementById('boundaryToggleIndicator').classList.toggle('on', prefShowBoundaries);
+  // Storage usage summary line — updated on every open so it's always fresh
+  updateStorageIndicator();
   setupFogDensityChips();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('settingsSheet').classList.add('open');
+}
+
+// ===== STORAGE DIAGNOSTICS =====
+// Compute the size (in bytes) of every localStorage key. Each char is 2 bytes
+// because localStorage values are UTF-16 strings.
+function computeStorageUsage() {
+  const items = [];
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const val = localStorage.getItem(key) || '';
+    const bytes = (key.length + val.length) * 2;
+    items.push({ key, bytes });
+    total += bytes;
+  }
+  items.sort((a, b) => b.bytes - a.bytes);
+  return { items, total };
+}
+
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+function updateStorageIndicator() {
+  const desc = document.getElementById('storageInfoDesc');
+  if (!desc) return;
+  try {
+    const { total } = computeStorageUsage();
+    const mb = total / 1024 / 1024;
+    const pct = Math.round((mb / 5.0) * 100);
+    desc.textContent = fmtBytes(total) + ' · ' + pct + '% of 5 MB';
+    desc.style.color = pct >= 85 ? '#d96850' : (pct >= 60 ? '#d68a3a' : '');
+  } catch (e) {
+    desc.textContent = 'unknown';
+  }
+}
+
+function showStorageInfo() {
+  const { items, total } = computeStorageUsage();
+  const mb = total / 1024 / 1024;
+  const pct = Math.round((mb / 5.0) * 100);
+  let msg = 'TOTAL: ' + fmtBytes(total) + ' (' + pct + '% of ~5 MB)\n\n';
+  msg += 'BREAKDOWN:\n';
+  items.forEach(it => {
+    msg += '  ' + it.key + '\n    ' + fmtBytes(it.bytes) + '\n';
+  });
+  msg += '\nKEY MEANINGS:\n';
+  msg += '  recon.os.pois — your pins\n';
+  msg += '  recon.os.fog — revealed map cells\n';
+  msg += '  recon.os.regions — region polygons\n';
+  msg += '  recon.os.journal — visit/event log\n';
+  msg += '  recon.os.trail — today\'s GPS trail\n';
+  msg += '  recon.os.missions — objectives\n';
+  msg += '  recon.os.prefs — settings\n';
+  msg += '  recon.os.missionDraft — autosaved form\n';
+  if (pct >= 85) {
+    msg += '\nWARNING: STORAGE NEARLY FULL.\n';
+    msg += 'Writes may start failing. Export a backup,\n';
+    msg += 'then consider clearing fog (MENU > CLEAR FOG).';
+  }
+  alert(msg);
+}
+
+// Safe wrapper for localStorage.setItem — catches QuotaExceededError so we can
+// surface the failure to the user as a visible toast instead of silently failing.
+let _storageWarnedThisSession = false;
+function safeSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    console.error('STORAGE WRITE FAILED:', key, err);
+    if (!_storageWarnedThisSession) {
+      _storageWarnedThisSession = true;
+      try {
+        showToast('STORAGE FULL · WRITE FAILED');
+      } catch (e) {}
+    }
+    return false;
+  }
 }
 
 function setupFogDensityChips() {
@@ -3682,9 +3766,7 @@ function setupMissionFormAutosave() {
 }
 function saveMissionDraft() {
   if (editingMissionId) return;  // don't autosave when editing existing
-  try {
-    localStorage.setItem(MISSION_DRAFT_KEY, JSON.stringify(readMissionFormState()));
-  } catch (e) {}
+  safeSet(MISSION_DRAFT_KEY, JSON.stringify(readMissionFormState()));
 }
 function loadMissionDraft() {
   try {
