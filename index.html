@@ -557,6 +557,57 @@
     gap: 6px;
     margin-bottom: 12px;
   }
+
+  /* Symbol grid — tiles for picking a POI's inner icon */
+  .symbol-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+  .symbol-tile {
+    aspect-ratio: 1;
+    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
+    border: 1px solid #2a2520;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.1s, background 0.1s;
+    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.06);
+  }
+  .symbol-tile svg {
+    width: 60%;
+    height: 60%;
+  }
+  .symbol-tile .label {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'B612 Mono', monospace;
+    font-size: 6px;
+    letter-spacing: 0.1em;
+    color: #6e6354;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .symbol-tile.selected {
+    border-color: #f0a040;
+    background: linear-gradient(180deg, #322a24 0%, #1f1a14 100%);
+    box-shadow: inset 0 1px 0 rgba(240, 160, 64, 0.25), 0 0 8px rgba(240, 160, 64, 0.2);
+  }
+  .symbol-tile.selected .label { color: #f0a040; }
+  .symbol-tile.none .placeholder {
+    color: #6e6354;
+    font-family: 'B612 Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+  }
   .cat-pad {
     position: relative;
     height: 56px;
@@ -1612,9 +1663,13 @@
     <div class="cat-grid" id="catGrid">
       <!-- Category pads injected by JS -->
     </div>
-    <div class="field-label">TYPE</div>
-    <div class="cat-filter-row" id="typeRow" style="margin-bottom: 8px;">
-      <!-- Type chips injected by JS -->
+    <div class="field-label">SHAPE</div>
+    <div class="cat-filter-row" id="shapeRow" style="margin-bottom: 8px;">
+      <!-- Shape chips injected by JS -->
+    </div>
+    <div class="field-label">SYMBOL</div>
+    <div class="symbol-grid" id="symbolGrid">
+      <!-- Symbol tiles injected by JS -->
     </div>
     <div class="field-label">NAME</div>
     <input class="field-input" id="poiName" placeholder="UNTITLED" />
@@ -1739,9 +1794,9 @@
         <option value="category_asc">BY CATEGORY</option>
       </select>
     </div>
-    <div class="cat-filter-row" id="typeFilterRow" style="margin-top:6px;">
-      <!-- type chips injected by JS -->
-    </div>
+    <select class="list-sort" id="listTypeFilter" onchange="onTypeFilterChange()" style="width:100%; margin-top:6px;">
+      <option value="ALL">ALL SYMBOLS</option>
+    </select>
   </div>
   <div class="sheet-body" id="listBody">
     <!-- POI list injected by JS -->
@@ -1943,15 +1998,39 @@ const CATEGORIES = [
   { id: 'HAZARD',   label: 'HAZARD', color: '#e8b818' },
 ];
 
-// POI TYPE — an OPTIONAL second dimension that drives the icon shown INSIDE the
-// pennant. The surveyor category still drives the color. TYPE is purely visual
-// shorthand for what kind of place this is (residence, workplace, eatery).
-// NONE = no inner icon. Adding more types later is straightforward.
+// POI TYPE — symbol drawn inside the pennant OR (when shape='ICON') used AS the
+// entire marker. Each symbol is a single SVG fragment in a 20×20 local coord
+// system centered on (0,0). Stroke uses currentColor so we can color-swap
+// without redefining the path.
 const POI_TYPES = [
-  { id: 'NONE', label: 'NONE',  svg: '' },
-  { id: 'HOME', label: 'HOME',  svg: '<path d="M0,2 L-5,-2 L-5,5 L-2,5 L-2,2 L2,2 L2,5 L5,5 L5,-2 Z" fill="#fff"/>' },
-  { id: 'WORK', label: 'WORK',  svg: '<path d="M-5,-1 L-5,5 L5,5 L5,-1 Z M-2,-1 L-2,-3 L2,-3 L2,-1" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>' },
-  { id: 'FOOD', label: 'FOOD',  svg: '<line x1="-3" y1="-3" x2="-3" y2="5" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/><line x1="-1" y1="-3" x2="-1" y2="0" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/><line x1="-5" y1="-3" x2="-5" y2="0" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/><path d="M-5,0 L-1,0" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/><path d="M3,-3 C2,-3 1,-2 1,0 C1,2 2,3 3,3 L3,5" stroke="#fff" stroke-width="1.2" stroke-linecap="round" fill="none"/>' },
+  { id: 'NONE',     label: 'NONE',     svg: '' },
+  { id: 'HOME',     label: 'HOME',     svg: '<path d="M-7 1 L0 -6 L7 1 L7 7 L2 7 L2 2 L-2 2 L-2 7 L-7 7 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'WORK',     label: 'WORK',     svg: '<rect x="-7" y="-2" width="14" height="9" rx="1" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><path d="M-3 -2 L-3 -5 L3 -5 L3 -2" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><line x1="-7" y1="2" x2="7" y2="2" stroke="#1a0f06" stroke-width="0.8"/>' },
+  { id: 'FOOD',     label: 'FOOD',     svg: '<line x1="-4" y1="-7" x2="-4" y2="7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="-7" y1="-7" x2="-7" y2="-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="-1" y1="-7" x2="-1" y2="-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M-7 -1 L-1 -1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5 -7 C3 -7 2 -5 2 -2 C2 1 3 2 5 2 L5 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>' },
+  { id: 'FUEL',     label: 'FUEL',     svg: '<rect x="-6" y="-7" width="9" height="14" rx="1" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><line x1="-4" y1="-4" x2="1" y2="-4" stroke="#1a0f06" stroke-width="1.2"/><line x1="-4" y1="-2" x2="1" y2="-2" stroke="#1a0f06" stroke-width="1.2"/><path d="M3 -3 L6 -3 L6 4 L7 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' },
+  { id: 'PARKING',  label: 'PARKING',  svg: '<rect x="-7" y="-7" width="14" height="14" rx="2" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><text x="0" y="3" text-anchor="middle" font-family="Saira Stencil One, sans-serif" font-size="12" font-weight="900" fill="#1a0f06">P</text>' },
+  { id: 'SHOP',     label: 'SHOP',     svg: '<path d="M-7 -1 L-5 -7 L5 -7 L7 -1 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><rect x="-6" y="-1" width="12" height="8" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><path d="M-3 -1 L-3 3 M3 -1 L3 3" fill="none" stroke="#1a0f06" stroke-width="1"/>' },
+  { id: 'CAMERA',   label: 'CAMERA',   svg: '<rect x="-7" y="-4" width="14" height="10" rx="1" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><path d="M-3 -4 L-2 -6 L2 -6 L3 -4" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><circle cx="0" cy="1" r="3" fill="#1a0f06"/><circle cx="0" cy="1" r="1.5" fill="currentColor"/>' },
+  { id: 'WRENCH',   label: 'WRENCH',   svg: '<path d="M-5 -7 L-2 -4 L-4 -2 L-7 -5 C-8 -3 -7 -1 -5 0 L4 7 L7 4 L-2 -5 C-1 -7 -3 -8 -5 -7 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'BED',      label: 'BED',      svg: '<path d="M-7 1 L-7 6 L7 6 L7 1 L-2 1 L-2 -2 C-2 -3 -1 -4 0 -4 L4 -4 C5 -4 6 -3 6 -2 L6 1 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><line x1="-7" y1="6" x2="-7" y2="3" stroke="#1a0f06" stroke-width="1"/><line x1="7" y1="6" x2="7" y2="3" stroke="#1a0f06" stroke-width="1"/>' },
+  { id: 'MEDICAL',  label: 'MEDICAL',  svg: '<rect x="-7" y="-7" width="14" height="14" rx="2" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><path d="M-2 -4 L-2 -1 L-5 -1 L-5 1 L-2 1 L-2 4 L2 4 L2 1 L5 1 L5 -1 L2 -1 L2 -4 Z" fill="#1a0f06"/>' },
+  { id: 'GYM',      label: 'GYM',      svg: '<rect x="-7" y="-2" width="2" height="4" fill="currentColor" stroke="#1a0f06" stroke-width="0.8"/><rect x="-5" y="-4" width="2" height="8" fill="currentColor" stroke="#1a0f06" stroke-width="0.8"/><rect x="-3" y="-1" width="6" height="2" fill="currentColor" stroke="#1a0f06" stroke-width="0.8"/><rect x="3" y="-4" width="2" height="8" fill="currentColor" stroke="#1a0f06" stroke-width="0.8"/><rect x="5" y="-2" width="2" height="4" fill="currentColor" stroke="#1a0f06" stroke-width="0.8"/>' },
+  { id: 'TREE',     label: 'PARK',     svg: '<path d="M0 -8 L-5 -2 L-2 -2 L-6 4 L-2 4 L-2 7 L2 7 L2 4 L6 4 L2 -2 L5 -2 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'STAR',     label: 'STAR',     svg: '<path d="M0 -7 L2 -2 L7 -2 L3 1 L4.5 6 L0 3 L-4.5 6 L-3 1 L-7 -2 L-2 -2 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'HEART',    label: 'HEART',    svg: '<path d="M0 6 C-7 1 -7 -4 -4 -6 C-2 -7 0 -5 0 -3 C0 -5 2 -7 4 -6 C7 -4 7 1 0 6 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'DOLLAR',   label: 'DOLLAR',   svg: '<circle cx="0" cy="0" r="7" fill="currentColor" stroke="#1a0f06" stroke-width="1"/><text x="0" y="4" text-anchor="middle" font-family="Saira Stencil One, sans-serif" font-size="11" font-weight="900" fill="#1a0f06">$</text>' },
+  { id: 'ANCHOR',   label: 'ANCHOR',   svg: '<circle cx="0" cy="-5" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="0" y1="-3" x2="0" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="-3" y1="-1" x2="3" y2="-1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M-5 3 C-5 6 -3 7 0 6 C3 7 5 6 5 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>' },
+  { id: 'PEAK',     label: 'PEAK',     svg: '<path d="M-7 6 L-2 -3 L0 0 L3 -6 L7 6 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><path d="M-2 -3 L0 -1 L1 -2" fill="none" stroke="#1a0f06" stroke-width="0.8"/>' },
+  { id: 'WATER',    label: 'WATER',    svg: '<path d="M0 -7 C-4 -2 -6 1 -6 3 C-6 6 -3 7 0 7 C3 7 6 6 6 3 C6 1 4 -2 0 -7 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/>' },
+  { id: 'WARNING',  label: 'WARNING',  svg: '<path d="M0 -7 L7 6 L-7 6 Z" fill="currentColor" stroke="#1a0f06" stroke-width="1" stroke-linejoin="round"/><line x1="0" y1="-2" x2="0" y2="2" stroke="#1a0f06" stroke-width="1.4" stroke-linecap="round"/><circle cx="0" cy="4" r="0.8" fill="#1a0f06"/>' },
+];
+
+// MARKER SHAPE — pennant flag or symbol-only.
+// FLAG: traditional surveyor's pennant with symbol drawn inside (or empty if NONE)
+// ICON: the symbol IS the marker. Larger, centered on the latlng, with subtle outline.
+const POI_SHAPES = [
+  { id: 'FLAG', label: 'FLAG' },
+  { id: 'ICON', label: 'ICON' },
 ];
 
 // ===== STATE =====
@@ -1973,6 +2052,7 @@ let fogPolygon = null;          // Leaflet polygon representing fog with holes
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
 let selectedType = 'NONE';
+let selectedShape = 'FLAG';
 let editorPhoto = null;         // base64 data URL for photo being edited
 let editorHVA = false;          // HVA state for POI being edited
 let selectedPoiId = null;       // currently selected on map (gets a halo)
@@ -2734,16 +2814,45 @@ function injectFogHatch() {
   });
 }
 
-function makeFlagIcon(color, selected, typeId) {
+function makeMarkerIcon(color, selected, typeId, shape) {
+  shape = shape || 'FLAG';
+  const type = POI_TYPES.find(t => t.id === typeId);
+
+  if (shape === 'ICON' && type && type.svg) {
+    // === ICON-ONLY SHAPE ===
+    // The symbol IS the marker. Drawn at marker scale, centered on the latlng,
+    // with a subtle outline halo for legibility against the map. The currentColor
+    // CSS variable inside the symbol resolves to the category color.
+    const haloSVG = selected ? `
+      <circle cx="0" cy="0" r="17" fill="rgba(240, 160, 64, 0.18)"/>
+      <circle cx="0" cy="0" r="17" fill="none" stroke="rgba(240, 160, 64, 0.85)" stroke-width="1.5" stroke-dasharray="3 2"/>
+    ` : '';
+    const baseSize = selected ? 50 : 36;
+    const svg = `
+      <svg viewBox="-20 -20 40 40" xmlns="http://www.w3.org/2000/svg" style="color:${color}; overflow:visible;">
+        ${haloSVG}
+        <circle cx="0" cy="0" r="11" fill="rgba(8, 6, 4, 0.92)" stroke="#1a0f06" stroke-width="1"/>
+        <g transform="scale(0.95)">${type.svg}</g>
+      </svg>
+    `;
+    return L.divIcon({
+      html: `<div class="flag-marker">${svg}</div>`,
+      className: '',
+      iconSize: [baseSize, baseSize],
+      iconAnchor: [baseSize/2, baseSize/2],
+    });
+  }
+
+  // === FLAG SHAPE (default) ===
   const haloSVG = selected ? `
     <circle cx="0" cy="-21" r="28" fill="rgba(240, 160, 64, 0.18)" />
     <circle cx="0" cy="-21" r="28" fill="none" stroke="rgba(240, 160, 64, 0.85)" stroke-width="1.5" stroke-dasharray="3 2" />
   ` : '';
-  // Type icon sits inside the pennant. Pennant spans roughly y=-42 to y=-25,
-  // x=0 to x=28. Center of pennant interior ≈ (14, -33). Type SVG uses a small
-  // local coordinate system; translate into pennant center.
-  const type = POI_TYPES.find(t => t.id === typeId);
-  const typeSVG = (type && type.svg) ? `<g transform="translate(13, -33) scale(0.85)">${type.svg}</g>` : '';
+  // For inside-flag symbols, use white instead of category color (the pennant is
+  // already the category color; white reads against it).
+  const typeSVG = (type && type.svg)
+    ? `<g transform="translate(13, -33) scale(0.55)" style="color:#fff;">${type.svg}</g>`
+    : '';
   const svg = `
     <svg class="flag-svg" viewBox="-30 -50 60 70" xmlns="http://www.w3.org/2000/svg">
       ${haloSVG}
@@ -2759,6 +2868,11 @@ function makeFlagIcon(color, selected, typeId) {
     iconSize: selected ? [60, 70] : [36, 48],
     iconAnchor: selected ? [30, 60] : [18, 48],
   });
+}
+
+// Backward-compat alias
+function makeFlagIcon(color, selected, typeId) {
+  return makeMarkerIcon(color, selected, typeId, 'FLAG');
 }
 
 function selectPOI(poiId) {
@@ -2811,7 +2925,7 @@ function renderAllMarkers() {
 
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], {
-      icon: makeFlagIcon(cat.color, p.id === selectedPoiId, p.type),
+      icon: makeMarkerIcon(cat.color, p.id === selectedPoiId, p.type, p.shape || 'FLAG'),
       draggable: false,
     });
     m._poiId = p.id;
@@ -3218,7 +3332,7 @@ function buildCatGrid() {
     div.onclick = () => {
       selectedCategory = cat.id;
       buildCatGrid();
-      buildTypeRow();  // refresh type-chip color swatches to match new category
+      buildSymbolGrid();  // refresh swatches with new category color
     };
     grid.appendChild(div);
   });
@@ -3231,6 +3345,7 @@ function openClassifySheet(poiId) {
 
   selectedCategory = poi.category || 'WAYPOINT';
   selectedType = poi.type || 'NONE';
+  selectedShape = poi.shape || 'FLAG';
   document.getElementById('poiName').value = poi.name || '';
   document.getElementById('poiNotes').value = poi.notes || '';
   document.getElementById('classifyTitle').textContent = poi.category ? 'EDIT POI' : 'CLASSIFY POI';
@@ -3266,35 +3381,61 @@ function openClassifySheet(poiId) {
   document.getElementById('repositionRow').style.display = 'block';
 
   buildCatGrid();
-  buildTypeRow();
+  buildShapeRow();
+  buildSymbolGrid();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('classifySheet').classList.add('open');
 }
 
-function buildTypeRow() {
-  const row = document.getElementById('typeRow');
+function buildShapeRow() {
+  const row = document.getElementById('shapeRow');
   if (!row) return;
   row.innerHTML = '';
-  POI_TYPES.forEach(t => {
+  POI_SHAPES.forEach(s => {
     const chip = document.createElement('div');
-    chip.className = 'cat-chip' + (selectedType === t.id ? ' active' : '');
-    // Show the icon glyph inline next to the label for clarity
-    if (t.svg) {
-      // Mini 18x18 swatch in current category color so user sees what it'll look like
-      const cat = CATEGORIES.find(c => c.id === selectedCategory) || CATEGORIES[0];
-      chip.innerHTML = `
-        <svg viewBox="-10 -10 20 20" width="14" height="14" style="vertical-align:middle; margin-right:5px;">
-          <rect x="-9" y="-9" width="18" height="18" rx="3" fill="${cat.color}"/>
-          ${t.svg}
-        </svg>${t.label}`;
-    } else {
-      chip.textContent = t.label;
-    }
+    chip.className = 'cat-chip' + (selectedShape === s.id ? ' active' : '');
+    chip.textContent = s.label;
     chip.onclick = () => {
-      selectedType = t.id;
-      buildTypeRow();
+      selectedShape = s.id;
+      buildShapeRow();
+      buildSymbolGrid();  // refresh preview swatches
     };
     row.appendChild(chip);
+  });
+}
+
+function buildSymbolGrid() {
+  const grid = document.getElementById('symbolGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const cat = CATEGORIES.find(c => c.id === selectedCategory) || CATEGORIES[0];
+  POI_TYPES.forEach(t => {
+    const tile = document.createElement('div');
+    tile.className = 'symbol-tile' + (selectedType === t.id ? ' selected' : '') + (t.id === 'NONE' ? ' none' : '');
+    if (t.id === 'NONE') {
+      tile.innerHTML = `<span class="placeholder">—</span><span class="label">${t.label}</span>`;
+    } else if (selectedShape === 'ICON') {
+      // Preview as the marker would look: dark circle with the symbol in category color
+      tile.innerHTML = `
+        <svg viewBox="-20 -20 40 40" xmlns="http://www.w3.org/2000/svg" style="color:${cat.color};">
+          <circle cx="0" cy="0" r="14" fill="rgba(8, 6, 4, 0.92)" stroke="#1a0f06" stroke-width="1"/>
+          <g transform="scale(1.1)">${t.svg}</g>
+        </svg>
+        <span class="label">${t.label}</span>`;
+    } else {
+      // Preview as it would look inside a pennant: category-color background, white icon
+      tile.innerHTML = `
+        <svg viewBox="-12 -12 24 24" xmlns="http://www.w3.org/2000/svg" style="color:#fff;">
+          <rect x="-11" y="-11" width="22" height="22" rx="2" fill="${cat.color}" stroke="#1a0f06" stroke-width="0.8"/>
+          <g transform="scale(0.85)">${t.svg}</g>
+        </svg>
+        <span class="label">${t.label}</span>`;
+    }
+    tile.onclick = () => {
+      selectedType = t.id;
+      buildSymbolGrid();
+    };
+    grid.appendChild(tile);
   });
 }
 
@@ -3563,6 +3704,7 @@ function savePOI() {
   const beforeSnapshot = JSON.parse(JSON.stringify(poi));
   poi.category = selectedCategory;
   poi.type = selectedType;
+  poi.shape = selectedShape;
   poi.name = document.getElementById('poiName').value.trim();
   poi.notes = document.getElementById('poiNotes').value.trim();
   poi.photo = editorPhoto;
@@ -3672,24 +3814,25 @@ function buildCatFilterRow() {
   });
 }
 
-function buildTypeFilterRow() {
-  const row = document.getElementById('typeFilterRow');
-  if (!row) return;
-  row.innerHTML = '';
-  const chips = [{ id: 'ALL', label: 'ALL TYPES' }, ...POI_TYPES.map(t => ({ id: t.id, label: t.label }))];
-  chips.forEach(c => {
-    const chip = document.createElement('div');
-    chip.className = 'cat-chip' + (activeTypeFilter === c.id ? ' active' : '');
-    chip.textContent = c.label;
-    chip.onclick = () => {
-      activeTypeFilter = c.id;
-      savePrefs();
-      buildTypeFilterRow();
-      renderListBody();
-      renderAllMarkers();
-    };
-    row.appendChild(chip);
+function buildTypeFilterDropdown() {
+  const sel = document.getElementById('listTypeFilter');
+  if (!sel) return;
+  sel.innerHTML = '<option value="ALL">ALL SYMBOLS</option>';
+  POI_TYPES.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.label;
+    sel.appendChild(opt);
   });
+  sel.value = activeTypeFilter;
+}
+
+function onTypeFilterChange() {
+  const sel = document.getElementById('listTypeFilter');
+  activeTypeFilter = sel.value;
+  savePrefs();
+  renderListBody();
+  renderAllMarkers();
 }
 
 // ===== LIST SHEET =====
@@ -3698,7 +3841,7 @@ function openListSheet() {
   document.getElementById('listSort').value = listSortMode;
   buildRegionDropdown();
   buildCatFilterRow();
-  buildTypeFilterRow();
+  buildTypeFilterDropdown();
   renderListBody();
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('listSheet').classList.add('open');
