@@ -1121,22 +1121,26 @@ function toggleLandscapeMode() {
 }
 
 function applyLandscapeMode() {
-  document.body.classList.toggle('landscape-mode', !!prefLandscapeMode);
-  const desc = document.getElementById('landscapeToggleDesc');
-  if (desc) desc.textContent = prefLandscapeMode ? 'Two-handed pro layout · ACTIVE' : 'Two-handed pro layout';
-  const indicator = document.getElementById('landscapeToggleIndicator');
-  if (indicator) indicator.classList.toggle('on', prefLandscapeMode);
+  try {
+    document.body.classList.toggle('landscape-mode', !!prefLandscapeMode);
+    const desc = document.getElementById('landscapeToggleDesc');
+    if (desc) desc.textContent = prefLandscapeMode ? 'Two-handed pro layout · ACTIVE' : 'Two-handed pro layout';
+    const indicator = document.getElementById('landscapeToggleIndicator');
+    if (indicator) indicator.classList.toggle('on', prefLandscapeMode);
 
-  // Mount or unmount the landscape wing DOM
-  if (prefLandscapeMode) {
-    mountLandscapeWings();
-  } else {
-    unmountLandscapeWings();
-  }
+    // Mount or unmount the landscape wing DOM
+    if (prefLandscapeMode) {
+      mountLandscapeWings();
+    } else {
+      unmountLandscapeWings();
+    }
 
-  // Force Leaflet to recalc tile dimensions after layout change
-  if (typeof map !== 'undefined' && map && map.invalidateSize) {
-    setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 250);
+    // Force Leaflet to recalc tile dimensions after layout change
+    if (typeof map !== 'undefined' && map && map.invalidateSize) {
+      setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 250);
+    }
+  } catch (err) {
+    console.error('applyLandscapeMode error:', err);
   }
 }
 
@@ -1662,55 +1666,64 @@ function setStatus(text, color) {
 // Updates the 5-LED status row (GPS / FIX / TRAIL / FOG / SYNC).
 // States per LED: '' (off), 'on' (acid), 'live' (cyan), 'warn' (yellow)
 function updateIndicatorStrip() {
-  // Update every strip element on the page (portrait + landscape if mounted)
-  const strips = document.querySelectorAll('#indicatorStrip, #landscapeTopStrip');
-  if (!strips.length) return;
-  strips.forEach(strip => {
-    const ledOf = (id) => strip.querySelector('.ind-led[data-id="' + id + '"]');
+  try {
+    const strips = document.querySelectorAll('#indicatorStrip, #landscapeTopStrip');
+    if (!strips.length) return;
+    strips.forEach(strip => {
+      const ledOf = (id) => strip.querySelector('.ind-led[data-id="' + id + '"]');
 
-    // GPS — green when we have any position, yellow if stale
-    const gpsLed = ledOf('gps');
-    if (gpsLed) {
-      gpsLed.className = 'ind-led';
-      if (userPos && userPos.lat != null) {
-        const ageMs = lastFix ? (Date.now() - lastFix) : 0;
-        gpsLed.classList.add(ageMs > 30000 ? 'warn' : 'on');
-      }
-    }
-    // FIX — green when accuracy is good (< 30m)
-    const fixLed = ledOf('fix');
-    if (fixLed) {
-      fixLed.className = 'ind-led';
-      if (userPos && userPos.acc != null && userPos.acc < 30) fixLed.classList.add('on');
-      else if (userPos && userPos.acc != null) fixLed.classList.add('warn');
-    }
-    // TRAIL — cyan when recording
-    const trailLed = ledOf('trail');
-    if (trailLed) {
-      trailLed.className = 'ind-led';
-      if (Array.isArray(trail) && trail.length > 0) trailLed.classList.add('live');
-    }
-    // FOG — cyan when fog reveal data exists
-    const fogLed = ledOf('fog');
-    if (fogLed) {
-      fogLed.className = 'ind-led';
-      if (revealedCells && revealedCells.size > 0) fogLed.classList.add('live');
-    }
-    // SYNC — yellow if last write failed, cyan if mission draft active, else acid
-    const syncLed = ledOf('sync');
-    if (syncLed) {
-      syncLed.className = 'ind-led';
-      try {
-        if (sessionStorage.getItem('recon.os.lastWriteFailed') === '1') {
-          syncLed.classList.add('warn');
-        } else if (localStorage.getItem(MISSION_DRAFT_KEY)) {
-          syncLed.classList.add('live');
-        } else {
-          syncLed.classList.add('on');
+      // GPS — green when we have any position, yellow if stale
+      const gpsLed = ledOf('gps');
+      if (gpsLed) {
+        gpsLed.className = 'ind-led';
+        if (typeof userPos !== 'undefined' && userPos && userPos.lat != null) {
+          const ageMs = (typeof lastFix !== 'undefined' && lastFix) ? (Date.now() - lastFix) : 0;
+          gpsLed.classList.add(ageMs > 30000 ? 'warn' : 'on');
         }
-      } catch (e) { /* storage may throw — leave LED off */ }
-    }
-  });
+      }
+      // FIX — green when accuracy is good (< 30m)
+      const fixLed = ledOf('fix');
+      if (fixLed) {
+        fixLed.className = 'ind-led';
+        if (typeof userPos !== 'undefined' && userPos && userPos.acc != null) {
+          fixLed.classList.add(userPos.acc < 30 ? 'on' : 'warn');
+        }
+      }
+      // TRAIL — cyan when today's trail has points
+      const trailLed = ledOf('trail');
+      if (trailLed) {
+        trailLed.className = 'ind-led';
+        if (typeof todayTrail !== 'undefined' && Array.isArray(todayTrail) && todayTrail.length > 0) {
+          trailLed.classList.add('live');
+        }
+      }
+      // FOG — cyan when fog reveal data exists
+      const fogLed = ledOf('fog');
+      if (fogLed) {
+        fogLed.className = 'ind-led';
+        if (typeof revealedCells !== 'undefined' && revealedCells && revealedCells.size > 0) {
+          fogLed.classList.add('live');
+        }
+      }
+      // SYNC — yellow if last write failed, cyan if mission draft active, else acid
+      const syncLed = ledOf('sync');
+      if (syncLed) {
+        syncLed.className = 'ind-led';
+        try {
+          if (sessionStorage.getItem('recon.os.lastWriteFailed') === '1') {
+            syncLed.classList.add('warn');
+          } else if (typeof MISSION_DRAFT_KEY !== 'undefined' && localStorage.getItem(MISSION_DRAFT_KEY)) {
+            syncLed.classList.add('live');
+          } else {
+            syncLed.classList.add('on');
+          }
+        } catch (e) { /* storage may throw — leave LED off */ }
+      }
+    });
+  } catch (err) {
+    // Never let the indicator strip break startup
+    console.error('updateIndicatorStrip error:', err);
+  }
 }
 
 // Update user position state from a GeolocationCoordinates object.
@@ -3136,7 +3149,7 @@ function safeSet(key, value) {
     localStorage.setItem(key, value);
     // Clear the failure flag on successful write so SYNC LED returns to acid
     try { sessionStorage.removeItem('recon.os.lastWriteFailed'); } catch(e){}
-    if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip();
+    try { if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip(); } catch(e){}
     return true;
   } catch (err) {
     console.error('STORAGE WRITE FAILED:', key, err);
@@ -3148,7 +3161,7 @@ function safeSet(key, value) {
         showToast('STORAGE FULL · WRITE FAILED');
       } catch (e) {}
     }
-    if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip();
+    try { if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip(); } catch(e){}
     return false;
   }
 }
