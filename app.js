@@ -1192,7 +1192,6 @@ function mountLandscapeWings() {
       '<div class="mark-pad-plastic">' +
         '<div class="mark-pad-lcd">' +
           '<span class="mark-pad-word">MARK</span>' +
-          '<span class="mark-pad-sub">@ MY POS</span>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -1244,7 +1243,11 @@ function updateClock() {
   const d = new Date();
   const h = d.getHours().toString().padStart(2, '0');
   const m = d.getMinutes().toString().padStart(2, '0');
-  document.getElementById('clock').textContent = h + ':' + m;
+  const t = h + ':' + m;
+  const oldClock = document.getElementById('clock');
+  if (oldClock) oldClock.textContent = t;
+  const newClock = document.getElementById('clusterClock');
+  if (newClock) newClock.textContent = t;
 }
 setInterval(updateClock, 30000);
 updateClock();

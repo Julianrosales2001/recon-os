@@ -48,24 +48,29 @@
     <span class="right"><span id="gpsStatus">GPS</span><span id="gpsDot" style="color:#c9d97b;">●</span></span>
   </div>
 
-  <!-- P4.2 INDICATOR STRIP — always-visible status readout -->
-  <div class="indicator-strip" id="indicatorStrip">
-    <div class="ind-led" data-id="gps"><span class="dot"></span><span class="lbl">GPS</span></div>
-    <div class="ind-led" data-id="fix"><span class="dot"></span><span class="lbl">FIX</span></div>
-    <div class="ind-led" data-id="trail"><span class="dot"></span><span class="lbl">TRAIL</span></div>
-    <div class="ind-led" data-id="fog"><span class="dot"></span><span class="lbl">FOG</span></div>
-    <div class="ind-led" data-id="sync"><span class="dot"></span><span class="lbl">SYNC</span></div>
-  </div>
-
   <!-- LEAFLET MAP -->
   <div id="map"></div>
   <div class="paper-overlay"></div>
 
-  <!-- TOP CHROME -->
+  <!-- TOP CHROME — aluminum bezel containing the instrument cluster -->
   <div class="panel-bg-top">
     <div class="rivets top"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
+    <!-- Unified top instrument cluster — sits INSIDE the aluminum bezel -->
+    <div class="top-cluster" id="topCluster">
+      <!-- LED indicators on the left -->
+      <div class="cluster-leds" id="indicatorStrip">
+        <div class="ind-led" data-id="gps"><span class="dot"></span><span class="lbl">GPS</span></div>
+        <div class="ind-led" data-id="fix"><span class="dot"></span><span class="lbl">FIX</span></div>
+        <div class="ind-led" data-id="trail"><span class="dot"></span><span class="lbl">TRL</span></div>
+        <div class="ind-led" data-id="fog"><span class="dot"></span><span class="lbl">FOG</span></div>
+        <div class="ind-led" data-id="sync"><span class="dot"></span><span class="lbl">SYN</span></div>
+      </div>
+      <!-- Region readout LCD in the middle (was title-strip) -->
+      <div class="cluster-readout"><span class="text" id="regionTitle">▾ INITIALIZING...</span></div>
+      <!-- Clock LCD on the right -->
+      <div class="cluster-clock" id="clusterClock">--:--</div>
+    </div>
   </div>
-  <div class="title-strip"><span class="text" id="regionTitle">▾ INITIALIZING...</span></div>
 
   <!-- GPS LOST BANNER -->
   <div class="gps-banner" id="gpsBanner">
@@ -143,7 +148,6 @@
               <div class="mark-pad-plastic">
                 <div class="mark-pad-lcd">
                   <span class="mark-pad-word">MARK</span>
-                  <span class="mark-pad-sub" id="markPadSub">@ MY POS</span>
                 </div>
               </div>
             </div>

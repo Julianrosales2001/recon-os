@@ -266,18 +266,29 @@
     top: calc(var(--status-h) + var(--safe-top));
     left: 0; right: 0;
     height: var(--titlebar-h);
+    /* Matches bottom chrome profile: bright top edge → bezel seam → matte interior */
     background:
-      linear-gradient(180deg, #d8dde2 0%, #b0bac4 30%, #6e7882 70%, #4e5762 100%);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+      linear-gradient(180deg,
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 10%,
+        var(--chassis-dark) 16%,
+        var(--bezel-line) 18%,
+        var(--chassis-matte) 20%,
+        var(--chassis-matte) 92%,
+        var(--bezel-line) 95%,
+        var(--chassis-dark) 100%);
+    border-bottom: 1px solid var(--bezel-line);
     box-shadow:
-      inset 0 2px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -3px 10px rgba(0, 0, 0, 0.45);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -3px 10px rgba(0, 0, 0, 0.4);
     z-index: 4;
   }
-  /* Brushed metal grain */
+  /* Brushed metal grain — only at top bright edge */
   .panel-bg-top::before {
     content: "";
-    position: absolute; inset: 0;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 12px;
     background: repeating-linear-gradient(
       90deg,
       transparent 0,
@@ -285,7 +296,6 @@
       transparent 2px,
       rgba(0, 0, 0, 0.04) 3px
     );
-    mix-blend-mode: normal;
     opacity: 1;
     pointer-events: none;
   }
@@ -298,7 +308,7 @@
     pointer-events: none;
   }
   .rivets.top { top: 6px; }
-  .rivets.bot { bottom: calc(6px + var(--safe-bot)); }
+  .rivets.bot { display: none; }
   /* Brushed-steel screws (replace warm-brass rivets) */
   .rivet {
     width: 6px; height: 6px;
@@ -309,27 +319,60 @@
       inset 0 1px 1px rgba(255, 255, 255, 0.4),
       0 1px 0 rgba(255, 255, 255, 0.3);
   }
-  .title-strip {
+  /* ============================================================
+     TOP CLUSTER — A.ii unified instrument cluster
+     ------------------------------------------------------------
+     Single bezeled element that sits INSIDE the aluminum top
+     chassis. Three zones inside one bezel-line frame:
+       [ 5 LEDs ][ REGION READOUT LCD ][ CLOCK LCD ]
+     This replaces the old separate .title-strip + .indicator-strip
+     floating elements.
+     ============================================================ */
+  .top-cluster {
     position: absolute;
-    top: calc(var(--status-h) + var(--safe-top) + 6px);
-    left: 50px;
-    right: 50px;
+    top: 50%;
+    left: 36px;
+    right: 36px;
+    transform: translateY(-50%);
     height: 30px;
-    background: linear-gradient(180deg, #0a1822, #050a14);
-    border: 1px solid #050a14;
-    border-radius: 3px;
+    background: var(--bezel-line);
+    border-radius: 4px;
+    padding: 2px;
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    z-index: 6;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.85),
+      0 1px 0 rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+  }
+  /* LED cluster on the left — sits on matte plastic */
+  .top-cluster .cluster-leds {
+    background: var(--chassis-matte);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 4px;
+    padding: 0 8px;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3);
+  }
+  /* Region readout LCD — middle, takes remaining space */
+  .top-cluster .cluster-readout {
+    flex: 1;
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-radius: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 10px;
-    z-index: 6;
-    box-shadow:
-      inset 0 3px 6px rgba(0, 0, 0, 0.9),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
     overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.85);
   }
-  /* CRT scanlines in title strip */
-  .title-strip::after {
+  .top-cluster .cluster-readout::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -342,53 +385,44 @@
     );
     pointer-events: none;
   }
-  .title-strip .text {
+  .top-cluster .cluster-readout .text {
     font-family: 'VT323', monospace;
-    font-size: 18px;
-    color: #00e5ff;
+    font-size: 15px;
+    color: var(--aqua-hot);
     letter-spacing: 0.1em;
     text-shadow:
-      0 0 6px rgba(0, 229, 255, 0.7),
-      0 0 12px rgba(0, 229, 255, 0.35);
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.3);
     position: relative;
     z-index: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  /* END Y3 TOP CHROME */
-
-  /* ============================================================
-     INDICATOR STRIP — P4.2
-     ------------------------------------------------------------
-     Floating bar of 5 named LED indicators below the title strip.
-     Always visible (works in both PWA standalone and browser).
-     Constant status readout. Each LED has 3 states:
-       .off  → dark socket
-       .on   → acid green (GPS / FIX / OK states)
-       .live → cyan (TRAIL recording, FOG active, SYNC pulled)
-       .warn → yellow
-     ============================================================ */
-  .indicator-strip {
-    position: absolute;
-    top: calc(var(--status-h) + var(--safe-top) + 42px);
-    left: 50px;
-    right: 50px;
-    height: 22px;
-    background: var(--chassis-matte);
-    border: 1px solid var(--bezel-line);
-    border-radius: 4px;
+  /* Clock LCD — right, fixed-width */
+  .top-cluster .cluster-clock {
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-radius: 2px;
     display: flex;
     align-items: center;
-    justify-content: space-around;
-    padding: 0 6px;
-    z-index: 6;
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.5),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
-    pointer-events: none;
+    justify-content: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    color: var(--aqua-hot);
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.55);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.85);
+    min-width: 48px;
   }
+
+  /* LED indicators inside the cluster */
   .ind-led {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 1px;
   }
   .ind-led .dot {
     width: 5px;
@@ -399,8 +433,8 @@
   }
   .ind-led .lbl {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 7px;
-    letter-spacing: 0.22em;
+    font-size: 6px;
+    letter-spacing: 0.18em;
     color: var(--label-quiet);
     font-weight: 700;
   }
@@ -425,11 +459,7 @@
       0 0 3px rgba(255, 211, 64, 0.85);
   }
   .ind-led.warn .lbl { color: var(--label-mid); }
-  /* In PWA standalone, no status bar — bump up */
-  @media all and (display-mode: standalone) {
-    .indicator-strip { top: calc(var(--safe-top) + 42px); }
-  }
-  /* END P4.2 INDICATOR STRIP */
+  /* END A.ii TOP CLUSTER */
 
   /* ========================= FLOATING SECTOR TAG ========================= */
   /* ============================================================
@@ -583,18 +613,29 @@
     bottom: 0;
     left: 0; right: 0;
     height: var(--bot-chrome-h);
+    /* Chassis profile: bright aluminum top edge, hard bezel seam,
+       matte interior where the controls sit. Controls are now
+       visually INSIDE the chassis, not floating above it. */
     background:
-      linear-gradient(180deg, #d8dde2 0%, #b0bac4 8%, #6e7882 35%, #4e5762 100%);
-    border-top: 1px solid rgba(0, 0, 0, 0.4);
+      linear-gradient(180deg,
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 6%,
+        var(--chassis-dark) 10%,
+        var(--bezel-line) 11%,
+        var(--chassis-matte) 12%,
+        var(--chassis-matte) 100%);
+    border-top: 1px solid var(--bezel-line);
     box-shadow:
-      inset 0 2px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -3px 10px rgba(0, 0, 0, 0.45);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -3px 10px rgba(0, 0, 0, 0.4);
     z-index: 4;
   }
-  /* Brushed-metal grain */
+  /* Brushed-metal grain — only on the bright top edge */
   .panel-bg-bot::before {
     content: "";
-    position: absolute; inset: 0;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 18px;
     background: repeating-linear-gradient(
       90deg,
       transparent 0,
@@ -633,9 +674,10 @@
 
   .mark-area {
     position: absolute;
-    bottom: calc(14px + var(--safe-bot));
-    left: 14px;
-    right: 14px;
+    bottom: calc(10px + var(--safe-bot));
+    left: 16px;
+    right: 16px;
+    top: auto;
     z-index: 10;
   }
   .mark-housing-label {
@@ -3200,25 +3242,16 @@
      apply ONLY when .p4-housing is NOT present (backward compat).
      ============================================================ */
 
-  /* The new chassis interior — matte plastic between the screws */
+  /* Controls layout — transparent container, sits IN the bottom chrome aluminum.
+     The bottom chrome IS the chassis; .p4-housing just lays out the children. */
   .p4-housing {
-    background:
-      linear-gradient(180deg,
-        var(--chassis-bright) 0%,
-        var(--chassis-mid) 6%,
-        var(--chassis-dark) 10%,
-        var(--bezel-line) 11%,
-        var(--chassis-matte) 12%,
-        var(--chassis-matte) 100%);
-    border: 1px solid var(--bezel-line);
-    border-radius: 10px;
-    padding: 14px 12px 12px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.32),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-      0 4px 14px rgba(0, 0, 0, 0.55);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
   }
-  /* Suppress the old brushed-metal ::before grain since we have a different gradient */
+  /* Suppress the old brushed-metal ::before grain */
   .p4-housing::before { display: none; }
 
   /* Two-column flex row */
@@ -3265,7 +3298,7 @@
   .p4-housing .tg-icon {
     width: 16px;
     height: 16px;
-    stroke: var(--label-quiet);
+    stroke: var(--label-bright);
     stroke-width: 1.5;
     fill: none;
   }
@@ -3273,8 +3306,9 @@
     font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-weight: 700;
     font-size: 8px;
-    color: var(--label-quiet);
+    color: var(--label-bright);
     letter-spacing: 0.18em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   }
   /* Active state — lit LCD interior with cyan glow */
   .p4-housing .tg-btn.active {
@@ -3419,20 +3453,12 @@
   .p4-housing .mark-pad-word {
     font-family: 'Orbitron', sans-serif;
     font-weight: 900;
-    font-size: 16px;
+    font-size: 19px;
     letter-spacing: 0.22em;
     color: var(--aqua-hot);
     text-shadow:
       0 0 5px rgba(0, 229, 255, 0.85),
-      0 0 12px rgba(0, 229, 255, 0.5);
-    z-index: 1;
-  }
-  .p4-housing .mark-pad-sub {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 7px;
-    letter-spacing: 0.22em;
-    color: var(--aqua);
-    text-shadow: 0 0 4px rgba(95, 216, 240, 0.5);
+      0 0 14px rgba(0, 229, 255, 0.5);
     z-index: 1;
   }
 
@@ -3598,7 +3624,7 @@
   }
   body.landscape-mode .landscape-wing .vstack .tg-icon {
     width: 15px; height: 15px;
-    stroke: var(--label-quiet);
+    stroke: var(--label-bright);
     stroke-width: 1.5;
     fill: none;
   }
@@ -3606,8 +3632,9 @@
     font-family: 'Orbitron', sans-serif;
     font-weight: 700;
     font-size: 8px;
-    color: var(--label-quiet);
+    color: var(--label-bright);
     letter-spacing: 0.2em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   }
   body.landscape-mode .landscape-wing .vstack .tg-btn.active {
     background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
@@ -3710,18 +3737,12 @@
   body.landscape-mode .landscape-wing.right .mark-pad-word {
     font-family: 'Orbitron', sans-serif;
     font-weight: 900;
-    font-size: 14px;
+    font-size: 17px;
     letter-spacing: 0.22em;
     color: var(--aqua-hot);
     text-shadow:
       0 0 5px rgba(0, 229, 255, 0.85),
       0 0 12px rgba(0, 229, 255, 0.5);
-  }
-  body.landscape-mode .landscape-wing.right .mark-pad-sub {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 6px;
-    letter-spacing: 0.22em;
-    color: var(--aqua);
   }
   body.landscape-mode .landscape-wing.right .wing-status {
     display: flex;
