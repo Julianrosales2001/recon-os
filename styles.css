@@ -402,7 +402,13 @@
   .knurl { right: 0; border-left: 1px solid #050403; }
   .knurl-l { left: 0; border-right: 1px solid #050403; }
 
-  /* ========================= MARK BUTTON ========================= */
+  /* ============================================================
+     BOTTOM PANEL — Y2K TRIAL (Phase Y2)
+     -------------------------------------------------------------
+     This block replaces the brown/amber bottom panel with the
+     Hard Y2K direction. If reverting, restore from git.
+     ============================================================ */
+
   .mark-area {
     position: absolute;
     bottom: calc(14px + var(--safe-bot));
@@ -411,24 +417,51 @@
     z-index: 10;
   }
   .mark-housing-label {
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 7px;
-    color: #6e6354;
-    letter-spacing: 0.25em;
-    font-weight: 500;
+    color: #5a7090;
+    letter-spacing: 0.32em;
+    font-weight: 700;
     padding-left: 4px;
     margin-bottom: 4px;
     display: block;
+    text-shadow: 0 0 4px rgba(95, 216, 240, 0.25), 0 1px 0 rgba(255,255,255,0.15);
   }
+  /* Chassis housing — cool brushed aluminum */
   .mark-housing {
-    background: linear-gradient(180deg, #050403 0%, #161310 50%, #1c1814 100%);
-    border-radius: 8px;
+    position: relative;
+    background:
+      linear-gradient(180deg, #d8dde2 0%, #9aa5b0 30%, #4e5762 100%);
+    border-radius: 10px;
     padding: 8px;
     box-shadow:
-      inset 0 3px 8px rgba(0, 0, 0, 0.95),
-      inset 0 -1px 0 rgba(220, 190, 140, 0.08),
-      0 1px 0 rgba(220, 190, 140, 0.12);
-    border: 1px solid #3a3128;
+      inset 0 2px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -3px 8px rgba(0, 0, 0, 0.45),
+      inset 1px 0 1px rgba(255, 255, 255, 0.25),
+      inset -1px 0 1px rgba(0, 0, 0, 0.25),
+      0 4px 12px rgba(0, 0, 0, 0.55),
+      0 1px 0 rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.4);
   }
+  /* Brushed metal texture */
+  .mark-housing::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 8px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.025) 3px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+  .mark-housing > * { position: relative; z-index: 1; }
+
+  /* MARK button — Aqua glossy pill with deep cyan LCD */
   .mark-btn {
     position: relative;
     height: 56px;
@@ -437,84 +470,124 @@
   }
   .mark-btn .socket {
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 50% 100%, #200a04 0%, #050201 75%);
-    border-radius: 6px;
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 14px rgba(180, 50, 30, 0.35);
+    border-radius: 28px;
+    background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, 0.7),
+      inset 0 -3px 4px rgba(0, 0, 0, 0.35),
+      inset 1px 0 1px rgba(255, 255, 255, 0.4),
+      inset -1px 0 1px rgba(0, 0, 0, 0.25),
+      0 4px 8px rgba(0, 30, 50, 0.4),
+      0 1px 0 rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(0, 30, 50, 0.4);
+  }
+  /* Aqua top highlight */
+  .mark-btn .socket::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 10px;
+    right: 10px;
+    height: 22px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
   }
   .mark-btn .cap {
     position: absolute;
-    top: 3px; bottom: 6px;
-    left: 3px; right: 3px;
-    background: radial-gradient(circle at 30% 25%, #ff7848 0%, #e84a26 40%, #6e1c10 100%);
-    border-radius: 5px;
-    border: 1px solid #3a0d05;
+    top: 4px; bottom: 4px;
+    left: 4px; right: 4px;
+    background: linear-gradient(180deg, #0a1822 0%, #050a14 100%);
+    border-radius: 24px;
+    border: 1px solid #050a14;
     box-shadow:
-      inset 0 2px 0 rgba(255, 220, 200, 0.4),
-      inset 0 -3px 0 rgba(50, 15, 8, 0.7),
-      0 2px 6px rgba(180, 50, 30, 0.4);
+      inset 0 2px 4px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
     transition: transform 0.1s;
+    overflow: hidden;
   }
   .mark-btn:active .cap {
     transform: translateY(2px);
-    filter: brightness(1.2);
+    filter: brightness(1.15);
   }
   .mark-btn.disabled .cap {
     opacity: 0.5;
-    filter: grayscale(0.5);
+    filter: grayscale(0.6);
   }
-  .mark-btn .lcd {
-    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
-    border-radius: 2px;
-    padding: 5px 22px 4px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.95), 0 1px 0 rgba(255, 200, 180, 0.3);
-    border: 1px solid #050403;
-    position: relative;
-    overflow: hidden;
-  }
-  .mark-btn .lcd::after {
-    content: "";
-    position: absolute; inset: 0;
-    background:
-      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
-      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
+  /* CRT scanline shimmer inside LCD */
+  .mark-btn .cap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 2px
+    );
     pointer-events: none;
   }
-  .lcd-text {
+  /* The LCD container inside MARK now wraps just the text */
+  .mark-btn .lcd {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    position: relative;
+    overflow: visible;
+  }
+  .mark-btn .lcd::after { display: none; }
+  /* MARK text — Orbitron Black, glowing aqua */
+  .mark-btn .lcd-text {
     position: relative;
     z-index: 2;
-    font-family: 'B612 Mono', monospace;
-    font-weight: 700;
-    letter-spacing: 0.22em;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.24em;
     font-size: 18px;
-    background-image: radial-gradient(circle at 50% 50%, #b8f290 0%, #b8f290 38%, transparent 42%);
-    background-size: 2.5px 2.5px;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    filter:
-      drop-shadow(0 0 1.5px rgba(184, 242, 144, 0.85))
-      drop-shadow(0 0 3px rgba(120, 220, 90, 0.5));
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    -webkit-text-fill-color: #00e5ff;
+    color: #00e5ff;
+    filter: none;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.85),
+      0 0 12px rgba(0, 229, 255, 0.55),
+      0 0 22px rgba(0, 229, 255, 0.3);
   }
-  .lcd-text.small { font-size: 10px; letter-spacing: 0.16em; background-size: 2px 2px; }
+  .lcd-text.small {
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-weight: 700;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    -webkit-text-fill-color: #5fd8f0;
+    color: #5fd8f0;
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    filter: none;
+    text-shadow:
+      0 0 4px rgba(95, 216, 240, 0.75),
+      0 0 8px rgba(95, 216, 240, 0.35);
+  }
 
-  /* MARK button status indicator — sits below the MARK button, above the
-     toggle row. Tiny line confirming what the button is about to do and
-     whether GPS is good. Green LED = good, red LED = no GPS. */
+  /* MARK status line — cool slate text, green/red LED */
   .mark-status {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
     margin-top: 6px;
-    font-family: 'B612 Mono', monospace;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 8px;
     letter-spacing: 0.22em;
-    color: #8c7a5a;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    color: #5a7090;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
     font-weight: 700;
     line-height: 1;
     min-height: 8px;
@@ -528,26 +601,27 @@
     flex-shrink: 0;
   }
   .mark-status.ok .led-dot {
-    background: radial-gradient(circle at 35% 30%, #d8ffd0 0%, #4ac84a 50%, #1c6b1c 100%);
+    background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, #5aff4a 50%, #1c6b1c 100%);
     box-shadow:
-      0 0 3px rgba(74, 200, 74, 0.7),
-      0 0 5px rgba(74, 200, 74, 0.3);
+      0 0 3px rgba(126, 255, 90, 0.9),
+      0 0 6px rgba(126, 255, 90, 0.4);
   }
   .mark-status.no-gps {
-    color: #d96850;
+    color: #ff8aa8;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
   }
   .mark-status.no-gps .led-dot {
-    background: radial-gradient(circle at 35% 30%, #ffd0c8 0%, #f04a3f 50%, #a82318 100%);
+    background: radial-gradient(circle at 35% 30%, #ffd0e0 0%, #ff4470 50%, #6e0828 100%);
     box-shadow:
-      0 0 3px rgba(240, 74, 63, 0.6),
-      0 0 5px rgba(240, 74, 63, 0.3);
+      0 0 3px rgba(255, 68, 112, 0.85),
+      0 0 6px rgba(255, 68, 112, 0.4);
   }
 
   /* ========================= SECONDARY TOGGLE BUTTONS ========================= */
   .toggle-row {
     display: flex;
     gap: 6px;
-    margin-top: 8px;
+    margin-top: 10px;
   }
   .toggle-btn {
     flex: 1;
@@ -558,48 +632,61 @@
   }
   .toggle-btn .socket {
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
-    border-radius: 4px;
-    box-shadow: inset 0 1px 4px rgba(0,0,0,0.9);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #d8dde2 0%, #9aa5b0 50%, #4e5762 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 0, 0, 0.4);
   }
   .toggle-btn .cap {
     position: absolute;
-    top: 2px; bottom: 5px;
-    left: 2px; right: 2px;
-    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
-    border: 1px solid #14110d;
-    border-radius: 3px;
+    top: 3px; bottom: 3px;
+    left: 3px; right: 3px;
+    background: linear-gradient(180deg, #0a1822 0%, #050a14 100%);
+    border: 1px solid #050a14;
+    border-radius: 5px;
     box-shadow:
-      inset 0 2px 0 rgba(220, 190, 140, 0.3),
-      inset 0 -3px 0 rgba(0, 0, 0, 0.7),
-      0 2px 4px rgba(0, 0, 0, 0.5);
+      inset 0 2px 3px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
     transition: transform 0.1s;
+    overflow: hidden;
   }
-  .toggle-btn:active .cap { transform: translateY(1px); filter: brightness(0.9); }
+  .toggle-btn:active .cap { transform: translateY(1px); filter: brightness(1.2); }
+  /* Scanline shimmer on toggle LCDs */
+  .toggle-btn .cap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+  }
   .toggle-btn .lcd-fixed {
     position: absolute;
     left: 6px; right: 6px;
     top: 50%;
     transform: translateY(-50%);
-    height: 18px;
-    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
-    border: 1px solid #050403;
-    border-radius: 2px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.95);
-    overflow: hidden;
+    height: 22px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
     z-index: 4;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  .toggle-btn .lcd-fixed::after {
-    content: "";
-    position: absolute; inset: 0;
-    background:
-      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
-      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
-    pointer-events: none;
-  }
+  .toggle-btn .lcd-fixed::after { display: none; }
+  /* END Y2K BOTTOM PANEL BLOCK */
+
 
   /* ========================= MARK FLASH ========================= */
   .mark-flash {
