@@ -3396,19 +3396,9 @@
     justify-content: center;
     transition: filter 0.1s;
   }
-  /* Aqua top reflection — sits ONLY on the plastic ring above the LCD,
-     never bleeds into the dark LCD interior */
-  .p4-housing .mark-pad-plastic::before {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 22px;
-    right: 22px;
-    height: 8px;
-    border-radius: 50% / 100%;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
-    pointer-events: none;
-  }
+  /* No top highlight pill on the MARK pad — the radial gradient on the plastic
+     already provides the "glossy" cue. A separate highlight pill competes
+     visually with the LCD readout and reads as a foreign object. */
   .p4-housing .mark-btn:active .mark-pad-plastic {
     filter: brightness(1.1);
     transform: translateY(0.5px);
@@ -3706,17 +3696,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  body.landscape-mode .landscape-wing.right .mark-pad-plastic::before {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 22px;
-    right: 22px;
-    height: 8px;
-    border-radius: 50% / 100%;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
-    pointer-events: none;
   }
   body.landscape-mode .landscape-wing.right .mark-pad-bezel:active .mark-pad-plastic {
     filter: brightness(1.1);
