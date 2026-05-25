@@ -1543,6 +1543,8 @@ function setStatus(text, color) {
   document.getElementById('sectorTagText').textContent = text;
   if (color) document.getElementById('gpsDot').style.color = color;
   dbg('STATUS: ' + text);
+  // Keep the MARK status indicator in sync with any GPS state announcement
+  if (typeof updateMarkStatus === 'function') updateMarkStatus();
 }
 
 // Update user position state from a GeolocationCoordinates object.
@@ -1556,6 +1558,32 @@ function applyGpsCoords(coords) {
     userHeading = heading;
   }
   lastFix = Date.now();
+  updateMarkStatus();
+}
+
+// Update the small status line under the MARK button. Called whenever GPS
+// state changes (fix, error, stale). When GPS is good shows green LED +
+// "DROP @ MY POS"; when unavailable, red LED + "NO GPS · CANNOT MARK" and
+// the MARK button visually disables.
+function updateMarkStatus() {
+  const status = document.getElementById('markStatus');
+  const text = document.getElementById('markStatusText');
+  const btn = document.getElementById('markBtn');
+  if (!status || !text || !btn) return;
+  // GPS is "good" if we have a position and the last fix is recent (< 30s).
+  // Otherwise show no-gps state.
+  const fresh = userPos && lastFix && (Date.now() - lastFix < 30000);
+  if (fresh) {
+    status.classList.remove('no-gps');
+    status.classList.add('ok');
+    text.textContent = 'DROP @ MY POS · GPS OK';
+    btn.classList.remove('disabled');
+  } else {
+    status.classList.remove('ok');
+    status.classList.add('no-gps');
+    text.textContent = userPos ? 'GPS STALE · CANNOT MARK' : 'NO GPS · CANNOT MARK';
+    btn.classList.add('disabled');
+  }
 }
 
 function startGPS() {
@@ -1639,6 +1667,8 @@ function startGPS() {
       document.getElementById('gpsAgo').textContent = age + 'S AGO';
       document.getElementById('gpsDot').style.color = '#ef4a3f';
     }
+    // Keep MARK status in sync — it flips to "STALE" once age > 30s
+    updateMarkStatus();
   }, 5000);
 }
 
@@ -2174,17 +2204,102 @@ function manualLogVisit() {
 }
 
 // ===== PHOTO HANDLING =====
+// ===== PHOTO COMPRESSION =====
+// When the user picks a photo, we:
+// 1. Refuse upfront if storage is already > 85% full.
+// 2. Load the image into a canvas, resize so longest edge = 800px.
+// 3. Re-encode as JPEG at quality 0.6.
+// 4. If the result is still > 200 KB, refuse with a clear error.
+// 5. Show a confirm dialog with original/compressed sizes before commit.
+// 6. Store as a data URL on the POI.
+const PHOTO_MAX_EDGE = 800;       // px on longest side
+const PHOTO_JPEG_QUALITY = 0.6;
+const PHOTO_HARD_CAP_BYTES = 200 * 1024;  // 200 KB max per photo
+
 function onPhotoSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    editorPhoto = e.target.result;
-    updatePhotoUI();
-  };
-  reader.readAsDataURL(file);
   // Reset input so selecting the same file twice still triggers change
   event.target.value = '';
+
+  // Storage budget check — refuse new photos if we're already near the cap
+  const usage = computeStorageUsage();
+  const pctFull = (usage.total / (5 * 1024 * 1024)) * 100;
+  if (pctFull > 85) {
+    alert('STORAGE NEARLY FULL (' + Math.round(pctFull) + '%)\n\n' +
+          'Cannot add new photos until space is freed.\n\n' +
+          'Try MENU > CLEAR FOG or remove photos from existing POIs.');
+    return;
+  }
+
+  // Load + compress
+  const originalBytes = file.size;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const compressed = compressImage(img);
+      if (!compressed) {
+        alert('PHOTO PROCESSING FAILED\n\nCould not process this image.');
+        return;
+      }
+      const compressedBytes = Math.round((compressed.length * 3) / 4);  // approx base64 → bytes
+      if (compressedBytes > PHOTO_HARD_CAP_BYTES) {
+        alert('PHOTO TOO LARGE\n\n' +
+              'Original: ' + fmtBytes(originalBytes) + '\n' +
+              'Compressed: ' + fmtBytes(compressedBytes) + '\n' +
+              'Cap: ' + fmtBytes(PHOTO_HARD_CAP_BYTES) + '\n\n' +
+              'Try a less detailed photo (e.g. not a panorama).');
+        return;
+      }
+      // Confirm before commit so user sees what's being stored
+      const confirmed = confirm(
+        'SAVE PHOTO?\n\n' +
+        'Original: ' + fmtBytes(originalBytes) + '\n' +
+        'Compressed: ' + fmtBytes(compressedBytes) + '\n' +
+        'Dimensions: ' + Math.round(img.width * compressRatio(img)) + ' × ' +
+                       Math.round(img.height * compressRatio(img)) + '\n\n' +
+        'Press OK to save.'
+      );
+      if (!confirmed) return;
+      editorPhoto = compressed;
+      updatePhotoUI();
+    };
+    img.onerror = () => {
+      alert('PHOTO PROCESSING FAILED\n\nCould not load this image.');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Compute the resize ratio so the longest edge becomes PHOTO_MAX_EDGE.
+// Returns 1 if image is already smaller than the cap (no upscaling).
+function compressRatio(img) {
+  const longest = Math.max(img.width, img.height);
+  if (longest <= PHOTO_MAX_EDGE) return 1;
+  return PHOTO_MAX_EDGE / longest;
+}
+
+// Resize image via canvas, re-encode as JPEG. Returns the data URL or null.
+function compressImage(img) {
+  try {
+    const ratio = compressRatio(img);
+    const w = Math.round(img.width * ratio);
+    const h = Math.round(img.height * ratio);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    // Use a small black background so transparent PNGs don't become weird
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
+  } catch (e) {
+    console.error('compressImage failed:', e);
+    return null;
+  }
 }
 
 function removePhoto() {
@@ -4059,3 +4174,4 @@ updatePendingCount();
 renderTrail();
 applyLegendPref();
 renderBoundaries();
+updateMarkStatus();
