@@ -5,12 +5,12 @@
      references these so resizing chrome (e.g. PWA standalone mode hiding
      the fake status bar) automatically moves everything else. */
   :root {
-    --status-h: 44px;
+    --status-h: 0px;  /* Was 44px for the fake iOS status bar — now removed entirely */
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bot: env(safe-area-inset-bottom, 0px);
     --titlebar-h: 56px;
     --top-chrome-h: calc(var(--status-h) + var(--titlebar-h) + var(--safe-top));
-    --bot-chrome-h: calc(148px + var(--safe-bot));
+    --bot-chrome-h: calc(174px + var(--safe-bot));
 
     /* ========================= PASS 4 DESIGN TOKENS =========================
        Chassis: cool brushed aluminum (pulled back ~30% from Pass 2)
@@ -614,8 +614,8 @@
     left: 0; right: 0;
     height: var(--bot-chrome-h);
     /* Chassis profile: bright aluminum top edge, hard bezel seam,
-       matte interior where the controls sit. Controls are now
-       visually INSIDE the chassis, not floating above it. */
+       matte interior fills the rest. No dark vignette at the bottom —
+       it just wasted space the controls could use. */
     background:
       linear-gradient(180deg,
         var(--chassis-bright) 0%,
@@ -625,9 +625,7 @@
         var(--chassis-matte) 12%,
         var(--chassis-matte) 100%);
     border-top: 1px solid var(--bezel-line);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      inset 0 -3px 10px rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
     z-index: 4;
   }
   /* Brushed-metal grain — only on the bright top edge */
@@ -674,7 +672,7 @@
 
   .mark-area {
     position: absolute;
-    bottom: calc(10px + var(--safe-bot));
+    bottom: calc(14px + var(--safe-bot));
     left: 16px;
     right: 16px;
     top: auto;
@@ -3350,8 +3348,8 @@
   /* Override the legacy mark-btn rectangular pill rendering inside p4-housing */
   .p4-housing .mark-btn {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 104px;
+    height: 104px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     /* Reset legacy pill props */
@@ -3363,11 +3361,11 @@
     display: none;
   }
   .p4-housing .mark-pad-bezel {
-    width: 120px;
-    height: 120px;
+    width: 104px;
+    height: 104px;
     border-radius: 50%;
     background: var(--bezel-line);
-    padding: 4px;
+    padding: 3px;
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.8),
       0 1px 0 rgba(255, 255, 255, 0.08),
@@ -3398,16 +3396,17 @@
     justify-content: center;
     transition: filter 0.1s;
   }
-  /* Aqua top reflection on the plastic */
+  /* Aqua top reflection — sits ONLY on the plastic ring above the LCD,
+     never bleeds into the dark LCD interior */
   .p4-housing .mark-pad-plastic::before {
     content: '';
     position: absolute;
-    top: 8px;
-    left: 18px;
-    right: 18px;
-    height: 28px;
+    top: 3px;
+    left: 22px;
+    right: 22px;
+    height: 8px;
     border-radius: 50% / 100%;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.05));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
     pointer-events: none;
   }
   .p4-housing .mark-btn:active .mark-pad-plastic {
@@ -3420,8 +3419,8 @@
   }
   /* Inner LCD circle */
   .p4-housing .mark-pad-lcd {
-    width: 78px;
-    height: 78px;
+    width: 68px;
+    height: 68px;
     border-radius: 50%;
     background: radial-gradient(circle at 50% 50%, var(--screen-mid) 0%, var(--screen-dark) 80%);
     display: flex;
@@ -3453,13 +3452,15 @@
   .p4-housing .mark-pad-word {
     font-family: 'Orbitron', sans-serif;
     font-weight: 900;
-    font-size: 19px;
-    letter-spacing: 0.22em;
+    font-size: 17px;
+    letter-spacing: 0.16em;
     color: var(--aqua-hot);
     text-shadow:
       0 0 5px rgba(0, 229, 255, 0.85),
       0 0 14px rgba(0, 229, 255, 0.5);
     z-index: 1;
+    /* Ensure last-letter spacing doesn't push past center */
+    padding-left: 0.16em;
   }
 
   /* Status line wraps below the row */
@@ -3709,12 +3710,12 @@
   body.landscape-mode .landscape-wing.right .mark-pad-plastic::before {
     content: '';
     position: absolute;
-    top: 6px;
-    left: 16px;
-    right: 16px;
-    height: 24px;
+    top: 3px;
+    left: 22px;
+    right: 22px;
+    height: 8px;
     border-radius: 50% / 100%;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.05));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
     pointer-events: none;
   }
   body.landscape-mode .landscape-wing.right .mark-pad-bezel:active .mark-pad-plastic {
@@ -3737,12 +3738,13 @@
   body.landscape-mode .landscape-wing.right .mark-pad-word {
     font-family: 'Orbitron', sans-serif;
     font-weight: 900;
-    font-size: 17px;
-    letter-spacing: 0.22em;
+    font-size: 15px;
+    letter-spacing: 0.16em;
     color: var(--aqua-hot);
     text-shadow:
       0 0 5px rgba(0, 229, 255, 0.85),
       0 0 12px rgba(0, 229, 255, 0.5);
+    padding-left: 0.16em;
   }
   body.landscape-mode .landscape-wing.right .wing-status {
     display: flex;

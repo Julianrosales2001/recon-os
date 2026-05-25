@@ -1657,8 +1657,12 @@ window.addEventListener('error', (e) => {
 
 // ===== GPS =====
 function setStatus(text, color) {
-  document.getElementById('sectorTagText').textContent = text;
-  if (color) document.getElementById('gpsDot').style.color = color;
+  const sectorEl = document.getElementById('sectorTagText');
+  if (sectorEl) sectorEl.textContent = text;
+  if (color) {
+    const dot = document.getElementById('gpsDot');
+    if (dot) dot.style.color = color;
+  }
   dbg('STATUS: ' + text);
   // Keep the MARK status indicator in sync with any GPS state announcement
   if (typeof updateMarkStatus === 'function') updateMarkStatus();
@@ -1847,7 +1851,8 @@ function startGPS() {
     if (age > 30) {
       document.getElementById('gpsBanner').classList.add('visible');
       document.getElementById('gpsAgo').textContent = age + 'S AGO';
-      document.getElementById('gpsDot').style.color = '#ef4a3f';
+      const dot = document.getElementById('gpsDot');
+      if (dot) dot.style.color = '#ef4a3f';
     }
     // Keep MARK status in sync — it flips to "STALE" once age > 30s
     updateMarkStatus();
