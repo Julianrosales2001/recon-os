@@ -3349,16 +3349,16 @@ function previewAndDropFromSearch(lat, lng, suggestedName) {
 // Marker color palette (electric blue / urgent red)
 const MISSION_COLORS = {
   normal: {
-    light: '#7cdfff',
-    mid:   '#2eb5ff',
-    dark:  '#0a4070',
-    stroke:'#050811',
+    light: '#d4f8ff',
+    mid:   '#00e5ff',
+    dark:  '#0a3a4a',
+    stroke:'#050a14',
   },
   urgent: {
-    light: '#ffd0c8',
-    mid:   '#f04a3f',
-    dark:  '#4a0808',
-    stroke:'#180404',
+    light: '#ffd0e0',
+    mid:   '#ff4470',
+    dark:  '#4a081e',
+    stroke:'#180408',
   },
 };
 
