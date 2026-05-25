@@ -48,6 +48,15 @@
     <span class="right"><span id="gpsStatus">GPS</span><span id="gpsDot" style="color:#c9d97b;">●</span></span>
   </div>
 
+  <!-- P4.2 INDICATOR STRIP — always-visible status readout -->
+  <div class="indicator-strip" id="indicatorStrip">
+    <div class="ind-led" data-id="gps"><span class="dot"></span><span class="lbl">GPS</span></div>
+    <div class="ind-led" data-id="fix"><span class="dot"></span><span class="lbl">FIX</span></div>
+    <div class="ind-led" data-id="trail"><span class="dot"></span><span class="lbl">TRAIL</span></div>
+    <div class="ind-led" data-id="fog"><span class="dot"></span><span class="lbl">FOG</span></div>
+    <div class="ind-led" data-id="sync"><span class="dot"></span><span class="lbl">SYNC</span></div>
+  </div>
+
   <!-- LEAFLET MAP -->
   <div id="map"></div>
   <div class="paper-overlay"></div>
@@ -94,39 +103,57 @@
   <div class="panel-bg-bot">
     <div class="rivets top"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
     <div class="rivets bot"><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span><span class="rivet"></span></div>
+    <!-- P4.2 service labels + corner screws -->
+    <div class="service-label-l">MK-01 · FIELD MARK MODULE</div>
+    <div class="service-label-r">RJ-001 · 2026</div>
+    <span class="bot-screw tl"></span>
+    <span class="bot-screw tr"></span>
+    <span class="bot-screw bl"></span>
+    <span class="bot-screw br"></span>
   </div>
 
   <!-- MARK BUTTON + TOGGLES -->
   <div class="mark-area">
     <span class="mark-housing-label">MK-01 / FIELD MARK</span>
-    <div class="mark-housing">
-      <div class="mark-btn" id="markBtn" onclick="dropPin()">
-        <div class="socket"></div>
-        <div class="cap">
-          <div class="lcd"><span class="lcd-text">MARK</span></div>
+    <div class="mark-housing p4-housing">
+      <div class="p4-row">
+        <!-- LEFT: 2x2 toggle grid -->
+        <div class="toggle-grid">
+          <div class="tg-btn" onclick="openSearchSheet()" data-id="search">
+            <svg class="tg-icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 L20 20"/></svg>
+            <span class="tg-lbl">SRCH</span>
+          </div>
+          <div class="tg-btn" onclick="openPendingSheet()" data-id="pending" id="pendingTgBtn">
+            <svg class="tg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15 14"/></svg>
+            <span class="tg-lbl" id="pendingLabel">PEND</span>
+          </div>
+          <div class="tg-btn" onclick="openObjectivesSheet()" data-id="objectv" id="objectvTgBtn">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M12 3 L21 8 V16 L12 21 L3 16 V8 Z"/><path d="M12 12 L21 8 M12 12 L3 8 M12 12 V21"/></svg>
+            <span class="tg-lbl" id="objectivesLabel">OBJV</span>
+          </div>
+          <div class="tg-btn" onclick="openSettingsSheet()" data-id="menu">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M4 7 H20 M4 12 H20 M4 17 H20"/></svg>
+            <span class="tg-lbl">MENU</span>
+          </div>
+        </div>
+        <!-- RIGHT: Circular MARK thumb-pad -->
+        <div class="mark-pad-wrap">
+          <div class="mark-btn" id="markBtn" onclick="dropPin()">
+            <div class="mark-pad-bezel">
+              <div class="mark-pad-plastic">
+                <div class="mark-pad-lcd">
+                  <span class="mark-pad-word">MARK</span>
+                  <span class="mark-pad-sub" id="markPadSub">@ MY POS</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+      <!-- Status line — full width below the row -->
       <div class="mark-status" id="markStatus">
         <span class="led-dot" id="markStatusLed"></span>
         <span id="markStatusText">ACQUIRING GPS...</span>
-      </div>
-      <div class="toggle-row">
-        <div class="toggle-btn" onclick="openSearchSheet()">
-          <div class="socket"></div>
-          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">SEARCH</span></div></div>
-        </div>
-        <div class="toggle-btn" onclick="openPendingSheet()">
-          <div class="socket"></div>
-          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="pendingLabel">PENDING</span></div></div>
-        </div>
-        <div class="toggle-btn" onclick="openObjectivesSheet()">
-          <div class="socket"></div>
-          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small" id="objectivesLabel">OBJECTV</span></div></div>
-        </div>
-        <div class="toggle-btn" onclick="openSettingsSheet()">
-          <div class="socket"></div>
-          <div class="cap"><div class="lcd-fixed"><span class="lcd-text small">MENU</span></div></div>
-        </div>
       </div>
     </div>
   </div>
@@ -189,7 +216,7 @@
 <div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
 
 <div class="sheet" id="classifySheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title" id="classifyTitle">CLASSIFY POI</div>
   <div class="sheet-body">
     <div class="field-label">CATEGORY</div>
@@ -296,11 +323,11 @@
 
   </div>
   <div class="sheet-actions">
-    <div class="action-btn" onclick="deletePOI()" id="deleteBtn" style="display:none;">
+    <div class="action-btn quiet danger" onclick="deletePOI()" id="deleteBtn" style="display:none;">
       <div class="socket"></div>
       <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
     </div>
-    <div class="action-btn" onclick="closeSheet()">
+    <div class="action-btn quiet" onclick="closeSheet()">
       <div class="socket"></div>
       <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
     </div>
@@ -313,7 +340,7 @@
 
 <!-- PENDING SHEET (unclassified) -->
 <div class="sheet" id="pendingSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">PENDING · <span id="pendingCount">0</span></div>
   <div class="sheet-body" id="pendingBody"></div>
   <div class="sheet-actions">
@@ -326,9 +353,19 @@
 
 <!-- SETTINGS SHEET -->
 <div class="sheet" id="settingsSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">SETTINGS</div>
   <div class="sheet-body" style="padding: 0 4px;">
+
+    <div class="settings-section-head">▸ DISPLAY</div>
+
+    <div class="settings-row" onclick="toggleLandscapeMode()">
+      <div>
+        <div class="settings-name">LANDSCAPE MODE</div>
+        <div class="settings-desc" id="landscapeToggleDesc">Two-handed pro layout</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="landscapeToggleIndicator"></span></div>
+    </div>
 
     <div class="settings-section-head">▸ REGIONS</div>
 
@@ -476,7 +513,7 @@
 
 <!-- LOG SHEET (dual-tab: JOURNAL + ASSETS) -->
 <div class="sheet" id="logSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">LOG</div>
   <div class="log-tabs">
     <div class="log-tab" data-tab="journal" onclick="switchLogTab('journal')">
@@ -541,7 +578,7 @@
 
 <!-- SEARCH SHEET (address/coordinate lookup) -->
 <div class="sheet" id="searchSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">SEARCH</div>
   <div style="padding: 0 0 8px;">
     <input class="field-input list-search" id="searchInput" placeholder="ADDRESS, PLACE, OR LAT,LNG..." autocomplete="off" autocorrect="off" autocapitalize="off" />
@@ -560,7 +597,7 @@
 
 <!-- OBJECTIVES SHEET (mission/task list) -->
 <div class="sheet" id="objectivesSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">OBJECTIVES</div>
 
   <!-- Tabs -->
@@ -618,7 +655,7 @@
 
 <!-- MISSION CREATE/EDIT FORM SHEET -->
 <div class="sheet" id="missionFormSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title" id="missionFormTitle">NEW OBJECTIVE</div>
   <div class="sheet-body" style="padding: 0 4px;">
 
@@ -661,17 +698,17 @@
 
   </div>
   <div class="sheet-actions" id="missionFormActions">
-    <div class="action-btn" onclick="cancelMissionForm()">
+    <div class="action-btn quiet" onclick="cancelMissionForm()">
       <div class="socket"></div>
       <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
     </div>
-    <div class="action-btn" onclick="deleteMissionFromForm()" id="missionDeleteBtn" style="display:none;">
+    <div class="action-btn quiet danger" onclick="deleteMissionFromForm()" id="missionDeleteBtn" style="display:none;">
       <div class="socket"></div>
       <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
     </div>
     <div class="action-btn" onclick="saveMissionForm()">
       <div class="socket"></div>
-      <div class="cap"><div class="lcd"><span class="lcd-text" id="missionSaveLabel">CREATE</span></div></div>
+      <div class="cap amber"><div class="lcd"><span class="lcd-text" id="missionSaveLabel">CREATE</span></div></div>
     </div>
   </div>
 </div>
@@ -690,7 +727,7 @@
 
 <!-- STATS SHEET -->
 <div class="sheet" id="statsSheet">
-  <div class="grip"></div>
+  <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title">LIFETIME STATS</div>
   <div class="sheet-body" id="statsBody"></div>
   <div class="sheet-actions">

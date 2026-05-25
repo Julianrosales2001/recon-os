@@ -11,6 +11,38 @@
     --titlebar-h: 56px;
     --top-chrome-h: calc(var(--status-h) + var(--titlebar-h) + var(--safe-top));
     --bot-chrome-h: calc(148px + var(--safe-bot));
+
+    /* ========================= PASS 4 DESIGN TOKENS =========================
+       Chassis: cool brushed aluminum (pulled back ~30% from Pass 2)
+       Matte: quiet PSP-face plastic for sheet/module interiors
+       Bezel-line: hard dark line between materials
+       Screen: deep navy LCD interior
+       Accent colors: each has one specific job (no swapping) */
+    --chassis-bright: #c8ccd2;
+    --chassis-mid:    #7e8690;
+    --chassis-dark:   #3a4048;
+    --chassis-deep:   #1e2228;
+    --chassis-matte:  #2a2f36;
+    --bezel-line:     #181b20;
+
+    --screen-dark:    #050a14;
+    --screen-mid:     #0a1822;
+
+    --aqua:           #5fd8f0;
+    --aqua-hot:       #00e5ff;
+    --acid:           #7eff5a;
+    --magenta:        #ff4470;
+    --magenta-soft:   #ff8aa8;
+    --warn-yellow:    #ffd340;
+
+    /* Labels: tiered from quiet → bright. Most labels live at QUIET. */
+    --label-quiet:    #6a737e;
+    --label-mid:      #98a3af;
+    --label-bright:   #d4dae2;
+
+    /* Aqua plastic stamped text: dark navy with white highlight shadow.
+       Use this color for text DIRECTLY on Aqua plastic (no inner LCD). */
+    --aqua-stamp:     #0a3a4a;
   }
   /* When launched as a PWA from home screen, iOS provides its own status bar
      and we hide our fake one — so the top chrome shrinks by --status-h. */
@@ -323,6 +355,82 @@
   }
   /* END Y3 TOP CHROME */
 
+  /* ============================================================
+     INDICATOR STRIP — P4.2
+     ------------------------------------------------------------
+     Floating bar of 5 named LED indicators below the title strip.
+     Always visible (works in both PWA standalone and browser).
+     Constant status readout. Each LED has 3 states:
+       .off  → dark socket
+       .on   → acid green (GPS / FIX / OK states)
+       .live → cyan (TRAIL recording, FOG active, SYNC pulled)
+       .warn → yellow
+     ============================================================ */
+  .indicator-strip {
+    position: absolute;
+    top: calc(var(--status-h) + var(--safe-top) + 42px);
+    left: 50px;
+    right: 50px;
+    height: 22px;
+    background: var(--chassis-matte);
+    border: 1px solid var(--bezel-line);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 6px;
+    z-index: 6;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.5),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+    pointer-events: none;
+  }
+  .ind-led {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ind-led .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #1a2230, var(--screen-dark));
+    box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.8);
+  }
+  .ind-led .lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.22em;
+    color: var(--label-quiet);
+    font-weight: 700;
+  }
+  .ind-led.on .dot {
+    background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, var(--acid) 50%, #1c6b1c 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(126, 255, 90, 0.95);
+  }
+  .ind-led.on .lbl { color: var(--label-mid); }
+  .ind-led.live .dot {
+    background: radial-gradient(circle at 35% 30%, #c8f8ff 0%, var(--aqua-hot) 50%, #0a6080 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(0, 229, 255, 0.95);
+  }
+  .ind-led.live .lbl { color: var(--label-mid); }
+  .ind-led.warn .dot {
+    background: radial-gradient(circle at 35% 30%, #fff0c0 0%, var(--warn-yellow) 50%, #6e4408 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(255, 211, 64, 0.85);
+  }
+  .ind-led.warn .lbl { color: var(--label-mid); }
+  /* In PWA standalone, no status bar — bump up */
+  @media all and (display-mode: standalone) {
+    .indicator-strip { top: calc(var(--safe-top) + 42px); }
+  }
+  /* END P4.2 INDICATOR STRIP */
+
   /* ========================= FLOATING SECTOR TAG ========================= */
   /* ============================================================
      SECTOR TAG — Y3 (cool aluminum chassis + cyan LCD)
@@ -334,36 +442,44 @@
     z-index: 35;
     display: inline-flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #9aa5b0, #4e5762);
-    border: 1px solid rgba(0, 0, 0, 0.4);
+    background: var(--bezel-line);
     border-radius: 4px;
+    /* P4.2: 2px hard bezel frame around the assembly */
+    padding: 2px;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      inset 0 -1px 1px rgba(0, 0, 0, 0.5),
-      0 2px 3px rgba(0, 0, 0, 0.5);
+      0 1px 0 rgba(255, 255, 255, 0.06),
+      0 2px 5px rgba(0, 0, 0, 0.55);
     overflow: hidden;
   }
+  /* Inner assembly sits inside the bezel padding */
+  .sector-tag > .sector-plate,
+  .sector-tag > .sector-screen {
+    border-radius: 2px;
+  }
+  .sector-tag > .sector-plate {
+    border-right: none;
+    margin-right: 0;
+  }
   .sector-plate {
-    background: linear-gradient(180deg, #d8dde2, #9aa5b0);
+    background: linear-gradient(180deg, var(--chassis-bright), var(--chassis-mid));
     padding: 4px 7px;
     font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 8px;
-    letter-spacing: 0.25em;
-    color: #4e5762;
+    letter-spacing: 0.28em;
+    color: var(--chassis-deep);
     font-weight: 700;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
-    border-right: 1px solid rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
     display: flex;
     align-items: center;
   }
   .sector-screen {
-    background: linear-gradient(180deg, #0a1822, #050a14);
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.85);
     padding: 4px 10px;
     font-family: 'VT323', monospace;
     font-size: 14px;
     letter-spacing: 0.12em;
-    color: #00e5ff;
+    color: var(--aqua-hot);
     text-shadow:
       0 0 5px rgba(0, 229, 255, 0.7),
       0 0 10px rgba(0, 229, 255, 0.3);
@@ -523,16 +639,50 @@
     z-index: 10;
   }
   .mark-housing-label {
-    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
-    font-size: 7px;
-    color: #5a7090;
-    letter-spacing: 0.32em;
-    font-weight: 700;
-    padding-left: 4px;
-    margin-bottom: 4px;
-    display: block;
-    text-shadow: 0 0 4px rgba(95, 216, 240, 0.25), 0 1px 0 rgba(255,255,255,0.15);
+    /* P4.2: replaced by .service-label-l on .panel-bg-bot */
+    display: none;
   }
+
+  /* ============================================================
+     P4.2 BOTTOM PANEL SERVICE LABELS + CORNER SCREWS
+     ------------------------------------------------------------
+     Stamped industrial-tool vocabulary on the bottom chassis.
+     Labels read as engraved into the aluminum top edge.
+     ============================================================ */
+  .panel-bg-bot .service-label-l,
+  .panel-bg-bot .service-label-r {
+    position: absolute;
+    top: 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 6px;
+    letter-spacing: 0.32em;
+    color: var(--chassis-deep);
+    font-weight: 700;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .panel-bg-bot .service-label-l { left: 20px; }
+  .panel-bg-bot .service-label-r { right: 20px; letter-spacing: 0.28em; }
+  .panel-bg-bot .bot-screw {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
+    box-shadow:
+      inset 0 -1px 1px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4),
+      0 0.5px 0 rgba(255, 255, 255, 0.3);
+    z-index: 6;
+    pointer-events: none;
+  }
+  .panel-bg-bot .bot-screw.tl { top: 14px; left: 6px; }
+  .panel-bg-bot .bot-screw.tr { top: 14px; right: 6px; }
+  .panel-bg-bot .bot-screw.bl { bottom: 8px; left: 6px; }
+  .panel-bg-bot .bot-screw.br { bottom: 8px; right: 6px; }
+  /* END P4.2 SERVICE LABELS */
+
   /* Chassis housing — cool brushed aluminum */
   .mark-housing {
     position: relative;
@@ -846,68 +996,92 @@
     max-height: 85vh;
     background:
       linear-gradient(180deg,
-        #d8dde2 0%,
-        #9aa5b0 4%,
-        #4e5762 8%,
-        #1a2230 9%,
-        #0a1018 14%,
-        #0a1018 100%);
-    border-top: 1px solid rgba(0, 0, 0, 0.4);
-    border-radius: 16px 16px 6px 6px;
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 2%,
+        var(--chassis-dark) 3.5%,
+        var(--bezel-line) 4%,
+        var(--chassis-matte) 4.5%,
+        var(--chassis-matte) 100%);
+    border-top: 1px solid var(--bezel-line);
+    border-radius: 14px 14px 5px 5px;
     z-index: 201;
     padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0));
     box-shadow:
       0 -20px 50px rgba(0, 0, 0, 0.7),
-      inset 0 2px 0 rgba(255, 255, 255, 0.55),
-      inset 0 -3px 8px rgba(0, 0, 0, 0.4);
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 -2px 8px rgba(0, 0, 0, 0.5);
     transform: translateY(100%);
     transition: transform 0.3s ease-out;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-  /* Brushed-metal texture on the aluminum top band only */
+  /* Brushed-metal grain on the bright top edge only */
   .sheet::before {
     content: '';
     position: absolute;
     top: 0;
     left: 1px;
     right: 1px;
-    height: 60px;
-    border-radius: 15px 15px 0 0;
+    height: 18px;
+    border-radius: 13px 13px 0 0;
     background: repeating-linear-gradient(
       90deg,
       transparent 0,
-      rgba(255, 255, 255, 0.025) 1px,
+      rgba(255, 255, 255, 0.04) 1px,
       transparent 2px,
-      rgba(0, 0, 0, 0.025) 3px
+      rgba(0, 0, 0, 0.04) 3px
     );
     pointer-events: none;
     z-index: 0;
   }
+  /* Corner screws — anchor the sheet to the "chassis line" above */
+  .sheet::after {
+    content: '';
+    position: absolute;
+    top: 7px; left: 10px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
+    box-shadow:
+      inset 0 -0.5px 0.5px rgba(0, 0, 0, 0.6),
+      inset 0 0.5px 0.5px rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+    z-index: 2;
+  }
   .sheet > * { position: relative; z-index: 1; }
   .sheet.open { transform: translateY(0); }
-  .sheet .grip {
-    width: 50px; height: 4px;
-    margin: 0 auto 14px;
-    border-radius: 3px;
-    background: linear-gradient(180deg, #4e5762, #9aa5b0);
+  /* Right-side screw matching the left */
+  .sheet .screw-r {
+    position: absolute;
+    top: 7px; right: 10px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 1px 2px rgba(0, 0, 0, 0.4);
+      inset 0 -0.5px 0.5px rgba(0, 0, 0, 0.6),
+      inset 0 0.5px 0.5px rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .sheet .grip {
+    width: 38px; height: 3px;
+    margin: 0 auto 10px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.4);
   }
   .sheet-title {
     font-family: 'Orbitron', sans-serif;
-    font-weight: 900;
-    font-size: 13px;
-    color: #2a323c;
-    letter-spacing: 0.28em;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--label-bright);
+    letter-spacing: 0.3em;
     text-align: center;
-    margin-bottom: 14px;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+    margin-bottom: 16px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
     opacity: 1;
   }
-  /* END Y3 SHEET SHELL */
+  /* END P4.1 SHEET SHELL */
   .sheet-body {
     flex: 1;
     overflow-y: auto;
@@ -1111,16 +1285,14 @@
     background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
     border: 1px solid rgba(0, 30, 50, 0.4);
     border-radius: 16px;
-    color: #00e5ff;
+    color: #0a3a4a;
     font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 10px;
     letter-spacing: 0.22em;
     font-weight: 900;
     padding: 0 16px;
     cursor: pointer;
-    text-shadow:
-      0 0 5px rgba(0, 229, 255, 0.7),
-      0 1px 0 rgba(0, 0, 0, 0.4);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       inset 0 -2px 3px rgba(0, 0, 0, 0.3),
@@ -1160,11 +1332,9 @@
     font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 10px;
     letter-spacing: 0.22em;
-    color: #00e5ff;
+    color: #0a3a4a;
     font-weight: 900;
-    text-shadow:
-      0 0 5px rgba(0, 229, 255, 0.7),
-      0 1px 0 rgba(0, 0, 0, 0.4);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
     position: relative;
     overflow: hidden;
   }
@@ -1677,26 +1847,43 @@
 
   /* Form inputs */
   /* ============================================================
-     FIELD LABEL + INPUT — Y3 (labels on dark navy body, cyan LCDs)
+     FIELD LABEL + INPUT — P4.1 (quiet slate labels, bezeled LCDs)
      ============================================================ */
   .field-label {
     font-family: 'Share Tech Mono', 'B612 Mono', monospace;
-    font-size: 8px;
-    letter-spacing: 0.32em;
-    color: #6a8098;
-    font-weight: 700;
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    color: var(--label-quiet);
+    font-weight: 400;
     margin-bottom: 5px;
-    margin-top: 10px;
-    text-shadow:
-      0 0 4px rgba(95, 216, 240, 0.25),
-      0 1px 0 rgba(0, 0, 0, 0.5);
+    margin-top: 14px;
+    text-transform: lowercase;
+    /* No glow — labels are quiet by default */
+  }
+  /* Bezel wrapper around any input — 2px dark frame, recessed look */
+  .lcd-bezel {
+    background: var(--bezel-line);
+    padding: 2px;
+    border-radius: 4px;
+    box-shadow:
+      inset 0 1px 1px rgba(0, 0, 0, 0.9),
+      0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .lcd-bezel .field-input,
+  .lcd-bezel input,
+  .lcd-bezel textarea {
+    border-radius: 3px;
+    border: none;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .field-input {
-    background: linear-gradient(180deg, #0a1822, #050a14);
-    border: 1px solid #050a14;
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border: 1px solid var(--bezel-line);
     border-radius: 4px;
     padding: 9px 12px;
-    color: #00e5ff;
+    color: var(--aqua-hot);
     font-family: 'VT323', monospace;
     font-size: 17px;
     width: 100%;
@@ -1943,6 +2130,56 @@
       0 0 12px rgba(126, 255, 90, 0.45);
   }
   /* END Y3 ACTION BUTTONS */
+
+  /* ============================================================
+     P4.1 QUIET ACTION BUTTON — outlined ghost variant
+     ------------------------------------------------------------
+     Per the Pass 4 hierarchy: only ONE button per row should be
+     a loud Aqua-glossy pill. Cancel and secondary actions become
+     quiet outlined buttons. The destructive variant gets a
+     magenta-tinted outline + magenta text but stays quiet.
+
+     Apply via class="action-btn quiet" on the wrapper.
+     Apply class="action-btn quiet danger" for delete-style actions.
+     ============================================================ */
+  .action-btn.quiet .socket,
+  .action-btn.quiet .socket::after {
+    display: none;
+  }
+  .action-btn.quiet .cap {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 5px !important;
+    box-shadow: none !important;
+    top: 0; bottom: 0; left: 0; right: 0;
+  }
+  .action-btn.quiet .cap::before { display: none; }
+  .action-btn.quiet .lcd {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+  .action-btn.quiet .lcd::after { display: none; }
+  .action-btn.quiet .lcd-text {
+    -webkit-text-fill-color: var(--label-mid);
+    color: var(--label-mid);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+    font-weight: 700;
+  }
+  .action-btn.quiet.danger .cap {
+    border-color: rgba(255, 68, 112, 0.35) !important;
+  }
+  .action-btn.quiet.danger .lcd-text {
+    -webkit-text-fill-color: var(--magenta-soft);
+    color: var(--magenta-soft);
+    text-shadow: 0 0 4px rgba(255, 68, 112, 0.35), 0 1px 0 rgba(0, 0, 0, 0.5);
+  }
+  .action-btn.quiet:active .cap {
+    transform: none;
+    background: rgba(255, 255, 255, 0.04) !important;
+  }
+  /* END P4.1 QUIET ACTION BUTTON */
 
   /* Empty state in lists — Y7 */
   .empty-state {
@@ -2640,14 +2877,15 @@
 
   /* Stats grid */
   .stats-section-label {
-    font-size: 8px;
-    letter-spacing: 0.3em;
-    color: #8c7a5a;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    color: var(--aqua-hot);
     font-weight: 700;
-    padding: 10px 0 4px;
+    padding: 14px 0 6px;
     text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.1);
+      0 0 5px rgba(0, 229, 255, 0.5),
+      0 1px 0 rgba(0, 0, 0, 0.6);
   }
   .stats-grid {
     display: grid;
@@ -2747,16 +2985,14 @@
     background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
     border: 1px solid rgba(0, 30, 50, 0.4);
     border-radius: 15px;
-    color: #00e5ff;
+    color: #0a3a4a;
     font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 9px;
     letter-spacing: 0.22em;
     font-weight: 700;
     padding: 7px 14px;
     cursor: pointer;
-    text-shadow:
-      0 0 5px rgba(0, 229, 255, 0.6),
-      0 1px 0 rgba(0, 0, 0, 0.4);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       inset 0 -2px 3px rgba(0, 0, 0, 0.3),
@@ -2953,3 +3189,588 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.4);
     transition: width 0.15s ease-out;
   }
+  /* ============================================================
+     P4.3 — CIRCULAR MARK PAD + 2x2 TOGGLE GRID
+     ------------------------------------------------------------
+     The bottom MK-01 module gets restructured. .p4-housing is a
+     modifier on .mark-housing that completely replaces its visual
+     children with the new round MARK pad + grid layout.
+
+     Old socket/cap/lcd-fixed/toggle-row/toggle-btn rules still
+     apply ONLY when .p4-housing is NOT present (backward compat).
+     ============================================================ */
+
+  /* The new chassis interior — matte plastic between the screws */
+  .p4-housing {
+    background:
+      linear-gradient(180deg,
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 6%,
+        var(--chassis-dark) 10%,
+        var(--bezel-line) 11%,
+        var(--chassis-matte) 12%,
+        var(--chassis-matte) 100%);
+    border: 1px solid var(--bezel-line);
+    border-radius: 10px;
+    padding: 14px 12px 12px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+      0 4px 14px rgba(0, 0, 0, 0.55);
+  }
+  /* Suppress the old brushed-metal ::before grain since we have a different gradient */
+  .p4-housing::before { display: none; }
+
+  /* Two-column flex row */
+  .p4-housing .p4-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* LEFT — 2x2 toggle button grid in a recessed tray */
+  .p4-housing .toggle-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 5px;
+    padding: 4px;
+    background: var(--bezel-line);
+    border-radius: 6px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+  }
+  .p4-housing .tg-btn {
+    background: linear-gradient(180deg, var(--chassis-matte), #1a1e24);
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    transition: filter 0.1s;
+    position: relative;
+  }
+  .p4-housing .tg-btn:active {
+    filter: brightness(1.1);
+    transform: translateY(0.5px);
+  }
+  .p4-housing .tg-icon {
+    width: 16px;
+    height: 16px;
+    stroke: var(--label-quiet);
+    stroke-width: 1.5;
+    fill: none;
+  }
+  .p4-housing .tg-lbl {
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-weight: 700;
+    font-size: 8px;
+    color: var(--label-quiet);
+    letter-spacing: 0.18em;
+  }
+  /* Active state — lit LCD interior with cyan glow */
+  .p4-housing .tg-btn.active {
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-color: rgba(0, 229, 255, 0.25);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.85),
+      inset 0 0 6px rgba(0, 229, 255, 0.18);
+  }
+  .p4-housing .tg-btn.active .tg-icon {
+    stroke: var(--aqua-hot);
+    filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.6));
+  }
+  .p4-housing .tg-btn.active .tg-lbl {
+    color: var(--aqua-hot);
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.6);
+  }
+  /* Notification dot for PENDING / OBJECTV when there are unclassified items */
+  .p4-housing .tg-btn .tg-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffd0e0, #ff4470 50%, #6e0828 100%);
+    box-shadow: 0 0 4px rgba(255, 68, 112, 0.9);
+    display: none;
+  }
+  .p4-housing .tg-btn.has-pending .tg-dot { display: block; }
+
+  /* RIGHT — circular MARK thumb-pad */
+  .p4-housing .mark-pad-wrap {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Override the legacy mark-btn rectangular pill rendering inside p4-housing */
+  .p4-housing .mark-btn {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* Reset legacy pill props */
+    background: none !important;
+  }
+  /* Hide any legacy socket/cap inside .p4-housing .mark-btn (we provide new structure) */
+  .p4-housing .mark-btn > .socket,
+  .p4-housing .mark-btn > .cap {
+    display: none;
+  }
+  .p4-housing .mark-pad-bezel {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: var(--bezel-line);
+    padding: 4px;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.8),
+      0 1px 0 rgba(255, 255, 255, 0.08),
+      0 3px 8px rgba(0, 30, 50, 0.4);
+    position: relative;
+  }
+  /* Concentric cyan accent ring */
+  .p4-housing .mark-pad-bezel::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 229, 255, 0.18);
+    pointer-events: none;
+  }
+  .p4-housing .mark-pad-plastic {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, #e0f0fa 0%, #5fb8d0 35%, #1a4d68 85%, #0a2840 100%);
+    box-shadow:
+      inset 0 4px 6px rgba(255, 255, 255, 0.55),
+      inset 0 -6px 8px rgba(0, 20, 40, 0.45);
+    border: 1px solid rgba(0, 30, 50, 0.5);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: filter 0.1s;
+  }
+  /* Aqua top reflection on the plastic */
+  .p4-housing .mark-pad-plastic::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 18px;
+    right: 18px;
+    height: 28px;
+    border-radius: 50% / 100%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
+  }
+  .p4-housing .mark-btn:active .mark-pad-plastic {
+    filter: brightness(1.1);
+    transform: translateY(0.5px);
+  }
+  .p4-housing .mark-btn.disabled .mark-pad-plastic {
+    opacity: 0.5;
+    filter: grayscale(0.6);
+  }
+  /* Inner LCD circle */
+  .p4-housing .mark-pad-lcd {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, var(--screen-mid) 0%, var(--screen-dark) 80%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    box-shadow:
+      inset 0 3px 6px rgba(0, 0, 0, 0.9),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+    position: relative;
+    overflow: hidden;
+  }
+  /* CRT scanlines inside the LCD */
+  .p4-housing .mark-pad-lcd::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 2px,
+      rgba(255, 255, 255, 0.018) 2px,
+      rgba(255, 255, 255, 0.018) 3px
+    );
+    pointer-events: none;
+  }
+  .p4-housing .mark-pad-word {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.22em;
+    color: var(--aqua-hot);
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.85),
+      0 0 12px rgba(0, 229, 255, 0.5);
+    z-index: 1;
+  }
+  .p4-housing .mark-pad-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.22em;
+    color: var(--aqua);
+    text-shadow: 0 0 4px rgba(95, 216, 240, 0.5);
+    z-index: 1;
+  }
+
+  /* Status line wraps below the row */
+  .p4-housing .mark-status {
+    margin-top: 10px;
+  }
+  /* END P4.3 */
+
+  /* ============================================================
+     P4.4 — LANDSCAPE MODE
+     ------------------------------------------------------------
+     Activated by body.landscape-mode. Restructures the entire UI
+     into a PSP-style two-wing layout: sculpted left wing for
+     navigation toggles, sculpted right wing for the circular
+     MARK pad, map in the center, indicator strip across the top.
+
+     This is a MANUAL toggle (set in MENU > DISPLAY). User must
+     physically rotate the device to landscape orientation in
+     addition to enabling this preference.
+     ============================================================ */
+  body.landscape-mode {
+    /* Override chrome height vars for landscape layout */
+    --bot-chrome-h: 0px;  /* No bottom chrome — controls move to side wings */
+    --top-chrome-h: calc(var(--safe-top) + 36px);  /* Compact top strip only */
+  }
+
+  /* Hide original portrait chrome elements in landscape */
+  body.landscape-mode .panel-bg-bot,
+  body.landscape-mode .panel-bg-bot::before,
+  body.landscape-mode .knurl,
+  body.landscape-mode .knurl-l,
+  body.landscape-mode .mark-area,
+  body.landscape-mode .rivets,
+  body.landscape-mode .title-strip,
+  body.landscape-mode .panel-bg-top,
+  body.landscape-mode .indicator-strip {
+    display: none !important;
+  }
+
+  /* Sector tag — move to top center */
+  body.landscape-mode .sector-tag {
+    top: calc(var(--safe-top) + 8px);
+    left: 158px;
+    z-index: 50;
+  }
+
+  /* Wings — left and right */
+  body.landscape-mode::before,
+  body.landscape-mode::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 140px;
+    z-index: 40;
+    background:
+      linear-gradient(180deg,
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 4%,
+        var(--bezel-line) 5%,
+        var(--chassis-matte) 6%,
+        var(--chassis-matte) 94%,
+        var(--bezel-line) 95%,
+        var(--chassis-mid) 96%,
+        var(--chassis-bright) 100%);
+    border: 1px solid var(--bezel-line);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+      0 0 30px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
+  body.landscape-mode::before {
+    left: 0;
+    border-radius: 0 12px 12px 0;
+  }
+  body.landscape-mode::after {
+    right: 0;
+    border-radius: 12px 0 0 12px;
+  }
+
+  /* Map gets squeezed to leave room for wings */
+  body.landscape-mode #map {
+    left: 140px !important;
+    right: 140px !important;
+  }
+
+  /* Wing content containers — clones of toggle grid and MARK pad,
+     mounted via JS into fixed wrapper divs */
+  body.landscape-mode .landscape-wing {
+    position: fixed;
+    top: calc(var(--safe-top) + 44px);
+    bottom: calc(var(--safe-bot) + 12px);
+    width: 124px;
+    z-index: 45;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+  }
+  body.landscape-mode .landscape-wing.left { left: 8px; }
+  body.landscape-mode .landscape-wing.right { right: 8px; }
+
+  /* Service labels on wings */
+  body.landscape-mode .landscape-wing .wing-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 6px;
+    letter-spacing: 0.32em;
+    color: var(--chassis-deep);
+    font-weight: 700;
+    text-align: center;
+    padding: 0 0 8px;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  /* Corner screws on the wings */
+  body.landscape-mode .landscape-wing .wing-screw {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
+    box-shadow:
+      inset 0 -1px 1px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+  body.landscape-mode .landscape-wing.left .wing-screw.tl { top: 4px; left: 4px; }
+  body.landscape-mode .landscape-wing.left .wing-screw.bl { bottom: 4px; left: 4px; }
+  body.landscape-mode .landscape-wing.right .wing-screw.tr { top: 4px; right: 4px; }
+  body.landscape-mode .landscape-wing.right .wing-screw.br { bottom: 4px; right: 4px; }
+
+  /* LEFT wing — vertical stack of 4 toggle buttons */
+  body.landscape-mode .landscape-wing .vstack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 4px;
+    background: var(--bezel-line);
+    border-radius: 6px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9);
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn {
+    flex: 1;
+    background: linear-gradient(180deg, var(--chassis-matte), #1a1e24);
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 6px 6px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    position: relative;
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn:active {
+    filter: brightness(1.1);
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-icon {
+    width: 15px; height: 15px;
+    stroke: var(--label-quiet);
+    stroke-width: 1.5;
+    fill: none;
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-lbl {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 8px;
+    color: var(--label-quiet);
+    letter-spacing: 0.2em;
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn.active {
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-color: rgba(0, 229, 255, 0.25);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.85),
+      inset 0 0 6px rgba(0, 229, 255, 0.18);
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn.active .tg-icon {
+    stroke: var(--aqua-hot);
+    filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.6));
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn.active .tg-lbl {
+    color: var(--aqua-hot);
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.6);
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn .tg-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffd0e0, #ff4470 50%, #6e0828 100%);
+    box-shadow: 0 0 4px rgba(255, 68, 112, 0.9);
+    display: none;
+  }
+  body.landscape-mode .landscape-wing .vstack .tg-btn.has-pending .tg-dot {
+    display: block;
+  }
+
+  /* RIGHT wing — MARK pad anchored vertically center + status line */
+  body.landscape-mode .landscape-wing.right {
+    align-items: center;
+    justify-content: center;
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-bezel {
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: var(--bezel-line);
+    padding: 4px;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.8),
+      0 1px 0 rgba(255, 255, 255, 0.08),
+      0 3px 8px rgba(0, 30, 50, 0.4);
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-bezel::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 229, 255, 0.18);
+    pointer-events: none;
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-plastic {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, #e0f0fa 0%, #5fb8d0 35%, #1a4d68 85%, #0a2840 100%);
+    box-shadow:
+      inset 0 4px 6px rgba(255, 255, 255, 0.55),
+      inset 0 -6px 8px rgba(0, 20, 40, 0.45);
+    border: 1px solid rgba(0, 30, 50, 0.5);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-plastic::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 16px;
+    right: 16px;
+    height: 24px;
+    border-radius: 50% / 100%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-bezel:active .mark-pad-plastic {
+    filter: brightness(1.1);
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-lcd {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, var(--screen-mid) 0%, var(--screen-dark) 80%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    box-shadow:
+      inset 0 3px 6px rgba(0, 0, 0, 0.9),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-word {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.22em;
+    color: var(--aqua-hot);
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.85),
+      0 0 12px rgba(0, 229, 255, 0.5);
+  }
+  body.landscape-mode .landscape-wing.right .mark-pad-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 6px;
+    letter-spacing: 0.22em;
+    color: var(--aqua);
+  }
+  body.landscape-mode .landscape-wing.right .wing-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.22em;
+    color: var(--label-quiet);
+  }
+  body.landscape-mode .landscape-wing.right .wing-status .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, #5aff4a 50%, #1c6b1c 100%);
+    box-shadow: 0 0 3px rgba(126, 255, 90, 0.95);
+  }
+
+  /* Floating top strip in landscape — indicator LEDs + clock */
+  body.landscape-mode .landscape-top-strip {
+    position: fixed;
+    top: calc(var(--safe-top) + 6px);
+    left: 158px;
+    right: 158px;
+    height: 26px;
+    background: var(--chassis-matte);
+    border: 1px solid var(--bezel-line);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 0 12px;
+    z-index: 50;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+  body.landscape-mode .landscape-top-strip .ind-led {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  /* (LED dot + label styles come from the existing .ind-led classes) */
+
+  /* Map overlay buttons need to fit between wings in landscape */
+  body.landscape-mode .map-overlay-buttons {
+    top: calc(var(--safe-top) + 44px);
+    right: 152px;
+  }
+  /* END P4.4 */

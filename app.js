@@ -489,6 +489,7 @@ function loadPrefs() {
     if (typeof p.activeLegendTab === 'string') activeLegendTab = p.activeLegendTab;
     if (typeof p.activeObjectivesTab === 'string') activeObjectivesTab = p.activeObjectivesTab;
     if (typeof p.objectivesSortMode === 'string') objectivesSortMode = p.objectivesSortMode;
+    if (typeof p.landscapeMode === 'boolean') prefLandscapeMode = p.landscapeMode;
   } catch (e) { /* ignore */ }
 }
 
@@ -509,6 +510,7 @@ function savePrefs() {
       activeLegendTab: activeLegendTab,
       activeObjectivesTab: activeObjectivesTab,
       objectivesSortMode: objectivesSortMode,
+      landscapeMode: prefLandscapeMode,
     }));
   }, 500);
 }
@@ -516,6 +518,7 @@ function savePrefs() {
 let prefLegendOpen = false;
 let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
 let prefShowBoundaries = false;
+let prefLandscapeMode = false;
 
 const FOG_OPACITY_VALUES = {
   CLEAR: 0.35,
@@ -1110,6 +1113,113 @@ function toggleBoundaries() {
   if (indicator) indicator.classList.toggle('on', prefShowBoundaries);
 }
 
+// ===== P4.4 LANDSCAPE MODE =====
+function toggleLandscapeMode() {
+  prefLandscapeMode = !prefLandscapeMode;
+  savePrefs();
+  applyLandscapeMode();
+}
+
+function applyLandscapeMode() {
+  document.body.classList.toggle('landscape-mode', !!prefLandscapeMode);
+  const desc = document.getElementById('landscapeToggleDesc');
+  if (desc) desc.textContent = prefLandscapeMode ? 'Two-handed pro layout · ACTIVE' : 'Two-handed pro layout';
+  const indicator = document.getElementById('landscapeToggleIndicator');
+  if (indicator) indicator.classList.toggle('on', prefLandscapeMode);
+
+  // Mount or unmount the landscape wing DOM
+  if (prefLandscapeMode) {
+    mountLandscapeWings();
+  } else {
+    unmountLandscapeWings();
+  }
+
+  // Force Leaflet to recalc tile dimensions after layout change
+  if (typeof map !== 'undefined' && map && map.invalidateSize) {
+    setTimeout(() => { try { map.invalidateSize(); } catch(e){} }, 250);
+  }
+}
+
+function mountLandscapeWings() {
+  if (document.getElementById('landscapeLeftWing')) return; // already mounted
+
+  // LEFT WING — vertical 4-button toggle stack
+  const left = document.createElement('div');
+  left.id = 'landscapeLeftWing';
+  left.className = 'landscape-wing left';
+  left.innerHTML =
+    '<span class="wing-screw tl"></span><span class="wing-screw bl"></span>' +
+    '<div class="wing-label">NAV · L</div>' +
+    '<div class="vstack">' +
+      '<div class="tg-btn" data-action="search">' +
+        '<svg class="tg-icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6" fill="none"/><path d="M14.5 14.5 L20 20" fill="none"/></svg>' +
+        '<span class="tg-lbl">SEARCH</span></div>' +
+      '<div class="tg-btn" data-action="pending" id="landscapePendingBtn">' +
+        '<svg class="tg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none"/><path d="M12 7 V12 L15 14" fill="none"/></svg>' +
+        '<span class="tg-lbl">PENDING</span></div>' +
+      '<div class="tg-btn" data-action="objectv">' +
+        '<svg class="tg-icon" viewBox="0 0 24 24"><path d="M12 3 L21 8 V16 L12 21 L3 16 V8 Z" fill="none"/><path d="M12 12 L21 8 M12 12 L3 8 M12 12 V21" fill="none"/></svg>' +
+        '<span class="tg-lbl">OBJECTV</span></div>' +
+      '<div class="tg-btn" data-action="menu">' +
+        '<svg class="tg-icon" viewBox="0 0 24 24"><path d="M4 7 H20 M4 12 H20 M4 17 H20" fill="none"/></svg>' +
+        '<span class="tg-lbl">MENU</span></div>' +
+    '</div>';
+  document.body.appendChild(left);
+  // Wire actions
+  left.querySelectorAll('.tg-btn').forEach(btn => {
+    btn.onclick = () => {
+      switch (btn.dataset.action) {
+        case 'search': openSearchSheet(); break;
+        case 'pending': openPendingSheet(); break;
+        case 'objectv': openObjectivesSheet(); break;
+        case 'menu': openSettingsSheet(); break;
+      }
+    };
+  });
+
+  // RIGHT WING — circular MARK pad + status
+  const right = document.createElement('div');
+  right.id = 'landscapeRightWing';
+  right.className = 'landscape-wing right';
+  right.innerHTML =
+    '<span class="wing-screw tr"></span><span class="wing-screw br"></span>' +
+    '<div class="wing-label">MK · R</div>' +
+    '<div class="mark-pad-bezel" id="landscapeMarkBtn">' +
+      '<div class="mark-pad-plastic">' +
+        '<div class="mark-pad-lcd">' +
+          '<span class="mark-pad-word">MARK</span>' +
+          '<span class="mark-pad-sub">@ MY POS</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="wing-status"><span class="dot"></span><span id="landscapeMarkStatus">GPS LOCK</span></div>';
+  document.body.appendChild(right);
+  right.querySelector('#landscapeMarkBtn').onclick = () => dropPin();
+
+  // TOP STRIP — indicator LEDs (mirror of the portrait one)
+  const strip = document.createElement('div');
+  strip.id = 'landscapeTopStrip';
+  strip.className = 'landscape-top-strip';
+  strip.innerHTML =
+    '<div class="ind-led" data-id="gps"><span class="dot"></span><span class="lbl">GPS</span></div>' +
+    '<div class="ind-led" data-id="fix"><span class="dot"></span><span class="lbl">FIX</span></div>' +
+    '<div class="ind-led" data-id="trail"><span class="dot"></span><span class="lbl">TRAIL</span></div>' +
+    '<div class="ind-led" data-id="fog"><span class="dot"></span><span class="lbl">FOG</span></div>' +
+    '<div class="ind-led" data-id="sync"><span class="dot"></span><span class="lbl">SYNC</span></div>';
+  document.body.appendChild(strip);
+
+  // Sync pending dot + indicator LED states immediately
+  updatePendingCount();
+  updateIndicatorStrip();
+}
+
+function unmountLandscapeWings() {
+  ['landscapeLeftWing', 'landscapeRightWing', 'landscapeTopStrip'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+}
+
 // ===== UI HELPERS =====
 function showToast(message) {
   const t = document.getElementById('toast');
@@ -1545,6 +1655,62 @@ function setStatus(text, color) {
   dbg('STATUS: ' + text);
   // Keep the MARK status indicator in sync with any GPS state announcement
   if (typeof updateMarkStatus === 'function') updateMarkStatus();
+  if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip();
+}
+
+// ===== P4.2 INDICATOR STRIP =====
+// Updates the 5-LED status row (GPS / FIX / TRAIL / FOG / SYNC).
+// States per LED: '' (off), 'on' (acid), 'live' (cyan), 'warn' (yellow)
+function updateIndicatorStrip() {
+  // Update every strip element on the page (portrait + landscape if mounted)
+  const strips = document.querySelectorAll('#indicatorStrip, #landscapeTopStrip');
+  if (!strips.length) return;
+  strips.forEach(strip => {
+    const ledOf = (id) => strip.querySelector('.ind-led[data-id="' + id + '"]');
+
+    // GPS — green when we have any position, yellow if stale
+    const gpsLed = ledOf('gps');
+    if (gpsLed) {
+      gpsLed.className = 'ind-led';
+      if (userPos && userPos.lat != null) {
+        const ageMs = lastFix ? (Date.now() - lastFix) : 0;
+        gpsLed.classList.add(ageMs > 30000 ? 'warn' : 'on');
+      }
+    }
+    // FIX — green when accuracy is good (< 30m)
+    const fixLed = ledOf('fix');
+    if (fixLed) {
+      fixLed.className = 'ind-led';
+      if (userPos && userPos.acc != null && userPos.acc < 30) fixLed.classList.add('on');
+      else if (userPos && userPos.acc != null) fixLed.classList.add('warn');
+    }
+    // TRAIL — cyan when recording
+    const trailLed = ledOf('trail');
+    if (trailLed) {
+      trailLed.className = 'ind-led';
+      if (Array.isArray(trail) && trail.length > 0) trailLed.classList.add('live');
+    }
+    // FOG — cyan when fog reveal data exists
+    const fogLed = ledOf('fog');
+    if (fogLed) {
+      fogLed.className = 'ind-led';
+      if (revealedCells && revealedCells.size > 0) fogLed.classList.add('live');
+    }
+    // SYNC — yellow if last write failed, cyan if mission draft active, else acid
+    const syncLed = ledOf('sync');
+    if (syncLed) {
+      syncLed.className = 'ind-led';
+      try {
+        if (sessionStorage.getItem('recon.os.lastWriteFailed') === '1') {
+          syncLed.classList.add('warn');
+        } else if (localStorage.getItem(MISSION_DRAFT_KEY)) {
+          syncLed.classList.add('live');
+        } else {
+          syncLed.classList.add('on');
+        }
+      } catch (e) { /* storage may throw — leave LED off */ }
+    }
+  });
 }
 
 // Update user position state from a GeolocationCoordinates object.
@@ -2650,7 +2816,21 @@ function openPendingSheet() {
 
 function updatePendingCount() {
   const n = pois.filter(p => !p.category).length;
-  document.getElementById('pendingLabel').textContent = n > 0 ? `PENDING ${n}` : 'PENDING';
+  // Legacy label support
+  const lbl = document.getElementById('pendingLabel');
+  if (lbl) lbl.textContent = 'PEND';
+  // Set the has-pending class on whichever pending button exists (portrait + landscape)
+  ['pendingTgBtn', 'landscapePendingBtn'].forEach(id => {
+    const tgBtn = document.getElementById(id);
+    if (!tgBtn) return;
+    let dot = tgBtn.querySelector('.tg-dot');
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'tg-dot';
+      tgBtn.appendChild(dot);
+    }
+    tgBtn.classList.toggle('has-pending', n > 0);
+  });
 }
 
 // ===== JOURNAL SHEET =====
@@ -2954,15 +3134,21 @@ let _storageWarnedThisSession = false;
 function safeSet(key, value) {
   try {
     localStorage.setItem(key, value);
+    // Clear the failure flag on successful write so SYNC LED returns to acid
+    try { sessionStorage.removeItem('recon.os.lastWriteFailed'); } catch(e){}
+    if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip();
     return true;
   } catch (err) {
     console.error('STORAGE WRITE FAILED:', key, err);
+    // Best-effort: flag the failure so the SYNC LED shows warn until next success
+    try { sessionStorage.setItem('recon.os.lastWriteFailed', '1'); } catch(e){}
     if (!_storageWarnedThisSession) {
       _storageWarnedThisSession = true;
       try {
         showToast('STORAGE FULL · WRITE FAILED');
       } catch (e) {}
     }
+    if (typeof updateIndicatorStrip === 'function') updateIndicatorStrip();
     return false;
   }
 }
@@ -4175,6 +4361,10 @@ renderTrail();
 applyLegendPref();
 renderBoundaries();
 updateMarkStatus();
+updateIndicatorStrip();
+applyLandscapeMode();
+// Tick the indicator strip every 5s for GPS-staleness state
+setInterval(updateIndicatorStrip, 5000);
 
 // ===== Y8 BOOT SCREEN =====
 // Animate the boot log lines, fill the progress bar, fade out.
