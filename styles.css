@@ -30,12 +30,14 @@
   }
 
   /* ========================= LED INDICATOR (UNIVERSAL) =========================
-     Reusable physical indicator component. Use everywhere an "active state"
-     needs a visible source (settings toggles, filter chips, HVA, tabs).
+     Reusable physical indicator component. Y5 reskin: default on-state is now
+     cyan (was amber). Green and red variants kept for GPS-lock and alarm.
+     New magenta variant added for urgent/overdue.
      - .led-indicator         : the bulb itself, off (dark dome)
-     - .led-indicator.on      : amber lit bulb with localised glow + specular
+     - .led-indicator.on      : cyan lit bulb with localised glow + specular
      - .led-indicator.on.green: GPS lock / OK
-     - .led-indicator.on.red  : alarm / overdue
+     - .led-indicator.on.red  : alarm / overdue (legacy red)
+     - .led-indicator.on.magenta: urgent / mission overdue (new)
      - .led-housing           : optional dark recessed socket to wrap the bulb
                                 in (gives it a believable origin) */
   .led-indicator {
@@ -43,21 +45,21 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #2a2520 0%, #14110d 60%, #0a0604 100%);
+    background: radial-gradient(circle at 35% 30%, #1a2230 0%, #0a1018 60%, #050a14 100%);
     box-shadow:
-      inset 0 1px 1px rgba(0, 0, 0, 0.8),
-      inset 0 -0.5px 0 rgba(220, 190, 140, 0.1),
-      0 0.5px 0 rgba(220, 190, 140, 0.12);
+      inset 0 1px 1px rgba(0, 0, 0, 0.85),
+      inset 0 -0.5px 0 rgba(95, 216, 240, 0.12),
+      0 0.5px 0 rgba(255, 255, 255, 0.15);
     flex-shrink: 0;
     position: relative;
   }
   .led-indicator.on {
-    background: radial-gradient(circle at 35% 30%, #ffe9b0 0%, #f0a040 40%, #c8731c 80%, #6e3a08 100%);
+    background: radial-gradient(circle at 35% 30%, #c8f8ff 0%, #00e5ff 40%, #0a6080 80%, #042838 100%);
     box-shadow:
-      inset 0 1px 1px rgba(255, 220, 140, 0.6),
-      inset 0 -1px 1px rgba(110, 58, 8, 0.8),
-      0 0 4px rgba(240, 160, 64, 0.7),
-      0 0 8px rgba(240, 160, 64, 0.4);
+      inset 0 1px 1px rgba(200, 248, 255, 0.65),
+      inset 0 -1px 1px rgba(4, 40, 56, 0.8),
+      0 0 4px rgba(0, 229, 255, 0.85),
+      0 0 9px rgba(0, 229, 255, 0.45);
   }
   /* Tiny specular highlight on lit bulbs */
   .led-indicator.on::after {
@@ -68,35 +70,51 @@
     width: 25%;
     height: 18%;
     border-radius: 50%;
-    background: rgba(255, 240, 200, 0.85);
+    background: rgba(255, 255, 255, 0.85);
     filter: blur(0.3px);
   }
   .led-indicator.on.green {
-    background: radial-gradient(circle at 35% 30%, #d8ffd0 0%, #4ac84a 40%, #1c6b1c 80%, #082408 100%);
+    background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, #5aff4a 40%, #1c6b1c 80%, #082408 100%);
     box-shadow:
-      inset 0 1px 1px rgba(216, 255, 208, 0.5),
+      inset 0 1px 1px rgba(216, 255, 208, 0.55),
       inset 0 -1px 1px rgba(8, 36, 8, 0.8),
-      0 0 4px rgba(74, 200, 74, 0.6),
-      0 0 8px rgba(74, 200, 74, 0.35);
+      0 0 4px rgba(126, 255, 90, 0.85),
+      0 0 9px rgba(126, 255, 90, 0.4);
   }
   .led-indicator.on.red {
     background: radial-gradient(circle at 35% 30%, #ffd0c8 0%, #f04a3f 40%, #a82318 80%, #380808 100%);
     box-shadow:
       inset 0 1px 1px rgba(255, 200, 180, 0.5),
       inset 0 -1px 1px rgba(56, 8, 8, 0.8),
-      0 0 4px rgba(240, 74, 63, 0.7),
-      0 0 8px rgba(240, 74, 63, 0.35);
+      0 0 4px rgba(240, 74, 63, 0.75),
+      0 0 9px rgba(240, 74, 63, 0.4);
+  }
+  .led-indicator.on.magenta {
+    background: radial-gradient(circle at 35% 30%, #ffd0e0 0%, #ff4470 40%, #6e0828 80%, #2a0410 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 208, 224, 0.55),
+      inset 0 -1px 1px rgba(42, 4, 16, 0.8),
+      0 0 4px rgba(255, 68, 112, 0.85),
+      0 0 9px rgba(255, 68, 112, 0.4);
+  }
+  .led-indicator.on.yellow {
+    background: radial-gradient(circle at 35% 30%, #fff0c0 0%, #ffd340 40%, #6e4408 80%, #2a1c04 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 240, 192, 0.55),
+      inset 0 -1px 1px rgba(42, 28, 4, 0.8),
+      0 0 4px rgba(255, 211, 64, 0.85),
+      0 0 9px rgba(255, 211, 64, 0.4);
   }
   /* Recessed socket housing — wraps the LED to give it an origin */
   .led-housing {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #1a1614, #0a0604);
+    background: radial-gradient(circle at 30% 30%, #1a2230, #050a14);
     box-shadow:
       inset 0 1px 2px rgba(0, 0, 0, 0.9),
-      inset 0 -0.5px 0 rgba(220, 190, 140, 0.12),
-      0 0.5px 0 rgba(220, 190, 140, 0.15);
+      inset 0 -0.5px 0 rgba(95, 216, 240, 0.18),
+      0 0.5px 0 rgba(255, 255, 255, 0.25);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1831,25 +1849,30 @@
     opacity: 0.85;
   }
 
-  /* Settings rows */
+  /* Settings rows — Y5 */
   .settings-section-head {
-    font-family: 'B612 Mono', monospace;
-    font-size: 8px;
-    letter-spacing: 0.3em;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.32em;
     font-weight: 700;
-    color: #8c7a5a;
+    color: #00e5ff;
     padding: 14px 0 4px;
     text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.1);
+      0 0 5px rgba(0, 229, 255, 0.5),
+      0 1px 0 rgba(0, 0, 0, 0.6);
   }
   .settings-section-head:first-of-type { padding-top: 8px; }
-  .settings-section-head.danger { color: #a85e4a; }
+  .settings-section-head.danger {
+    color: #ff8aa8;
+    text-shadow:
+      0 0 5px rgba(255, 68, 112, 0.5),
+      0 1px 0 rgba(0, 0, 0, 0.6);
+  }
 
   .settings-row {
-    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
-    border: 1px solid #2a2520;
-    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(20, 28, 40, 0.85), rgba(10, 14, 20, 0.85));
+    border: 1px solid rgba(95, 216, 240, 0.18);
+    border-radius: 6px;
     padding: 12px;
     display: flex;
     align-items: center;
@@ -1857,42 +1880,45 @@
     gap: 10px;
     margin-bottom: 4px;
     cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(95, 216, 240, 0.1),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.5);
   }
   .settings-row:active { filter: brightness(1.2); }
   .settings-row .settings-name {
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 11px;
-    color: #d4c8b0;
+    color: #d4f8ff;
     letter-spacing: 0.08em;
     font-weight: 700;
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.15);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
   }
   .settings-row .settings-desc {
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 9px;
-    color: #8c7a5a;
+    color: #6a8098;
     letter-spacing: 0.1em;
     margin-top: 2px;
   }
   .settings-row .settings-action {
-    font-family: 'B612 Mono', monospace;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 16px;
-    color: #c8b896;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+    color: #00e5ff;
+    text-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
   }
   .settings-row.danger {
-    border-left: 2px solid #d96850;
+    border-left: 2px solid #ff4470;
   }
 
-  /* Photo area */
+  /* Photo area — Y5 */
   .photo-area {
-    background: #050403;
-    border: 1px dashed #3a3128;
-    border-radius: 2px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px dashed rgba(95, 216, 240, 0.35);
+    border-radius: 6px;
     padding: 24px;
     text-align: center;
-    color: #6e6354;
+    color: #6a8098;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 10px;
     letter-spacing: 0.22em;
     font-weight: 700;
@@ -1903,6 +1929,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
   }
   .photo-area img {
     max-width: 100%;
@@ -1937,49 +1964,58 @@
   }
   .photo-area.has-photo .photo-remove { display: flex; }
 
-  /* HVA toggle */
+  /* HVA toggle — Y5 (cyan accents) */
   .hva-toggle {
-    background: linear-gradient(180deg, #1c1814 0%, #14110d 100%);
-    border: 1px solid #2a2520;
-    border-radius: 2px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 6px;
     padding: 12px;
     display: flex;
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(180, 150, 110, 0.06);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(95, 216, 240, 0.08);
   }
   .hva-toggle:active { filter: brightness(1.2); }
   .hva-toggle .hva-star {
     font-size: 22px;
-    color: #3a3128;
+    color: #2a323c;
     text-shadow: none;
     transition: all 0.2s;
   }
   .hva-toggle.on .hva-star {
-    color: #f0a040;
-    text-shadow: 0 0 8px rgba(240, 160, 64, 0.6), 0 0 16px rgba(240, 160, 64, 0.3);
+    color: #00e5ff;
+    text-shadow:
+      0 0 8px rgba(0, 229, 255, 0.7),
+      0 0 16px rgba(0, 229, 255, 0.35);
   }
   .hva-toggle .hva-label { flex: 1; }
   .hva-toggle .hva-name {
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 11px;
-    color: #d4c8b0;
+    color: #d4f8ff;
     letter-spacing: 0.1em;
     font-weight: 700;
+    text-shadow: 0 0 4px rgba(95, 216, 240, 0.3);
   }
   .hva-toggle .hva-desc {
-    font-size: 8px;
-    color: #6e6354;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 9px;
+    color: #6a8098;
     letter-spacing: 0.1em;
     margin-top: 2px;
   }
   /* Journal rows */
   .journal-day-header {
-    font-size: 8px;
-    color: #d68a3a;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 9px;
+    color: #00e5ff;
     letter-spacing: 0.32em;
     padding: 12px 0 4px;
     font-weight: 700;
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.45);
   }
   .journal-day-header:first-child { padding-top: 4px; }
   .journal-row {
@@ -2543,16 +2579,17 @@
     margin: 2px 0;
   }
   .nav-info-data .lbl {
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 8px;
     letter-spacing: 0.22em;
-    color: #6e6354;
+    color: #6a8098;
     font-weight: 700;
   }
   .nav-info-data .val {
     font-family: 'VT323', monospace;
     font-size: 18px;
-    color: #f0a040;
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.45);
+    color: #00e5ff;
+    text-shadow: 0 0 5px rgba(0, 229, 255, 0.55);
   }
   .visit-count {
     display: flex;
@@ -2562,37 +2599,51 @@
   .visit-num {
     font-family: 'VT323', monospace;
     font-size: 22px;
-    color: #f0a040;
-    text-shadow: 0 0 5px rgba(240, 160, 64, 0.5);
+    color: #00e5ff;
+    text-shadow: 0 0 5px rgba(0, 229, 255, 0.6);
     line-height: 1;
   }
   .visit-last {
-    font-size: 8px;
-    color: #6e6354;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 9px;
+    color: #6a8098;
     letter-spacing: 0.15em;
   }
   .visit-log-btn {
-    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 100%);
-    border: 1px solid #14110d;
-    border-radius: 3px;
-    color: #d4c8b0;
-    font-family: 'B612 Mono', monospace;
+    background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
+    border: 1px solid rgba(0, 30, 50, 0.4);
+    border-radius: 15px;
+    color: #00e5ff;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 9px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.22em;
     font-weight: 700;
-    padding: 8px 12px;
+    padding: 7px 14px;
     cursor: pointer;
     text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.15);
+      0 0 5px rgba(0, 229, 255, 0.6),
+      0 1px 0 rgba(0, 0, 0, 0.4);
     box-shadow:
-      inset 0 1px 0 rgba(220, 190, 140, 0.3),
-      inset 0 -2px 0 rgba(0, 0, 0, 0.6),
-      0 2px 3px rgba(0, 0, 0, 0.5);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 30, 50, 0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .visit-log-btn::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 6px;
+    right: 6px;
+    height: 9px;
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
   }
   .visit-log-btn:active {
     transform: translateY(1px);
-    filter: brightness(0.9);
+    filter: brightness(1.15);
   }
 
   /* GPS error banner — hazard-stripe panel with stamped warning text */
