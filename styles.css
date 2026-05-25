@@ -865,71 +865,81 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* LOG sheet — dual-tab toggle */
+  /* ============================================================
+     SEGMENTED TABS — Y4 (log/obj/legend share this pattern)
+     Recessed dark housing, inactive tabs slate, active = lit cyan
+     ============================================================ */
   .log-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
-    padding: 2px;
-    background: #050403;
-    border: 1px solid #2a2520;
-    border-radius: 4px;
+    padding: 3px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 7px;
     margin-bottom: 10px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   .log-tab {
     padding: 8px 10px;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-family: 'B612 Mono', monospace;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 10px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.2em;
     font-weight: 700;
-    color: #6e6354;
+    color: #6a8098;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+    border: 1px solid transparent;
   }
   .log-tab .count {
-    background: rgba(110, 99, 84, 0.18);
+    background: rgba(95, 216, 240, 0.08);
     padding: 2px 7px;
     border-radius: 8px;
     font-size: 9px;
     letter-spacing: 0.1em;
-    color: #8c8170;
+    color: #6a8098;
     min-width: 18px;
     text-align: center;
   }
   .log-tab.active {
-    background: #050403;
+    background: linear-gradient(180deg, rgba(95, 216, 240, 0.18), rgba(0, 229, 255, 0.06));
+    border: 1px solid rgba(95, 216, 240, 0.35);
+    color: #00e5ff;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.35);
     box-shadow:
-      inset 0 2px 4px rgba(0, 0, 0, 0.9),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.6);
-    color: #f0a040;
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 8px rgba(0, 229, 255, 0.18);
   }
   .log-tab.active .count {
-    background: rgba(240, 160, 64, 0.18);
-    color: #f0a040;
+    background: rgba(0, 229, 255, 0.22);
+    color: #00e5ff;
   }
+  /* END Y4 log-tabs */
 
   /* Tiny LED dot inside tab labels — universal pattern for log + legend tabs */
   .tab-led {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #1a1614, #0a0604);
+    background: radial-gradient(circle at 35% 30%, #1a2230, #050a14);
     flex-shrink: 0;
     box-shadow: inset 0 0.5px 0.5px rgba(0, 0, 0, 0.8);
   }
   .log-tab.active .tab-led,
   .legend-tab.active .tab-led {
-    background: radial-gradient(circle at 35% 30%, #ffe9b0 0%, #f0a040 50%, #c8731c 100%);
+    background: radial-gradient(circle at 35% 30%, #c8f8ff 0%, #00e5ff 45%, #0a6080 100%);
     box-shadow:
-      0 0 3px rgba(240, 160, 64, 0.8),
-      0 0 6px rgba(240, 160, 64, 0.4);
+      0 0 4px rgba(0, 229, 255, 0.95),
+      0 0 8px rgba(0, 229, 255, 0.45);
   }
   .log-tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
   .log-tab-content.active { display: flex; }
@@ -977,54 +987,68 @@
 
   /* ========================= OBJECTIVES SHEET ========================= */
   /* Tabs — same recessed-LCD pattern as LOG sheet tabs (3-up grid) */
+  /* Y4 obj-tabs — same pattern as log-tabs, three-column */
   .obj-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 4px;
-    padding: 2px;
-    background: #050403;
-    border: 1px solid #2a2520;
-    border-radius: 4px;
+    padding: 3px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 7px;
     margin-bottom: 10px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   .obj-tab {
     padding: 8px 4px;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-family: 'B612 Mono', monospace;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 9px;
     letter-spacing: 0.18em;
     font-weight: 700;
-    color: #6e6354;
+    color: #6a8098;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+    border: 1px solid transparent;
   }
   .obj-tab .count {
-    background: rgba(110, 99, 84, 0.18);
+    background: rgba(95, 216, 240, 0.08);
     padding: 2px 6px;
     border-radius: 8px;
     font-size: 8px;
     letter-spacing: 0.1em;
-    color: #8c8170;
+    color: #6a8098;
     min-width: 18px;
     text-align: center;
   }
   .obj-tab.active {
-    background: #050403;
+    background: linear-gradient(180deg, rgba(95, 216, 240, 0.18), rgba(0, 229, 255, 0.06));
+    border: 1px solid rgba(95, 216, 240, 0.35);
+    color: #00e5ff;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.35);
     box-shadow:
-      inset 0 2px 4px rgba(0, 0, 0, 0.9),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.6);
-    color: #f0a040;
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 8px rgba(0, 229, 255, 0.18);
   }
   .obj-tab.active .count {
-    background: rgba(240, 160, 64, 0.18);
-    color: #f0a040;
+    background: rgba(0, 229, 255, 0.22);
+    color: #00e5ff;
   }
+  .obj-tab.active .tab-led {
+    background: radial-gradient(circle at 35% 30%, #c8f8ff 0%, #00e5ff 45%, #0a6080 100%);
+    box-shadow:
+      0 0 4px rgba(0, 229, 255, 0.95),
+      0 0 8px rgba(0, 229, 255, 0.45);
+  }
+  /* END Y4 obj-tabs */
 
   /* Quick-add row */
   .obj-quick-add {
@@ -2212,51 +2236,61 @@
     box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.2), inset 0 -2px 6px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
   }
   .legend-panel.open { display: flex; }
+  /* Y4 legend-tabs */
   .legend-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 3px;
-    padding: 2px;
-    background: #050403;
-    border: 1px solid #2a2520;
-    border-radius: 3px;
+    padding: 3px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 6px;
     margin-bottom: 6px;
     flex-shrink: 0;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   .legend-tab {
     padding: 5px 4px;
-    border-radius: 2px;
+    border-radius: 3px;
     cursor: pointer;
     text-align: center;
-    font-family: 'B612 Mono', monospace;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
     font-size: 8px;
     letter-spacing: 0.18em;
     font-weight: 700;
-    color: #6e6354;
+    color: #6a8098;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
+    border: 1px solid transparent;
   }
   .legend-tab.active {
-    background: #050403;
+    background: linear-gradient(180deg, rgba(95, 216, 240, 0.18), rgba(0, 229, 255, 0.06));
+    border: 1px solid rgba(95, 216, 240, 0.35);
+    color: #00e5ff;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.35);
     box-shadow:
-      inset 0 2px 4px rgba(0, 0, 0, 0.9),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.6);
-    color: #f0a040;
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 6px rgba(0, 229, 255, 0.15);
   }
   .legend-header {
-    font-size: 7px;
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
+    font-size: 8px;
     letter-spacing: 0.32em;
-    color: #d68a3a;
+    color: #00e5ff;
     font-weight: 700;
     padding-bottom: 6px;
     margin-bottom: 6px;
-    border-bottom: 1px solid #2a2520;
+    border-bottom: 1px solid #1a2230;
+    text-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
   }
+  /* END Y4 legend-tabs */
   #legendRows {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -2361,52 +2395,63 @@
     padding-bottom: 2px;
   }
   .cat-filter-row::-webkit-scrollbar { display: none; }
+  /* ============================================================
+     CAT CHIPS — Y4 (pill-shaped, cyan-lit active)
+     Used for category filters, fog density, mission priority,
+     journal range, anywhere a multi-option toggle row appears.
+     ============================================================ */
   .cat-chip {
-    background: linear-gradient(180deg, #2a2520 0%, #14110d 100%);
-    border: 1px solid #3a3128;
-    color: #8c8170;
-    font-family: 'B612 Mono', monospace;
-    font-size: 8px;
+    background: linear-gradient(180deg, rgba(40, 55, 75, 0.85), rgba(20, 28, 40, 0.85));
+    border: 1px solid rgba(95, 216, 240, 0.18);
+    color: #8aa0b8;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.15em;
-    padding: 5px 8px;
-    border-radius: 2px;
+    letter-spacing: 0.16em;
+    padding: 6px 11px;
+    border-radius: 14px;
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
   }
   .cat-chip.active {
-    color: #f0a040;
-    border-color: #d68a3a;
-    background: linear-gradient(180deg, #322a18 0%, #1a1610 100%);
+    background: linear-gradient(180deg, rgba(95, 216, 240, 0.18), rgba(0, 229, 255, 0.06));
+    border-color: rgba(95, 216, 240, 0.5);
+    color: #00e5ff;
     text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.1);
-    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.15);
+      0 0 5px rgba(0, 229, 255, 0.6),
+      0 0 10px rgba(0, 229, 255, 0.3);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 8px rgba(0, 229, 255, 0.22);
   }
-  /* Chips with embedded LED indicator — text stays matte cream throughout;
-     the LED is the only source signaling active state. Subtle border shift on
-     active so the chip still feels distinct. */
+  /* Chips with embedded LED indicator (categories filter row in LOG > ASSETS).
+     Text stays muted slate; the LED is the primary active signal. */
   .cat-chip.with-led {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 8px 5px 6px;
-    color: #c8b896;
+    padding: 6px 11px 6px 8px;
+    color: #a8bdd0;
   }
   .cat-chip.with-led .led-indicator {
     width: 6px;
     height: 6px;
   }
   .cat-chip.with-led.active {
-    color: #d4c8b0;
-    border-color: #4a3d2c;
-    background: linear-gradient(180deg, #2a2520, #14110d);
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.1);
-    box-shadow: inset 0 1px 0 rgba(220, 190, 140, 0.12);
+    color: #d4f8ff;
+    border-color: rgba(95, 216, 240, 0.5);
+    background: linear-gradient(180deg, rgba(95, 216, 240, 0.18), rgba(0, 229, 255, 0.06));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 8px rgba(0, 229, 255, 0.22);
   }
+  /* END Y4 cat-chip */
   .list-sort {
     background: #050403;
     border: 1px solid #3a3128;
