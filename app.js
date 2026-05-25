@@ -798,10 +798,24 @@ async function updateRegion(lat, lng) {
       region.revealedSectors.push(sid);
       saveRegions();
     }
-    document.getElementById('regionTitle').textContent = '▾ ' + region.name;
+    setRegionTitle('▾ ' + region.name);
     document.getElementById('sectorTagText').textContent =
       region.name.replace(' REGION', '') + ' · ' + sid + ' · ' + region.revealedSectors.length + ' SCT';
   }
+}
+
+// Updates the cluster region LCD. On text change, flicker the LCD briefly
+// (like a real LCD refreshing) before settling on the new value.
+function setRegionTitle(text) {
+  const el = document.getElementById('regionTitle');
+  if (!el) return;
+  if (el.textContent === text) return;  // no change, no ceremony
+  const readout = el.closest('.cluster-readout');
+  if (readout) {
+    readout.classList.add('lcd-flicker');
+    setTimeout(() => readout.classList.remove('lcd-flicker'), 380);
+  }
+  el.textContent = text;
 }
 
 function getCurrentRegion() {
@@ -1231,12 +1245,34 @@ function showToast(message) {
   setTimeout(() => t.classList.remove('visible'), 1800);
 }
 
+// ===== HAPTIC VOCABULARY =====
+// Central dispatch for tactile feedback. Each named event maps to a
+// canonical vibration pattern. The whole app calls haptic('eventName')
+// instead of navigator.vibrate directly — keeps the vocabulary consistent.
+const HAPTIC_PATTERNS = {
+  tick:        8,                     // toggle tap, small affordance
+  tap:         12,                    // sheet open, primary tap response
+  thunk:       20,                    // long-press start, modal open
+  mark:        40,                    // POI drop (legacy "flashMark" feel)
+  confirm:     [20, 30, 20],          // POI saved, mission saved
+  lock:        [15, 40, 15],          // GPS first-lock chirp
+  warn:        [8, 30, 8, 30, 60],    // POI deleted, destructive confirm
+  error:       [50, 80, 50],          // hard failure
+  pop:         15,                    // smaller tap (chip, tab)
+};
+function haptic(event) {
+  if (!navigator.vibrate) return;
+  const pat = HAPTIC_PATTERNS[event];
+  if (pat === undefined) return;
+  try { navigator.vibrate(pat); } catch (e) {}
+}
+
 function flashMark() {
   const f = document.getElementById('markFlash');
   f.classList.remove('active');
   void f.offsetWidth;
   f.classList.add('active');
-  if (navigator.vibrate) navigator.vibrate(40);
+  haptic('mark');
 }
 
 function updateClock() {
@@ -1581,7 +1617,7 @@ function enterRepositionMode(poiId) {
   const displayName = poi.name || ('POI-' + poi.id.slice(-6));
   document.getElementById('repositionPoiName').textContent = displayName;
 
-  if (navigator.vibrate) navigator.vibrate(25);
+  haptic('thunk');
   showToast('PAN MAP TO REPOSITION · TAP CONFIRM WHEN READY');
 }
 
@@ -1737,6 +1773,7 @@ function updateIndicatorStrip() {
 // Shared by watchPosition, retryGPSOnGesture, and pull-to-refresh.
 function applyGpsCoords(coords) {
   const { latitude, longitude, accuracy, altitude, heading, speed } = coords;
+  const isFirstLock = !lastFix;  // never had a fix in this session
   userPos = { lat: latitude, lng: longitude, acc: accuracy };
   userAltitudeM = (typeof altitude === 'number') ? altitude : null;
   // Keep last known heading on slow/stop so the arrow doesn't blink off
@@ -1745,6 +1782,21 @@ function applyGpsCoords(coords) {
   }
   lastFix = Date.now();
   updateMarkStatus();
+  // Ceremony — GPS just acquired for the first time this session
+  if (isFirstLock) {
+    haptic('lock');
+    flashGpsLock();
+  }
+}
+
+// Brief bright pulse on the GPS LED to announce first-lock acquisition.
+// Adds .first-lock class for ~700ms which triggers a one-shot CSS animation,
+// then removes it so the LED returns to the steady breathing state.
+function flashGpsLock() {
+  document.querySelectorAll('.ind-led[data-id="gps"]').forEach(el => {
+    el.classList.add('first-lock');
+    setTimeout(() => el.classList.remove('first-lock'), 720);
+  });
 }
 
 // Update the small status line under the MARK button. Called whenever GPS
@@ -1762,7 +1814,9 @@ function updateMarkStatus() {
   if (fresh) {
     status.classList.remove('no-gps');
     status.classList.add('ok');
-    text.textContent = 'DROP @ MY POS · GPS OK';
+    // Rotating live status — handled by tickStatusLine() interval below.
+    // Set initial frame immediately so the line isn't empty.
+    text.textContent = currentStatusFrame();
     btn.classList.remove('disabled');
     // Idle motion — MARK accent ring breathes when GPS is locked
     document.body.classList.add('gps-ok');
@@ -1774,6 +1828,71 @@ function updateMarkStatus() {
     document.body.classList.remove('gps-ok');
   }
 }
+
+// ===== ROTATING STATUS LINE =====
+// When GPS is locked, the bottom status text cycles through live data.
+// Frame index advances every 6s. updateMarkStatus() always renders the
+// CURRENT frame, so external state changes (e.g. POI drop) immediately
+// see the new data without waiting for the next tick.
+let _statusFrameIdx = 0;
+function currentStatusFrame() {
+  const frames = [
+    () => {
+      const acc = (userPos && userPos.acc != null) ? Math.round(userPos.acc) : '--';
+      return 'GPS LOCK · ' + acc + 'M ACC';
+    },
+    () => {
+      const km = todayTrailDistanceKm();
+      return 'TRAIL · ' + km.toFixed(2) + ' KM TODAY';
+    },
+    () => {
+      const region = getCurrentRegion();
+      return 'REGION · ' + (region ? region.name.replace(' REGION', '') : '—');
+    },
+    () => {
+      const n = pois.length;
+      const m = Array.isArray(missions) ? missions.filter(x => x.status !== 'complete').length : 0;
+      return n + ' POI · ' + m + ' OBJV';
+    },
+    () => {
+      const pending = pois.filter(p => !p.category).length;
+      return pending > 0 ? (pending + ' PENDING · CLASSIFY') : 'RECON.OS · STANDBY';
+    },
+  ];
+  const idx = _statusFrameIdx % frames.length;
+  try { return frames[idx](); } catch (e) { return 'RECON.OS · STANDBY'; }
+}
+
+// Helper: today's trail distance in km. Walks the in-memory trail array
+// summing haversine segments. Cheap enough at our trail sizes.
+function todayTrailDistanceKm() {
+  if (!Array.isArray(todayTrail) || todayTrail.length < 2) return 0;
+  let mi = 0;
+  for (let i = 1; i < todayTrail.length; i++) {
+    const a = todayTrail[i-1], b = todayTrail[i];
+    if (!a || !b) continue;
+    mi += haversine(a.lat, a.lng, b.lat, b.lng);
+  }
+  return mi * 1.609344;  // miles → km
+}
+
+function tickStatusLine() {
+  _statusFrameIdx++;
+  // Only update if GPS is fresh (otherwise updateMarkStatus locks the line
+  // to a GPS-error message and we should not stomp on it)
+  const fresh = userPos && lastFix && (Date.now() - lastFix < 30000);
+  if (!fresh) return;
+  const text = document.getElementById('markStatusText');
+  if (!text) return;
+  text.textContent = currentStatusFrame();
+  // Brief flicker on the line as it refreshes
+  const status = document.getElementById('markStatus');
+  if (status) {
+    status.classList.add('lcd-flicker');
+    setTimeout(() => status.classList.remove('lcd-flicker'), 380);
+  }
+}
+setInterval(tickStatusLine, 6000);
 
 function startGPS() {
   if (!navigator.geolocation) {
@@ -1841,7 +1960,7 @@ function startGPS() {
       else if (err.code === 2) msg = 'POSITION UNAVAILABLE · TAP MAP TO DROP';
       else if (err.code === 3) msg = 'GPS TIMEOUT · TAP MAP TO DROP';
       setStatus(msg, '#ef4a3f');
-      document.getElementById('regionTitle').textContent = '▾ NO POSITION';
+      setRegionTitle('▾ NO POSITION');
       dbg('GPS ERROR code=' + err.code + ' msg=' + err.message);
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
@@ -1960,7 +2079,7 @@ document.addEventListener('touchend', retryGPSOnGesture, { once: false });
     const ind = indicator();
     ind.classList.add('refreshing', 'visible');
     label().textContent = 'REFRESHING...';
-    if (navigator.vibrate) navigator.vibrate(20);
+    haptic('tap');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
@@ -2023,6 +2142,25 @@ function dropPinAt(lat, lng) {
   updatePendingCount();
   logEvent('drop', id, 'Pin dropped', sectorId ? 'Sector ' + sectorId : '');
   showToast('PIN DROPPED · ID ' + id.slice(-6));
+  // Ceremony — sector tag briefly displays a numeric confirmation
+  briefSectorMessage('POI MARKED · #' + String(pois.length).padStart(3, '0'));
+}
+
+// Temporarily overrides the sector tag text with a confirmation message,
+// then restores the original. Used after action events (POI drop, etc.)
+// to give the instrument a numeric receipt of what just happened.
+function briefSectorMessage(msg, ms) {
+  const el = document.getElementById('sectorTagText');
+  if (!el) return;
+  const original = el.textContent;
+  el.textContent = msg;
+  el.classList.add('lcd-flicker');
+  setTimeout(() => el.classList.remove('lcd-flicker'), 380);
+  setTimeout(() => {
+    el.textContent = original;
+    el.classList.add('lcd-flicker');
+    setTimeout(() => el.classList.remove('lcd-flicker'), 380);
+  }, ms || 2200);
 }
 
 // ===== CLASSIFY / EDIT =====
@@ -2051,6 +2189,7 @@ function buildCatGrid() {
 }
 
 function openClassifySheet(poiId) {
+  haptic('tap');
   editingId = poiId;
   const poi = pois.find(p => p.id === poiId);
   if (!poi) return;
@@ -2575,6 +2714,7 @@ function savePOI() {
 
   closeSheet();
   showToast('POI SAVED');
+  haptic('confirm');
 }
 
 function deletePOI() {
@@ -2590,6 +2730,7 @@ function deletePOI() {
   logEvent('delete', editingId, 'Deleted: ' + displayName, poi.category || '');
   closeSheet();
   showToast('POI DELETED');
+  haptic('warn');
   pushUndo('Restore "' + displayName + '"', () => {
     pois.push(deletedPoi);
     savePOIs();
@@ -2808,6 +2949,7 @@ function renderListBody() {
 
 // ===== PENDING SHEET =====
 function openPendingSheet() {
+  haptic('tap');
   const body = document.getElementById('pendingBody');
   const pending = pois.filter(p => !p.category);
   document.getElementById('pendingCount').textContent = pending.length;
@@ -3073,6 +3215,7 @@ function applyLegendPref() {
 
 // ===== SETTINGS =====
 function openSettingsSheet() {
+  haptic('tap');
   document.getElementById('fogCellCount').textContent =
     revealedCells.size + ' cells revealed';
   document.getElementById('regionCountDesc').textContent =
@@ -3400,6 +3543,7 @@ let searchDebounceTimer = null;
 let searchActiveQuery = null;  // tracks latest query so stale responses are ignored
 
 function openSearchSheet() {
+  haptic('tap');
   document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('searchSheet').classList.add('open');
   const input = document.getElementById('searchInput');
@@ -3575,6 +3719,7 @@ const MISSION_COLORS = {
 // ---------- OBJECTIVES sheet open/close/tabs ----------
 
 function openObjectivesSheet() {
+  haptic('tap');
   document.getElementById('objectivesSearch').value = objectivesSearchQuery;
   document.getElementById('objectivesSort').value = objectivesSortMode;
   document.getElementById('objQuickAddInput').value = '';
@@ -3832,7 +3977,7 @@ function commitQuickAddMission() {
   logEvent('mission-create', m.id, 'Created: ' + title);
   input.value = '';
   renderObjectivesList();
-  if (navigator.vibrate) navigator.vibrate(15);
+  haptic('pop');
 }
 // Submit quick-add on Enter
 document.addEventListener('keydown', (e) => {
@@ -4208,7 +4353,7 @@ function toggleMissionComplete(ev, missionId) {
     m.completed = Date.now();
     logEvent('mission-complete', m.id, 'Completed: ' + m.title);
     showToast('OBJECTIVE COMPLETE');
-    if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+    haptic('confirm');
   }
   saveMissions();
   pushUndo(wasComplete ? 'Mark "' + m.title + '" complete again' : 'Reopen "' + m.title + '"', () => {
@@ -4434,4 +4579,29 @@ setInterval(updateIndicatorStrip, 5000);
   }
   // Small initial delay so it doesn't feel instant
   setTimeout(tick, 120);
+})();
+// ===== D · IDLE DIM =====
+// After IDLE_MS of no user interaction, the device enters a dimmed state
+// where LEDs pull back ~15% brightness and the chassis loses its bright
+// edge highlight. Any tap / touch / keypress wakes it back up.
+// The idea: the device responds to your attention, not just your taps.
+(function setupIdleDim() {
+  const IDLE_MS = 30000;
+  let idleTimer = null;
+  function wake() {
+    if (document.body.classList.contains('idle-dim')) {
+      document.body.classList.remove('idle-dim');
+    }
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      document.body.classList.add('idle-dim');
+    }, IDLE_MS);
+  }
+  // Any of these inputs resets the idle clock
+  ['pointerdown', 'touchstart', 'keydown', 'wheel'].forEach(evt => {
+    window.addEventListener(evt, wake, { passive: true });
+  });
+  // GPS updates count as "the device is doing something" — but they don't
+  // wake the chassis. Only the user's hands wake it. This is intentional.
+  wake();
 })();
