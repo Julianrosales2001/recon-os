@@ -217,24 +217,24 @@
   <div class="grip"></div><div class="screw-r"></div>
   <div class="sheet-title" id="classifyTitle">CLASSIFY POI</div>
   <div class="sheet-body">
-    <div class="field-label">CATEGORY</div>
+    <div class="field-label">CATEGORY <span class="mode-tag">REQ</span></div>
     <div class="cat-grid" id="catGrid">
       <!-- Category pads injected by JS -->
     </div>
-    <div class="field-label">SHAPE</div>
+    <div class="field-label">SHAPE <span class="mode-tag">PRIMARY</span></div>
     <div class="cat-filter-row" id="shapeRow" style="margin-bottom: 8px;">
       <!-- Shape chips injected by JS -->
     </div>
-    <div class="field-label">SYMBOL</div>
+    <div class="field-label">SYMBOL <span class="mode-tag">ICON</span></div>
     <div class="symbol-grid" id="symbolGrid">
       <!-- Symbol tiles injected by JS -->
     </div>
-    <div class="field-label">NAME</div>
+    <div class="field-label">NAME <span class="mode-tag">FREE FORM</span></div>
     <input class="field-input" id="poiName" placeholder="UNTITLED" />
-    <div class="field-label">NOTES</div>
+    <div class="field-label">NOTES <span class="mode-tag">OPTIONAL</span></div>
     <textarea class="field-input notes" id="poiNotes" placeholder="OPTIONAL"></textarea>
 
-    <div class="field-label">PHOTO</div>
+    <div class="field-label">PHOTO <span class="mode-tag">JPEG</span></div>
     <div id="photoArea" class="photo-area" onclick="document.getElementById('photoInput').click()">
       <span id="photoPlaceholder">▢ TAP TO ADD PHOTO</span>
       <img id="photoPreview" style="display:none;" />
@@ -242,7 +242,7 @@
     </div>
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)" />
 
-    <div class="field-label">HIGH VALUE ASSET</div>
+    <div class="field-label">HIGH VALUE ASSET <span class="mode-tag">FLAG</span></div>
     <div class="hva-toggle" id="hvaToggle" onclick="toggleHVA()">
       <div class="hva-star">★</div>
       <div class="hva-label">
@@ -253,7 +253,7 @@
     </div>
 
     <div id="visitRow" style="display:none;">
-      <div class="field-label">VISITS</div>
+      <div class="field-label">VISITS <span class="mode-tag">LOG</span></div>
       <div class="visit-row">
         <div class="visit-count">
           <span class="visit-num" id="visitNum">0</span>
@@ -264,13 +264,13 @@
     </div>
 
     <div id="poiObjectiveRow" style="display:none;">
-      <div class="field-label">OBJECTIVES</div>
+      <div class="field-label">OBJECTIVES <span class="mode-tag">LINKED</span></div>
       <button type="button" class="visit-log-btn" style="width:100%;" onclick="addObjectiveForCurrentPoi()">+ ADD OBJECTIVE HERE</button>
       <div id="poiLinkedMissions" style="margin-top: 6px;"></div>
     </div>
 
     <div id="navInfoRow" style="display:none;">
-      <div class="field-label">DISTANCE / BEARING</div>
+      <div class="field-label">DISTANCE / BEARING <span class="mode-tag">WGS-84</span></div>
       <div class="nav-info-row">
         <div class="compass-rose">
           <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
@@ -291,29 +291,29 @@
         <div class="nav-info-data">
           <div class="pair">
             <span class="lbl">DIST</span>
-            <span class="val" id="navDistance">—</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navDistance">—</span></span>
           </div>
           <div class="pair">
             <span class="lbl">BEARING</span>
-            <span class="val" id="navBearing">—</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navBearing">—</span></span>
           </div>
           <div class="pair" style="display:none;">
             <span class="lbl">ELEV</span>
-            <span class="val" id="navElevation">—</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navElevation">—</span></span>
           </div>
         </div>
       </div>
     </div>
 
     <div id="repositionRow" style="display:none;">
-      <div class="field-label">POSITION</div>
+      <div class="field-label">POSITION <span class="mode-tag">MAP</span></div>
       <div class="visit-row" style="justify-content: stretch;">
         <button type="button" class="visit-log-btn" style="flex:1;" onclick="enterRepositionMode(editingId)">⊕ REPOSITION ON MAP</button>
       </div>
     </div>
 
     <div id="navRow" style="display:none;">
-      <div class="field-label">NAVIGATION</div>
+      <div class="field-label">NAVIGATION <span class="mode-tag">EXTERNAL</span></div>
       <div class="visit-row" style="justify-content: stretch;">
         <button type="button" class="visit-log-btn" style="flex:1;" onclick="navigateToPOI()">▸ OPEN IN APPLE MAPS</button>
       </div>

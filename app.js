@@ -1764,11 +1764,14 @@ function updateMarkStatus() {
     status.classList.add('ok');
     text.textContent = 'DROP @ MY POS · GPS OK';
     btn.classList.remove('disabled');
+    // Idle motion — MARK accent ring breathes when GPS is locked
+    document.body.classList.add('gps-ok');
   } else {
     status.classList.remove('ok');
     status.classList.add('no-gps');
     text.textContent = userPos ? 'GPS STALE · CANNOT MARK' : 'NO GPS · CANNOT MARK';
     btn.classList.add('disabled');
+    document.body.classList.remove('gps-ok');
   }
 }
 

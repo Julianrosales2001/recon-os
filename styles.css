@@ -443,6 +443,7 @@
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.5),
       0 0 3px rgba(126, 255, 90, 0.95);
+    animation: led-breathe-acid 3.2s ease-in-out infinite;
   }
   .ind-led.on .lbl { color: var(--label-mid); }
   .ind-led.live .dot {
@@ -450,6 +451,7 @@
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.5),
       0 0 3px rgba(0, 229, 255, 0.95);
+    animation: led-breathe-cyan 3.6s ease-in-out infinite;
   }
   .ind-led.live .lbl { color: var(--label-mid); }
   .ind-led.warn .dot {
@@ -459,6 +461,39 @@
       0 0 3px rgba(255, 211, 64, 0.85);
   }
   .ind-led.warn .lbl { color: var(--label-mid); }
+
+  /* Idle motion — slow breathing on active LEDs.
+     Lit states feel alive; off states stay completely still. */
+  @keyframes led-breathe-acid {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 3px rgba(126, 255, 90, 0.95);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 5px rgba(126, 255, 90, 1),
+        0 0 9px rgba(126, 255, 90, 0.4);
+    }
+  }
+  @keyframes led-breathe-cyan {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 3px rgba(0, 229, 255, 0.95);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 5px rgba(0, 229, 255, 1),
+        0 0 9px rgba(0, 229, 255, 0.4);
+    }
+  }
+  /* Respect prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    .ind-led.on .dot, .ind-led.live .dot { animation: none; }
+  }
   /* END A.ii TOP CLUSTER */
 
   /* ========================= FLOATING SECTOR TAG ========================= */
@@ -536,75 +571,122 @@
   }
   /* END Y3 SECTOR TAG */
 
-  /* ========================= MAP OVERLAY BUTTONS (right side) ========================= */
+  /* ============================================================
+     MAP OVERLAY BUTTONS — anchored to chassis right edge
+     ------------------------------------------------------------
+     The buttons no longer float on the map. They sit in a thin
+     aluminum mount-strip that visually extends from the right
+     chassis edge — like a wing of the device chassis with
+     button wells milled into it.
+     ============================================================ */
   .map-overlay-buttons {
     position: absolute;
-    top: calc(var(--top-chrome-h) + 10px);
-    right: 12px;
+    top: calc(var(--top-chrome-h) + 14px);
+    right: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    padding: 6px 4px 6px 5px;
     z-index: 40;
+    /* Aluminum mount strip — matches chassis material */
+    background:
+      linear-gradient(180deg,
+        var(--chassis-bright) 0%,
+        var(--chassis-mid) 18%,
+        var(--chassis-dark) 100%);
+    border: 1px solid var(--bezel-line);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    box-shadow:
+      inset 1px 1px 0 rgba(255, 255, 255, 0.32),
+      inset -1px -1px 0 rgba(0, 0, 0, 0.25),
+      -2px 2px 6px rgba(0, 0, 0, 0.4);
+  }
+  /* Brushed metal grain on the mount strip */
+  .map-overlay-buttons::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: 5px 0 0 5px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 3px
+    );
+    pointer-events: none;
+  }
+  /* Two mount screws — top and bottom of the strip */
+  .map-overlay-buttons::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    top: 4px;
+    left: 4px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
+    box-shadow: inset 0 -1px 0.5px rgba(0,0,0,0.6), inset 0 0.5px 0.5px rgba(255,255,255,0.4);
+    pointer-events: none;
   }
   .map-overlay-btn {
-    width: 40px; height: 40px;
+    width: 36px;
+    height: 36px;
     position: relative;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    z-index: 1;
   }
+  /* The "socket" is now a recessed well in the mount strip, not a chassis button */
   .map-overlay-btn .socket {
     position: absolute; inset: 0;
-    border-radius: 8px;
-    background: linear-gradient(180deg, #d8dde2 0%, #9aa5b0 50%, #4e5762 100%);
+    border-radius: 6px;
+    background: var(--bezel-line);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
-      0 2px 4px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(0, 0, 0, 0.4);
+      inset 0 1px 2px rgba(0, 0, 0, 0.85),
+      0 1px 0 rgba(255, 255, 255, 0.1);
+    border: none;
   }
   .map-overlay-btn .cap {
     position: absolute;
     top: 3px; bottom: 3px;
     left: 3px; right: 3px;
-    background: linear-gradient(180deg, #0a1822, #050a14);
-    border: 1px solid #050a14;
-    border-radius: 5px;
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border: none;
+    border-radius: 4px;
     display: flex; align-items: center; justify-content: center;
-    color: #00e5ff;
-    font-family: 'Orbitron', 'B612 Mono', sans-serif;
-    font-size: 17px;
-    text-shadow:
-      0 0 6px rgba(0, 229, 255, 0.7),
-      0 0 12px rgba(0, 229, 255, 0.35);
+    color: var(--label-mid);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 15px;
+    text-shadow: none;
     box-shadow:
-      inset 0 2px 3px rgba(0, 0, 0, 0.9),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      inset 0 2px 3px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .map-overlay-btn:active .cap {
-    transform: translateY(1px);
+    transform: translateY(0.5px);
     filter: brightness(1.2);
   }
+  /* Active state — cap lights cyan */
   .map-overlay-btn.active .socket {
-    background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
-    border-color: rgba(0, 30, 50, 0.4);
+    background: var(--bezel-line);
   }
-  .map-overlay-btn.active .socket::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 5px;
-    right: 5px;
-    height: 12px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.05));
-    pointer-events: none;
+  .map-overlay-btn.active .cap {
+    color: var(--aqua-hot);
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.35);
+    box-shadow:
+      inset 0 2px 3px rgba(0, 0, 0, 0.85),
+      inset 0 0 6px rgba(0, 229, 255, 0.18);
   }
+  .map-overlay-btn.active .socket::after { display: none; }
   .map-overlay-btn.active .led {
     background: radial-gradient(circle at 30% 30%, #c8f8ff 0%, #00e5ff 55%, #0a6080 100%) !important;
     box-shadow:
-      0 0 5px #00e5ff,
-      0 0 10px rgba(0, 229, 255, 0.55),
-      inset 0 1px 0 rgba(200, 248, 255, 0.7) !important;
+      0 0 4px #00e5ff,
+      0 0 8px rgba(0, 229, 255, 0.55) !important;
   }
 
   /* ========================= BOTTOM CHROME ========================= */
@@ -1899,6 +1981,66 @@
     margin-top: 14px;
     text-transform: lowercase;
     /* No glow — labels are quiet by default */
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  /* G-Shock mode tag — small uppercase service annotation
+     on the right side of a field label (e.g., "PRIMARY", "WGS-84") */
+  .field-label .mode-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.28em;
+    color: var(--chassis-dark);
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 1px 6px;
+    background: var(--chassis-mid);
+    border-radius: 2px;
+    border: 1px solid var(--bezel-line);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  /* Standalone read-only LCD readout — for displaying values like DIST/BEARING.
+     Always wrapped in a bezel-line frame matching the input pattern. */
+  .lcd-readout {
+    background: var(--bezel-line);
+    padding: 2px;
+    border-radius: 4px;
+    box-shadow:
+      inset 0 1px 1px rgba(0, 0, 0, 0.9),
+      0 1px 0 rgba(255, 255, 255, 0.06);
+    display: inline-block;
+  }
+  .lcd-readout .lcd-readout-inner {
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    color: var(--aqua-hot);
+    letter-spacing: 0.08em;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.35);
+    line-height: 1.1;
+    min-width: 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .lcd-readout .lcd-readout-inner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.025) 0,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
   }
   /* Bezel wrapper around any input — 2px dark frame, recessed look */
   .lcd-bezel {
@@ -2305,37 +2447,57 @@
     border-left: 2px solid #ff4470;
   }
 
-  /* Photo area — Y5 */
+  /* Photo area — bezeled LCD slot.
+     Empty state: dashed cyan invitation, LCD-style. Filled: photo
+     bordered by the chassis bezel-line (matches every other LCD). */
   .photo-area {
-    background: linear-gradient(180deg, #0a1822, #050a14);
-    border: 1px dashed rgba(95, 216, 240, 0.35);
-    border-radius: 6px;
-    padding: 24px;
+    background: var(--bezel-line);
+    border: none;
+    border-radius: 4px;
+    padding: 2px;
     text-align: center;
-    color: #6a8098;
-    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    color: var(--label-mid);
+    font-family: 'Orbitron', sans-serif;
     font-size: 10px;
     letter-spacing: 0.22em;
     font-weight: 700;
     cursor: pointer;
     position: relative;
-    min-height: 80px;
+    min-height: 92px;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 1px rgba(0, 0, 0, 0.9),
+      0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  /* Empty state — inner LCD with dashed dim-cyan invitation */
+  #photoPlaceholder {
+    width: 100%;
+    background: linear-gradient(180deg, var(--screen-mid), var(--screen-dark));
+    border-radius: 3px;
+    border: 1px dashed rgba(95, 216, 240, 0.35);
+    color: var(--label-mid);
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
+    padding: 18px;
+    text-shadow: 0 0 4px rgba(95, 216, 240, 0.3);
   }
   .photo-area img {
     max-width: 100%;
     max-height: 240px;
-    border-radius: 2px;
+    border-radius: 3px;
     display: block;
+    margin: 0 auto;
   }
+  /* Filled state — photo is the inner LCD, bezel-line stays as frame */
   .photo-area.has-photo {
-    padding: 4px;
-    border-style: solid;
-    border-color: #2a2520;
+    padding: 2px;
+  }
+  .photo-area.has-photo #photoPlaceholder {
+    display: none;
   }
   .photo-remove {
     position: absolute;
@@ -2344,8 +2506,8 @@
     width: 26px;
     height: 26px;
     background: rgba(8, 6, 4, 0.85);
-    color: #d96850;
-    border: 1px solid #d96850;
+    color: var(--magenta);
+    border: 1px solid var(--magenta);
     border-radius: 50%;
     font-size: 18px;
     font-family: inherit;
@@ -2987,20 +3149,23 @@
   .nav-info-data .pair {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    margin: 2px 0;
+    align-items: center;
+    margin: 4px 0;
+    gap: 8px;
   }
   .nav-info-data .lbl {
     font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 8px;
     letter-spacing: 0.22em;
-    color: #6a8098;
+    color: var(--label-quiet);
     font-weight: 700;
+    flex-shrink: 0;
   }
+  /* Old .val is replaced by .lcd-readout — keep this rule for any legacy fallback */
   .nav-info-data .val {
     font-family: 'VT323', monospace;
     font-size: 18px;
-    color: #00e5ff;
+    color: var(--aqua-hot);
     text-shadow: 0 0 5px rgba(0, 229, 255, 0.55);
   }
   .visit-count {
@@ -3372,14 +3537,38 @@
       0 3px 8px rgba(0, 30, 50, 0.4);
     position: relative;
   }
-  /* Concentric cyan accent ring */
+  /* Concentric cyan accent ring — dim by default, pulses when GPS is locked */
   .p4-housing .mark-pad-bezel::before {
     content: '';
     position: absolute;
     inset: -2px;
     border-radius: 50%;
-    border: 1px solid rgba(0, 229, 255, 0.18);
+    border: 1px solid rgba(0, 229, 255, 0.12);
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0);
     pointer-events: none;
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  /* When GPS is locked (.mark-area carries .gps-ok), the ring breathes */
+  .mark-area.gps-ok .p4-housing .mark-pad-bezel::before,
+  body.gps-ok .p4-housing .mark-pad-bezel::before {
+    border-color: rgba(0, 229, 255, 0.32);
+    animation: mark-ring-breathe 4s ease-in-out infinite;
+  }
+  @keyframes mark-ring-breathe {
+    0%, 100% {
+      border-color: rgba(0, 229, 255, 0.22);
+      box-shadow: 0 0 0 0 rgba(0, 229, 255, 0);
+    }
+    50% {
+      border-color: rgba(0, 229, 255, 0.45);
+      box-shadow: 0 0 8px 1px rgba(0, 229, 255, 0.18);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mark-area.gps-ok .p4-housing .mark-pad-bezel::before,
+    body.gps-ok .p4-housing .mark-pad-bezel::before {
+      animation: none;
+    }
   }
   .p4-housing .mark-pad-plastic {
     width: 100%;
