@@ -3502,8 +3502,17 @@
     position: relative;
   }
   .p4-housing .tg-btn:active {
-    filter: brightness(1.1);
-    transform: translateY(0.5px);
+    filter: brightness(1.35);
+    transform: translateY(1px);
+    transition: filter 0s, transform 0s;
+  }
+  .p4-housing .tg-btn:active .tg-icon {
+    stroke: var(--aqua-hot);
+    filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.7));
+  }
+  .p4-housing .tg-btn:active .tg-lbl {
+    color: var(--aqua-hot);
+    text-shadow: 0 0 4px rgba(0, 229, 255, 0.5);
   }
   .p4-housing .tg-icon {
     width: 16px;
@@ -3636,8 +3645,20 @@
      already provides the "glossy" cue. A separate highlight pill competes
      visually with the LCD readout and reads as a foreign object. */
   .p4-housing .mark-btn:active .mark-pad-plastic {
-    filter: brightness(1.1);
-    transform: translateY(0.5px);
+    filter: brightness(1.3);
+    transform: translateY(1px);
+    transition: filter 0s, transform 0s;
+  }
+  .p4-housing .mark-btn:active .mark-pad-lcd {
+    box-shadow:
+      inset 0 3px 6px rgba(0, 0, 0, 0.9),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+      0 0 12px rgba(0, 229, 255, 0.5);
+  }
+  .p4-housing .mark-btn:active .mark-pad-word {
+    text-shadow:
+      0 0 8px rgba(0, 229, 255, 1),
+      0 0 18px rgba(0, 229, 255, 0.7);
   }
   .p4-housing .mark-btn.disabled .mark-pad-plastic {
     opacity: 0.5;

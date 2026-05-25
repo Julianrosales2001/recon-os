@@ -1245,26 +1245,31 @@ function showToast(message) {
   setTimeout(() => t.classList.remove('visible'), 1800);
 }
 
-// ===== HAPTIC VOCABULARY =====
-// Central dispatch for tactile feedback. Each named event maps to a
-// canonical vibration pattern. The whole app calls haptic('eventName')
-// instead of navigator.vibrate directly — keeps the vocabulary consistent.
+// ===== HAPTIC VOCABULARY (currently disabled) =====
+// iOS Safari has never shipped the Vibration API. The <input type=checkbox switch>
+// workaround that briefly enabled programmatic haptics in iOS 17.4 was patched
+// in iOS 26.5 and no longer fires from script. Since the primary client for
+// RECON.OS is iPhone PWA, we cannot reliably deliver tactile feedback on the
+// platform that matters. Rather than scatter conditional checks everywhere or
+// leave Android-only behavior in place, haptic() is intentionally a no-op for
+// every platform. The call sites remain throughout the app as semantic markers
+// of where tactile feedback BELONGS — if/when WebKit ships the Vibration API
+// (or a stable replacement), this function gets rewritten and every call site
+// lights up at once.
 const HAPTIC_PATTERNS = {
-  tick:        8,                     // toggle tap, small affordance
-  tap:         12,                    // sheet open, primary tap response
-  thunk:       20,                    // long-press start, modal open
-  mark:        40,                    // POI drop (legacy "flashMark" feel)
-  confirm:     [20, 30, 20],          // POI saved, mission saved
-  lock:        [15, 40, 15],          // GPS first-lock chirp
-  warn:        [8, 30, 8, 30, 60],    // POI deleted, destructive confirm
-  error:       [50, 80, 50],          // hard failure
-  pop:         15,                    // smaller tap (chip, tab)
+  tick:        8,
+  tap:         12,
+  thunk:       20,
+  mark:        40,
+  confirm:     [20, 30, 20],
+  lock:        [15, 40, 15],
+  warn:        [8, 30, 8, 30, 60],
+  error:       [50, 80, 50],
+  pop:         15,
 };
-function haptic(event) {
-  if (!navigator.vibrate) return;
-  const pat = HAPTIC_PATTERNS[event];
-  if (pat === undefined) return;
-  try { navigator.vibrate(pat); } catch (e) {}
+function haptic(/* event */) {
+  // No-op. See block comment above for rationale.
+  return;
 }
 
 function flashMark() {
