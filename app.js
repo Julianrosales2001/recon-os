@@ -4175,3 +4175,49 @@ renderTrail();
 applyLegendPref();
 renderBoundaries();
 updateMarkStatus();
+
+// ===== Y8 BOOT SCREEN =====
+// Animate the boot log lines, fill the progress bar, fade out.
+(function bootSequence() {
+  const boot = document.getElementById('bootScreen');
+  if (!boot) return;
+  const log = document.getElementById('bootLog');
+  const label = document.getElementById('bootProgressLabel');
+  const fill = document.getElementById('bootProgressFill');
+  const lines = [
+    { ts: '0.02', msg: 'chassis ok', status: 'ok' },
+    { ts: '0.08', msg: 'storage volume mounted', status: 'ok' },
+    { ts: '0.14', msg: 'poi index loaded · ' + (pois ? pois.length : 0) + ' records', status: 'ok' },
+    { ts: '0.21', msg: 'fog volume restored', status: 'ok' },
+    { ts: '0.27', msg: 'region archive · ' + (regions ? regions.length : 0) + ' active', status: 'ok' },
+    { ts: '0.34', msg: 'gnss receiver', status: 'ack', ackText: 'acquiring...' },
+    { ts: '0.42', msg: 'basemap tiles · primary endpoint', status: 'ok' },
+  ];
+  let i = 0;
+  function tick() {
+    if (i >= lines.length) {
+      label.textContent = 'READY';
+      fill.style.width = '100%';
+      setTimeout(() => {
+        boot.classList.add('fading');
+        setTimeout(() => boot.classList.add('gone'), 450);
+      }, 300);
+      return;
+    }
+    const ln = lines[i];
+    const pct = Math.round(((i + 1) / lines.length) * 100);
+    fill.style.width = pct + '%';
+    label.textContent = 'INITIALIZING · ' + pct + '%';
+    const lineEl = document.createElement('div');
+    lineEl.className = 'line';
+    lineEl.innerHTML = '<span class="ts">[' + ln.ts + ']</span>' +
+                       '<span class="msg">' + ln.msg + '</span>' +
+                       (ln.status === 'ok' ? '<span class="ok">✓</span>' :
+                        '<span class="ack">' + (ln.ackText || '') + '</span>');
+    log.appendChild(lineEl);
+    i++;
+    setTimeout(tick, 90 + Math.random() * 60);
+  }
+  // Small initial delay so it doesn't feel instant
+  setTimeout(tick, 120);
+})();
