@@ -208,25 +208,36 @@
   }
 
   /* ========================= TOP CHROME ========================= */
+  /* ============================================================
+     TOP CHROME — Y3 (cool aluminum, brushed-steel rivets, cyan LCD strip)
+     ============================================================ */
   .panel-bg-top {
     position: absolute;
     top: calc(var(--status-h) + var(--safe-top));
     left: 0; right: 0;
     height: var(--titlebar-h);
     background:
-      linear-gradient(180deg, #38312a 0%, #1a1614 8%, #261f1a 14%, #322a24 22%, #1c1815 100%);
-    border-bottom: 1px solid #050403;
+      linear-gradient(180deg, #d8dde2 0%, #b0bac4 30%, #6e7882 70%, #4e5762 100%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
     box-shadow:
-      inset 0 1px 0 rgba(220, 190, 140, 0.2),
-      inset 0 -3px 10px rgba(0, 0, 0, 0.6);
+      inset 0 2px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -3px 10px rgba(0, 0, 0, 0.45);
     z-index: 4;
   }
+  /* Brushed metal grain */
   .panel-bg-top::before {
     content: "";
     position: absolute; inset: 0;
-    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 400 100' xmlns='http://www.w3.org/2000/svg'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='0.02 1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.25 0 0 0 0 0.2 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23b)' opacity='0.6'/></svg>");
-    mix-blend-mode: overlay;
-    opacity: 0.55;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.04) 3px
+    );
+    mix-blend-mode: normal;
+    opacity: 1;
+    pointer-events: none;
   }
   .rivets {
     position: absolute;
@@ -238,11 +249,15 @@
   }
   .rivets.top { top: 6px; }
   .rivets.bot { bottom: calc(6px + var(--safe-bot)); }
+  /* Brushed-steel screws (replace warm-brass rivets) */
   .rivet {
-    width: 5px; height: 5px;
+    width: 6px; height: 6px;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #6a5d4a 0%, #2c2620 60%, #100c08 100%);
-    box-shadow: inset 0 -1px 1px rgba(0,0,0,0.6), 0 1px 0 rgba(220, 190, 140, 0.15);
+    background: radial-gradient(circle at 30% 30%, #c8ccd2 0%, #6e7882 50%, #2a323c 100%);
+    box-shadow:
+      inset 0 -1px 1px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4),
+      0 1px 0 rgba(255, 255, 255, 0.3);
   }
   .title-strip {
     position: absolute;
@@ -250,25 +265,50 @@
     left: 50px;
     right: 50px;
     height: 30px;
-    background: #050403;
-    border: 1px solid #2a2520;
-    border-radius: 2px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 10px;
     z-index: 6;
-    box-shadow: inset 0 3px 6px rgba(0,0,0,0.85);
+    box-shadow:
+      inset 0 3px 6px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  /* CRT scanlines in title strip */
+  .title-strip::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
   }
   .title-strip .text {
     font-family: 'VT323', monospace;
-    font-size: 17px;
-    color: #f0a040;
+    font-size: 18px;
+    color: #00e5ff;
     letter-spacing: 0.1em;
-    text-shadow: 0 0 6px rgba(240, 160, 64, 0.6);
+    text-shadow:
+      0 0 6px rgba(0, 229, 255, 0.7),
+      0 0 12px rgba(0, 229, 255, 0.35);
+    position: relative;
+    z-index: 1;
   }
+  /* END Y3 TOP CHROME */
 
   /* ========================= FLOATING SECTOR TAG ========================= */
+  /* ============================================================
+     SECTOR TAG — Y3 (cool aluminum chassis + cyan LCD)
+     ============================================================ */
   .sector-tag {
     position: absolute;
     top: calc(var(--top-chrome-h) + 10px);
@@ -276,44 +316,61 @@
     z-index: 35;
     display: inline-flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #2a2520, #14110d);
-    border: 1px solid #050403;
-    border-radius: 3px;
+    background: linear-gradient(180deg, #9aa5b0, #4e5762);
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
     box-shadow:
-      inset 0 1px 0 rgba(220, 190, 140, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 1px rgba(0, 0, 0, 0.5),
       0 2px 3px rgba(0, 0, 0, 0.5);
     overflow: hidden;
   }
   .sector-plate {
-    background: linear-gradient(180deg, #3a3128, #1f1a14);
-    padding: 4px 6px;
-    font-family: 'B612 Mono', monospace;
-    font-size: 7px;
+    background: linear-gradient(180deg, #d8dde2, #9aa5b0);
+    padding: 4px 7px;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-size: 8px;
     letter-spacing: 0.25em;
-    color: #c8b896;
+    color: #4e5762;
     font-weight: 700;
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.15);
-    border-right: 1px solid #050403;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+    border-right: 1px solid rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
   }
   .sector-screen {
-    background: #050403;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8);
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.85);
     padding: 4px 10px;
     font-family: 'VT323', monospace;
-    font-size: 13px;
+    font-size: 14px;
     letter-spacing: 0.12em;
-    color: #f0a040;
-    text-shadow: 0 0 4px rgba(240, 160, 64, 0.5);
+    color: #00e5ff;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.7),
+      0 0 10px rgba(0, 229, 255, 0.3);
     font-weight: 400;
     display: flex;
     align-items: center;
     gap: 6px;
+    position: relative;
+    overflow: hidden;
   }
+  /* CRT scanlines inside the LCD */
+  .sector-screen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+  }
+  /* END Y3 SECTOR TAG */
 
   /* ========================= MAP OVERLAY BUTTONS (right side) ========================= */
   .map-overlay-buttons {
@@ -581,20 +638,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    margin-top: 6px;
+    gap: 6px;
+    margin-top: 8px;
     font-family: 'Share Tech Mono', 'B612 Mono', monospace;
-    font-size: 8px;
-    letter-spacing: 0.22em;
-    color: #5a7090;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    color: #c8d8e8;
+    text-shadow:
+      0 0 4px rgba(95, 216, 240, 0.5),
+      0 1px 0 rgba(0, 0, 0, 0.5);
     font-weight: 700;
     line-height: 1;
-    min-height: 8px;
+    min-height: 9px;
+  }
+  .mark-status.ok {
+    color: #d4f8ff;
+    text-shadow:
+      0 0 5px rgba(126, 255, 90, 0.55),
+      0 1px 0 rgba(0, 0, 0, 0.5);
   }
   .mark-status .led-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #2a2520 0%, #14110d 60%, #0a0604 100%);
     box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.8);
@@ -603,18 +668,20 @@
   .mark-status.ok .led-dot {
     background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, #5aff4a 50%, #1c6b1c 100%);
     box-shadow:
-      0 0 3px rgba(126, 255, 90, 0.9),
-      0 0 6px rgba(126, 255, 90, 0.4);
+      0 0 4px rgba(126, 255, 90, 1),
+      0 0 8px rgba(126, 255, 90, 0.5);
   }
   .mark-status.no-gps {
-    color: #ff8aa8;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: #ffc8d4;
+    text-shadow:
+      0 0 5px rgba(255, 68, 112, 0.6),
+      0 1px 0 rgba(0, 0, 0, 0.5);
   }
   .mark-status.no-gps .led-dot {
     background: radial-gradient(circle at 35% 30%, #ffd0e0 0%, #ff4470 50%, #6e0828 100%);
     box-shadow:
-      0 0 3px rgba(255, 68, 112, 0.85),
-      0 0 6px rgba(255, 68, 112, 0.4);
+      0 0 4px rgba(255, 68, 112, 1),
+      0 0 8px rgba(255, 68, 112, 0.5);
   }
 
   /* ========================= SECONDARY TOGGLE BUTTONS ========================= */
@@ -714,44 +781,84 @@
     display: none;
   }
   .sheet-overlay.open { display: block; }
+  /* ============================================================
+     SHEET SHELL — Y3 (chassis aluminum top band, dark navy body)
+     -------------------------------------------------------------
+     The sheet has a chassis-aluminum strip at the very top (where
+     the grip + title live), then transitions to dark navy for the
+     body. This keeps all existing content (form fields, list rows,
+     mission cards) readable on a dark background while still
+     showing the new aluminum material at the top edge.
+     ============================================================ */
   .sheet {
     position: fixed;
     bottom: 0;
     left: 0; right: 0;
     max-height: 85vh;
-    background: linear-gradient(180deg, #2a2520 0%, #1a1614 100%);
-    border-top: 2px solid #d68a3a;
-    border-radius: 14px 14px 0 0;
+    background:
+      linear-gradient(180deg,
+        #d8dde2 0%,
+        #9aa5b0 4%,
+        #4e5762 8%,
+        #1a2230 9%,
+        #0a1018 14%,
+        #0a1018 100%);
+    border-top: 1px solid rgba(0, 0, 0, 0.4);
+    border-radius: 16px 16px 6px 6px;
     z-index: 201;
     padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0));
     box-shadow:
-      0 -20px 50px rgba(0,0,0,0.7),
-      inset 0 1px 0 rgba(220, 190, 140, 0.2);
+      0 -20px 50px rgba(0, 0, 0, 0.7),
+      inset 0 2px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -3px 8px rgba(0, 0, 0, 0.4);
     transform: translateY(100%);
     transition: transform 0.3s ease-out;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
+  /* Brushed-metal texture on the aluminum top band only */
+  .sheet::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 1px;
+    right: 1px;
+    height: 60px;
+    border-radius: 15px 15px 0 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.025) 3px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+  .sheet > * { position: relative; z-index: 1; }
   .sheet.open { transform: translateY(0); }
   .sheet .grip {
-    width: 40px; height: 3px;
-    background: #5a4d3a;
-    margin: 0 auto 12px;
-    border-radius: 2px;
+    width: 50px; height: 4px;
+    margin: 0 auto 14px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #4e5762, #9aa5b0);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.4);
   }
   .sheet-title {
-    font-family: 'Saira Stencil One', sans-serif;
-    font-size: 16px;
-    color: #d4c8b0;
-    letter-spacing: 0.12em;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 13px;
+    color: #2a323c;
+    letter-spacing: 0.28em;
     text-align: center;
-    margin-bottom: 12px;
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.7),
-      0 -1px 0 rgba(220, 190, 140, 0.18);
-    opacity: 0.95;
+    margin-bottom: 14px;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+    opacity: 1;
   }
+  /* END Y3 SHEET SHELL */
   .sheet-body {
     flex: 1;
     overflow-y: auto;
@@ -1418,38 +1525,50 @@
   .cat-pad.selected .lbl { color: #f0a040; }
 
   /* Form inputs */
+  /* ============================================================
+     FIELD LABEL + INPUT — Y3 (labels on dark navy body, cyan LCDs)
+     ============================================================ */
   .field-label {
+    font-family: 'Share Tech Mono', 'B612 Mono', monospace;
     font-size: 8px;
-    letter-spacing: 0.3em;
-    color: #8c8170;
+    letter-spacing: 0.32em;
+    color: #6a8098;
     font-weight: 700;
-    margin-bottom: 4px;
-    margin-top: 8px;
+    margin-bottom: 5px;
+    margin-top: 10px;
+    text-shadow:
+      0 0 4px rgba(95, 216, 240, 0.25),
+      0 1px 0 rgba(0, 0, 0, 0.5);
   }
   .field-input {
-    background: #050403;
-    border: 1px solid #3a3128;
-    border-radius: 2px;
-    padding: 10px 12px;
-    color: #f0a040;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 4px;
+    padding: 9px 12px;
+    color: #00e5ff;
     font-family: 'VT323', monospace;
-    font-size: 16px;
+    font-size: 17px;
     width: 100%;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
-    text-shadow: 0 0 5px rgba(240, 160, 64, 0.45);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    text-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
     letter-spacing: 0.04em;
     -webkit-appearance: none;
     appearance: none;
+    position: relative;
   }
   .field-input.notes {
     font-size: 12px;
-    font-family: 'IBM Plex Mono', monospace;
-    color: #d4a468;
-    text-shadow: none;
-    height: 70px;
+    font-family: 'Share Tech Mono', 'IBM Plex Mono', monospace;
+    color: #5fd8f0;
+    text-shadow: 0 0 3px rgba(95, 216, 240, 0.35);
+    min-height: 60px;
     resize: none;
     line-height: 1.5;
+    letter-spacing: 0.02em;
   }
+  /* END Y3 FIELD LABEL + INPUT */
 
   /* List rows (for POI list) */
   .list-row {
@@ -1502,66 +1621,170 @@
   }
 
   /* Footer action buttons in sheets */
+  /* ============================================================
+     ACTION BUTTONS — Y3 (Aqua glossy pills, 3 variants)
+     -------------------------------------------------------------
+     Mapping from old "cap" color classes:
+       .cap.amber  → cyan (default/cancel action)
+       .cap.red    → magenta (destructive)
+       .cap.steel  → acid green (confirm/save) [kept legacy class name]
+     ============================================================ */
   .sheet-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     padding: 12px 0 4px;
     flex-shrink: 0;
   }
   .action-btn {
     flex: 1;
-    height: 50px;
+    height: 42px;
     position: relative;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   .action-btn .socket {
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 50% 100%, #060503 0%, #050403 75%);
-    border-radius: 5px;
-    box-shadow: inset 0 2px 6px rgba(0,0,0,0.9);
+    border-radius: 21px;
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 30, 50, 0.4);
+    border: 1px solid rgba(0, 30, 50, 0.4);
   }
+  /* Aqua top highlight */
+  .action-btn .socket::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 9px;
+    right: 9px;
+    height: 14px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
+  }
+  /* The 3 socket color variants — applied to .cap (legacy class location) */
   .action-btn .cap {
     position: absolute;
-    top: 3px; bottom: 6px;
-    left: 3px; right: 3px;
-    border-radius: 4px;
-    border: 1px solid #14110d;
+    top: 4px; bottom: 4px;
+    left: 4px; right: 4px;
+    border-radius: 17px;
+    border: 1px solid #050a14;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
     display: flex; align-items: center; justify-content: center;
     transition: transform 0.1s;
+    overflow: hidden;
   }
-  .action-btn:active .cap { transform: translateY(1px); filter: brightness(0.9); }
+  .action-btn:active .cap { transform: translateY(1px); filter: brightness(1.15); }
+  /* Color the OUTER pill via cap class — socket inherits via parent gradient */
+  .action-btn .cap.amber ~ .socket,
+  .action-btn:has(.cap.amber) .socket {
+    background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
+  }
+  .action-btn .cap.red ~ .socket,
+  .action-btn:has(.cap.red) .socket {
+    background: linear-gradient(180deg, #f8c8d8 0%, #d05f88 35%, #802040 100%);
+    border-color: rgba(50, 10, 20, 0.4);
+  }
+  .action-btn .cap.steel ~ .socket,
+  .action-btn:has(.cap.steel) .socket {
+    background: linear-gradient(180deg, #d8f8c8 0%, #88c860 35%, #2a6020 100%);
+    border-color: rgba(15, 40, 8, 0.4);
+  }
+  /* Fallback if :has() unsupported — use the .cap class itself for the outer color */
   .action-btn .cap.amber {
-    background: radial-gradient(circle at 30% 25%, #f5b840 0%, #d68a3a 40%, #8a4c1a 100%);
-    border-color: #4a2810;
-    box-shadow: inset 0 2px 0 rgba(255, 230, 170, 0.4), inset 0 -3px 0 rgba(40, 18, 5, 0.7);
+    background: linear-gradient(180deg, #c8e8f8 0%, #5fb8d0 35%, #2a6080 100%);
+    border: 1px solid rgba(0, 30, 50, 0.4);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    border-radius: 17px;
   }
   .action-btn .cap.red {
-    background: radial-gradient(circle at 30% 25%, #ff7848 0%, #e84a26 40%, #6e1c10 100%);
-    border-color: #3a0d05;
-    box-shadow: inset 0 2px 0 rgba(255, 220, 200, 0.4), inset 0 -3px 0 rgba(50, 15, 8, 0.7);
+    background: linear-gradient(180deg, #f8c8d8 0%, #d05f88 35%, #802040 100%);
+    border: 1px solid rgba(50, 10, 20, 0.4);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    border-radius: 17px;
   }
   .action-btn .cap.steel {
-    background: linear-gradient(180deg, #4a3d2c 0%, #2e271e 40%, #1c1814 100%);
-    box-shadow: inset 0 2px 0 rgba(220, 190, 140, 0.3), inset 0 -3px 0 rgba(0, 0, 0, 0.7);
+    background: linear-gradient(180deg, #d8f8c8 0%, #88c860 35%, #2a6020 100%);
+    border: 1px solid rgba(15, 40, 8, 0.4);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+    border-radius: 17px;
   }
+  /* Top highlight on the cap (the actual outer plastic) */
+  .action-btn .cap::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 8px;
+    right: 8px;
+    height: 12px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
+  }
+  /* Internal LCD pill — inner dark element */
   .action-btn .lcd {
-    background: linear-gradient(180deg, #0a1408 0%, #142010 50%, #0a1408 100%);
-    border-radius: 2px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border-radius: 13px;
     padding: 4px 14px 3px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.95);
-    border: 1px solid #050403;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.85);
+    border: 1px solid #050a14;
     position: relative;
     overflow: hidden;
+    z-index: 2;
   }
   .action-btn .lcd::after {
     content: "";
     position: absolute; inset: 0;
-    background:
-      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 3px),
-      repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 3px);
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 2px
+    );
     pointer-events: none;
   }
-  .action-btn .lcd-text { font-size: 14px; letter-spacing: 0.18em; background-size: 2px 2px; }
+  .action-btn .lcd-text {
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-weight: 900;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    background: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    -webkit-text-fill-color: #00e5ff;
+    color: #00e5ff;
+    filter: none;
+    text-shadow:
+      0 0 5px rgba(0, 229, 255, 0.85),
+      0 0 12px rgba(0, 229, 255, 0.45);
+  }
+  /* Color the LCD text based on what cap variant wraps it */
+  .action-btn .cap.red .lcd-text {
+    -webkit-text-fill-color: #ff8aa8;
+    color: #ff8aa8;
+    text-shadow:
+      0 0 5px rgba(255, 68, 112, 0.85),
+      0 0 12px rgba(255, 68, 112, 0.45);
+  }
+  .action-btn .cap.steel .lcd-text {
+    -webkit-text-fill-color: #7eff5a;
+    color: #7eff5a;
+    text-shadow:
+      0 0 5px rgba(126, 255, 90, 0.85),
+      0 0 12px rgba(126, 255, 90, 0.45);
+  }
+  /* END Y3 ACTION BUTTONS */
 
   /* Empty state in lists */
   .empty-state {
