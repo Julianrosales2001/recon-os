@@ -55,6 +55,12 @@
     color: #d4f8ff;
     font-family: 'Share Tech Mono', 'IBM Plex Mono', monospace;
     height: 100%;
+    /* iOS Safari standalone PWA: 100% can fall short of the actual screen
+       height due to layout-viewport quirks, leaving a dark gap at the bottom.
+       100dvh (dynamic viewport height) always reflects the true viewport
+       including under the home indicator. */
+    min-height: 100vh;
+    min-height: 100dvh;
     overflow: hidden;
     -webkit-user-select: none;
     user-select: none;
@@ -262,7 +268,7 @@
      TOP CHROME — Y3 (cool aluminum, brushed-steel rivets, cyan LCD strip)
      ============================================================ */
   .panel-bg-top {
-    position: absolute;
+    position: fixed;
     top: calc(var(--status-h) + var(--safe-top));
     left: 0; right: 0;
     height: var(--titlebar-h);
@@ -734,7 +740,10 @@
 
   /* ========================= BOTTOM CHROME ========================= */
   .panel-bg-bot {
-    position: absolute;
+    /* position: fixed so the chassis pins to the actual viewport bottom
+       regardless of how iOS Safari standalone calculates body height.
+       absolute + bottom: 0 leaves a dark gap on some iOS configs. */
+    position: fixed;
     bottom: 0;
     left: 0; right: 0;
     height: var(--bot-chrome-h);
@@ -796,7 +805,7 @@
      ============================================================ */
 
   .mark-area {
-    position: absolute;
+    position: fixed;
     bottom: calc(14px + var(--safe-bot));
     left: 16px;
     right: 16px;
