@@ -352,6 +352,7 @@
   <div class="sheet-title">SETTINGS</div>
   <div class="sheet-body" style="padding: 0 4px;">
 
+    <!-- DISPLAY -->
     <div class="settings-section-head">▸ DISPLAY</div>
 
     <div class="settings-row" onclick="toggleLandscapeMode()">
@@ -362,7 +363,8 @@
       <div class="led-housing"><span class="led-indicator" id="landscapeToggleIndicator"></span></div>
     </div>
 
-    <div class="settings-section-head">▸ REGIONS</div>
+    <!-- MAP — region rendering, boundaries, fog -->
+    <div class="settings-section-head">▸ MAP</div>
 
     <div class="settings-row" onclick="showRegionsList()">
       <div>
@@ -388,6 +390,39 @@
       <div class="settings-action">↓</div>
     </div>
 
+    <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div>
+        <div class="settings-name">FOG DENSITY</div>
+        <div class="settings-desc" id="fogCellCount">0 cells revealed</div>
+      </div>
+      <div class="cat-filter-row" id="fogDensityRow" style="margin: 0;">
+        <div class="cat-chip with-led" data-fog="CLEAR"><span class="led-indicator"></span>CLEAR</div>
+        <div class="cat-chip with-led" data-fog="LIGHT"><span class="led-indicator"></span>LIGHT</div>
+        <div class="cat-chip with-led" data-fog="MEDIUM"><span class="led-indicator"></span>MEDIUM</div>
+        <div class="cat-chip with-led" data-fog="HEAVY"><span class="led-indicator"></span>HEAVY</div>
+      </div>
+    </div>
+
+    <!-- TRAIL -->
+    <div class="settings-section-head">▸ TRAIL</div>
+
+    <div class="settings-row" onclick="toggleTrail()">
+      <div>
+        <div class="settings-name">SHOW TRAIL ON MAP</div>
+        <div class="settings-desc" id="trailToggleDesc">Trail visible</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="trailToggleIndicator"></span></div>
+    </div>
+
+    <div class="settings-row" onclick="clearTrail()">
+      <div>
+        <div class="settings-name">CLEAR TODAY'S TRAIL</div>
+        <div class="settings-desc" id="trailPointCount">0 points</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <!-- DATA — transfer in/out -->
     <div class="settings-section-head">▸ DATA</div>
 
     <div class="settings-row" onclick="exportData()">
@@ -406,95 +441,56 @@
       <div class="settings-action">→</div>
     </div>
 
-    <div class="settings-section-head">▸ FOG OF WAR</div>
-
-    <div class="settings-row">
-      <div>
-        <div class="settings-name">REVEALED CELLS</div>
-        <div class="settings-desc" id="fogCellCount">0 cells revealed</div>
-      </div>
-    </div>
-
-    <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
-      <div>
-        <div class="settings-name">FOG DENSITY</div>
-        <div class="settings-desc">How opaque unexplored areas appear</div>
-      </div>
-      <div class="cat-filter-row" id="fogDensityRow" style="margin: 0;">
-        <div class="cat-chip with-led" data-fog="CLEAR"><span class="led-indicator"></span>CLEAR</div>
-        <div class="cat-chip with-led" data-fog="LIGHT"><span class="led-indicator"></span>LIGHT</div>
-        <div class="cat-chip with-led" data-fog="MEDIUM"><span class="led-indicator"></span>MEDIUM</div>
-        <div class="cat-chip with-led" data-fog="HEAVY"><span class="led-indicator"></span>HEAVY</div>
-      </div>
-    </div>
-
-    <div class="settings-row danger" onclick="clearFog()">
-      <div>
-        <div class="settings-name" style="color: #d96850;">CLEAR FOG</div>
-        <div class="settings-desc">Reset all revealed terrain</div>
-      </div>
-      <div class="settings-action" style="color: #d96850;">→</div>
-    </div>
-
-    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ TODAY'S TRAIL</div>
-
-    <div class="settings-row" onclick="toggleTrail()">
-      <div>
-        <div class="settings-name">SHOW TRAIL ON MAP</div>
-        <div class="settings-desc" id="trailToggleDesc">Trail visible</div>
-      </div>
-      <div class="led-housing"><span class="led-indicator" id="trailToggleIndicator"></span></div>
-    </div>
-
-    <div class="settings-row" onclick="clearTrail()">
-      <div>
-        <div class="settings-name">CLEAR TODAY'S TRAIL</div>
-        <div class="settings-desc" id="trailPointCount">0 points</div>
-      </div>
-      <div class="settings-action">→</div>
-    </div>
-
-    <div class="settings-section-head">▸ STATS</div>
+    <!-- DIAGNOSTICS — read-only info -->
+    <div class="settings-section-head">▸ DIAGNOSTICS</div>
 
     <div class="settings-row" onclick="showStatsSheet()">
       <div>
-        <div class="settings-name">VIEW LIFETIME STATS</div>
+        <div class="settings-name">LIFETIME STATS</div>
         <div class="settings-desc">POIs, visits, sectors, fog coverage</div>
       </div>
       <div class="settings-action">→</div>
     </div>
 
-    <div class="settings-section-head">▸ STORAGE</div>
-
     <div class="settings-row" onclick="showStorageInfo()">
       <div>
-        <div class="settings-name">STORAGE INFO</div>
+        <div class="settings-name">STORAGE</div>
         <div class="settings-desc" id="storageInfoDesc">— · — / 5.0 MB</div>
       </div>
       <div class="settings-action">→</div>
     </div>
 
+    <!-- DANGER ZONE — all destructive operations here, nowhere else -->
     <div class="settings-section-head danger">▸ DANGER ZONE</div>
+
+    <div class="settings-row danger" onclick="clearFog()">
+      <div>
+        <div class="settings-name">CLEAR FOG</div>
+        <div class="settings-desc">Reset all revealed terrain</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
 
     <div class="settings-row danger" onclick="resetAllPOIs()">
       <div>
-        <div class="settings-name" style="color: #d96850;">DELETE ALL POIs</div>
+        <div class="settings-name">DELETE ALL POIs</div>
         <div class="settings-desc">Permanently remove every pin</div>
       </div>
-      <div class="settings-action" style="color: #d96850;">→</div>
+      <div class="settings-action">→</div>
     </div>
 
     <div class="settings-row danger" onclick="hardReset()">
       <div>
-        <div class="settings-name" style="color: #d96850;">FULL RESET</div>
+        <div class="settings-name">FULL RESET</div>
         <div class="settings-desc">Wipe POIs, fog, everything</div>
       </div>
-      <div class="settings-action" style="color: #d96850;">→</div>
+      <div class="settings-action">→</div>
     </div>
 
-    <div style="padding: 18px 0 4px; text-align: center;">
-      <div style="font-family: 'Saira Stencil One'; font-size: 14px; color: #d68a3a; letter-spacing: 0.1em;">RECON.OS</div>
-      <div style="font-size: 8px; color: #6e6354; letter-spacing: 0.2em; margin-top: 4px;">v0.1 · PWA · LOCAL ONLY</div>
+    <!-- Brand block — chassis vocabulary -->
+    <div class="brand-block">
+      <div class="brand-name">RECON.OS</div>
+      <div class="brand-meta">v0.1 · PWA · LOCAL ONLY</div>
     </div>
 
   </div>
