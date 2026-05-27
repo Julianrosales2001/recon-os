@@ -88,6 +88,10 @@ let oceanRings = [];            // pre-parsed ocean polygon rings from Natural E
                                 // 50m data. Used as additional holes in fogPolygon
                                 // so water stays clear instead of fogged. Populated
                                 // asynchronously after init by loadOceanCutouts().
+let stateOutlinesLayer = null;  // L.geoJSON layer of 48 mainland US state outlines.
+                                // Loaded once by loadStateOutlines(); added/removed
+                                // from the map by renderStateOutlines() based on
+                                // prefShowStates.
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
 let selectedType = 'NONE';
@@ -490,6 +494,7 @@ function loadPrefs() {
     if (typeof p.fogOpacity === 'string' && FOG_OPACITY_VALUES[p.fogOpacity]) prefFogOpacity = p.fogOpacity;
     if (typeof p.activeLogTab === 'string') activeLogTab = p.activeLogTab;
     if (typeof p.showBoundaries === 'boolean') prefShowBoundaries = p.showBoundaries;
+    if (typeof p.showStates === 'boolean') prefShowStates = p.showStates;
     if (typeof p.activeLegendTab === 'string') activeLegendTab = p.activeLegendTab;
     if (typeof p.activeObjectivesTab === 'string') activeObjectivesTab = p.activeObjectivesTab;
     if (typeof p.objectivesSortMode === 'string') objectivesSortMode = p.objectivesSortMode;
@@ -511,6 +516,7 @@ function savePrefs() {
       fogOpacity: prefFogOpacity,
       activeLogTab: activeLogTab,
       showBoundaries: prefShowBoundaries,
+      showStates: prefShowStates,
       activeLegendTab: activeLegendTab,
       activeObjectivesTab: activeObjectivesTab,
       objectivesSortMode: objectivesSortMode,
@@ -522,6 +528,7 @@ function savePrefs() {
 let prefLegendOpen = false;
 let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
 let prefShowBoundaries = false;
+let prefShowStates = false;
 let prefLandscapeMode = false;
 
 const FOG_OPACITY_VALUES = {
@@ -1360,6 +1367,11 @@ function initMap() {
   // called again from inside loadOceanCutouts to bake the water cutouts in.
   loadOceanCutouts();
 
+  // Kick off state outline fetch in parallel. When it lands, renderStateOutlines()
+  // is called from inside loadStateOutlines to add the layer to the map if
+  // prefShowStates is currently true.
+  loadStateOutlines();
+
   // Note: we used to redraw fog on zoomend, but the polygon scales naturally
   // with the map. Removing that handler eliminates the brief unfogged flash
   // between the old polygon being removed and the new one being added.
@@ -1425,6 +1437,72 @@ async function loadOceanCutouts() {
     // Non-fatal: app works without ocean cutouts, water just stays fogged.
     dbg('Ocean cutouts unavailable: ' + (e && e.message));
   }
+}
+
+// Loads the 48 mainland US state polygons (data/us_states.json) into an
+// L.geoJSON layer styled with a thin cyan stroke. The layer is stored in
+// stateOutlinesLayer but only added to the map if prefShowStates is true
+// (controlled via the settings sheet toggle, see toggleStates).
+//
+// Alaska, Hawaii, DC, and any territories are filtered out by name —
+// "mainland 48" only.
+async function loadStateOutlines() {
+  try {
+    const res = await fetch('data/us_states.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const geojson = await res.json();
+
+    const EXCLUDED = new Set(['Alaska', 'Hawaii', 'District of Columbia',
+      'Puerto Rico', 'Guam', 'American Samoa', 'United States Virgin Islands',
+      'Commonwealth of the Northern Mariana Islands']);
+
+    const filtered = {
+      type: 'FeatureCollection',
+      features: (geojson.features || []).filter(f => {
+        const name = f.properties && (f.properties.name || f.properties.NAME);
+        return name && !EXCLUDED.has(name);
+      }),
+    };
+
+    stateOutlinesLayer = L.geoJSON(filtered, {
+      pane: 'boundaryPane',
+      style: {
+        color: '#00e5ff',         // cyan — matches OS accent
+        weight: 1.2,
+        opacity: 0.7,
+        fill: false,              // outline only, no fill
+        interactive: false,
+      },
+    });
+
+    dbg('Loaded ' + filtered.features.length + ' state outlines');
+    renderStateOutlines();  // add to map if pref is on
+  } catch (e) {
+    dbg('State outlines unavailable: ' + (e && e.message));
+  }
+}
+
+// Adds or removes the state outlines layer from the map based on prefShowStates.
+// Safe to call before loadStateOutlines completes (no-op if layer is null).
+function renderStateOutlines() {
+  if (!map || !stateOutlinesLayer) return;
+  if (prefShowStates) {
+    if (!map.hasLayer(stateOutlinesLayer)) stateOutlinesLayer.addTo(map);
+  } else {
+    if (map.hasLayer(stateOutlinesLayer)) map.removeLayer(stateOutlinesLayer);
+  }
+}
+
+// Settings-sheet toggle for state outlines. Mirrors toggleBoundaries pattern.
+function toggleStates() {
+  haptic('tap');
+  prefShowStates = !prefShowStates;
+  renderStateOutlines();
+  savePrefs();
+  const desc = document.getElementById('stateToggleDesc');
+  if (desc) desc.textContent = prefShowStates ? 'State outlines visible' : 'State outlines hidden';
+  const indicator = document.getElementById('stateToggleIndicator');
+  if (indicator) indicator.classList.toggle('on', prefShowStates);
 }
 
 function renderFog() {
@@ -3295,6 +3373,10 @@ function openSettingsSheet() {
   document.getElementById('trailPointCount').textContent = todayTrail.length + ' points';
   document.getElementById('boundaryToggleDesc').textContent = prefShowBoundaries ? 'Boundaries visible' : 'Boundaries hidden';
   document.getElementById('boundaryToggleIndicator').classList.toggle('on', prefShowBoundaries);
+  const stateDesc = document.getElementById('stateToggleDesc');
+  if (stateDesc) stateDesc.textContent = prefShowStates ? 'State outlines visible' : 'State outlines hidden';
+  const stateInd = document.getElementById('stateToggleIndicator');
+  if (stateInd) stateInd.classList.toggle('on', prefShowStates);
   // Storage usage summary line — updated on every open so it's always fresh
   updateStorageIndicator();
   setupFogDensityChips();
