@@ -1246,11 +1246,10 @@ function mountLandscapeWings() {
   strip.id = 'landscapeTopStrip';
   strip.className = 'landscape-top-strip';
   strip.innerHTML =
-    '<div class="ind-led" data-id="gps"><span class="dot"></span><span class="lbl">GPS</span></div>' +
-    '<div class="ind-led" data-id="fix"><span class="dot"></span><span class="lbl">FIX</span></div>' +
-    '<div class="ind-led" data-id="trail"><span class="dot"></span><span class="lbl">TRAIL</span></div>' +
-    '<div class="ind-led" data-id="fog"><span class="dot"></span><span class="lbl">FOG</span></div>' +
-    '<div class="ind-led" data-id="sync"><span class="dot"></span><span class="lbl">SYNC</span></div>';
+    '<div class="ind-led" data-id="gps" data-color="blue"><span class="dot"></span><span class="lbl">GPS</span></div>' +
+    '<div class="ind-led" data-id="fix" data-color="green"><span class="dot"></span><span class="lbl">FIX</span></div>' +
+    '<div class="ind-led" data-id="obj" data-color="yellow"><span class="dot"></span><span class="lbl">OBJ</span></div>' +
+    '<div class="ind-led" data-id="rec" data-color="red"><span class="dot"></span><span class="lbl">REC</span></div>';
   document.body.appendChild(strip);
 
   // Sync pending dot + indicator LED states immediately
@@ -1849,7 +1848,10 @@ function setStatus(text, color) {
 
 // ===== P4.2 INDICATOR STRIP =====
 // Updates the 5-LED status row (GPS / FIX / TRAIL / FOG / SYNC).
-// States per LED: '' (off), 'on' (acid), 'live' (cyan), 'warn' (yellow)
+// Each LED now has a single signature color baked in via data-color
+// ("blue" GPS · "green" FIX · "yellow" OBJ · "red" REC). State logic only
+// decides on/off — color no longer encodes meaning. The CSS picks the
+// right gradient/glow based on data-color when .on is present.
 function updateIndicatorStrip() {
   try {
     const strips = document.querySelectorAll('#indicatorStrip, #landscapeTopStrip');
@@ -1857,56 +1859,50 @@ function updateIndicatorStrip() {
     strips.forEach(strip => {
       const ledOf = (id) => strip.querySelector('.ind-led[data-id="' + id + '"]');
 
-      // GPS — green when we have any position, yellow if stale
+      // GPS (BLUE) — on whenever we have a position. Doesn't care about
+      // accuracy; FIX is the accuracy indicator. A stale fix still counts
+      // as "we have GPS" — the user feedback for staleness is the dedicated
+      // GPS-lost banner, not this LED.
       const gpsLed = ledOf('gps');
       if (gpsLed) {
         gpsLed.className = 'ind-led';
         if (typeof userPos !== 'undefined' && userPos && userPos.lat != null) {
-          const ageMs = (typeof lastFix !== 'undefined' && lastFix) ? (Date.now() - lastFix) : 0;
-          gpsLed.classList.add(ageMs > 30000 ? 'warn' : 'on');
+          gpsLed.classList.add('on');
         }
       }
-      // FIX — green when accuracy is good (< 30m)
+
+      // FIX (GREEN) — on when accuracy < 30m. Off otherwise (including
+      // when we have no position at all). Combined with GPS, the two
+      // states read as: both off = no signal, blue only = poor fix,
+      // blue + green = good fix.
       const fixLed = ledOf('fix');
       if (fixLed) {
         fixLed.className = 'ind-led';
-        if (typeof userPos !== 'undefined' && userPos && userPos.acc != null) {
-          fixLed.classList.add(userPos.acc < 30 ? 'on' : 'warn');
+        if (typeof userPos !== 'undefined' && userPos && userPos.acc != null && userPos.acc < 30) {
+          fixLed.classList.add('on');
         }
       }
-      // TRAIL — cyan when today's trail has points
-      const trailLed = ledOf('trail');
-      if (trailLed) {
-        trailLed.className = 'ind-led';
-        if (typeof todayTrail !== 'undefined' && Array.isArray(todayTrail) && todayTrail.length > 0) {
-          trailLed.classList.add('live');
+
+      // OBJ (YELLOW) — on when there's at least one active mission/objective.
+      // "Active" = exists in missions[] and isn't marked complete.
+      const objLed = ledOf('obj');
+      if (objLed) {
+        objLed.className = 'ind-led';
+        if (typeof missions !== 'undefined' && Array.isArray(missions)) {
+          const activeCount = missions.filter(m => m && !m.completed).length;
+          if (activeCount > 0) objLed.classList.add('on');
         }
       }
-      // FOG — cyan when fog reveal data exists
-      const fogLed = ledOf('fog');
-      if (fogLed) {
-        fogLed.className = 'ind-led';
-        if (typeof revealedCells !== 'undefined' && revealedCells && revealedCells.size > 0) {
-          fogLed.classList.add('live');
-        }
-      }
-      // SYNC — yellow if last write failed, cyan if mission draft active, else acid
-      const syncLed = ledOf('sync');
-      if (syncLed) {
-        syncLed.className = 'ind-led';
-        try {
-          if (sessionStorage.getItem('recon.os.lastWriteFailed') === '1') {
-            syncLed.classList.add('warn');
-          } else if (typeof MISSION_DRAFT_KEY !== 'undefined' && localStorage.getItem(MISSION_DRAFT_KEY)) {
-            syncLed.classList.add('live');
-          } else {
-            syncLed.classList.add('on');
-          }
-        } catch (e) { /* storage may throw — leave LED off */ }
+
+      // REC (RED) — always on while the app is running. Reads as
+      // "you're being recorded," fitting the recon-equipment aesthetic
+      // and giving the strip a fully-lit resting state.
+      const recLed = ledOf('rec');
+      if (recLed) {
+        recLed.className = 'ind-led on';
       }
     });
   } catch (err) {
-    // Never let the indicator strip break startup
     console.error('updateIndicatorStrip error:', err);
   }
 }

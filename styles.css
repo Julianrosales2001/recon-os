@@ -459,6 +459,13 @@
     color: var(--label-quiet);
     font-weight: 700;
   }
+  /* Each LED has a signature color baked in via data-color
+     ("blue" "green" "yellow" "red"). When .on is present, the dot lights
+     up in that signature color. State no longer modulates color — the
+     LEDs are fixed-color hardware indicators like classic control panels.
+
+     Default (.on with no data-color) keeps the original acid-green for
+     any LED that hasn't been opted into the colored system yet. */
   .ind-led.on .dot {
     background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, var(--acid) 50%, #1c6b1c 100%);
     box-shadow:
@@ -467,6 +474,47 @@
     animation: led-breathe-acid 3.2s ease-in-out infinite;
   }
   .ind-led.on .lbl { color: var(--label-mid); }
+
+  /* BLUE — used for GPS. Cool, distinct from cyan .live so the strip
+     doesn't read as washed-out blue-green when both fired. */
+  .ind-led[data-color="blue"].on .dot {
+    background: radial-gradient(circle at 35% 30%, #d4eaff 0%, #3a9aff 50%, #0a3a78 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(58, 154, 255, 0.95);
+    animation: led-breathe-blue 3.4s ease-in-out infinite;
+  }
+
+  /* GREEN — used for FIX. Same gradient as default .on. */
+  .ind-led[data-color="green"].on .dot {
+    background: radial-gradient(circle at 35% 30%, #d4ffd0 0%, var(--acid) 50%, #1c6b1c 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(126, 255, 90, 0.95);
+    animation: led-breathe-acid 3.2s ease-in-out infinite;
+  }
+
+  /* YELLOW — used for OBJ. Reuses the existing .warn palette. */
+  .ind-led[data-color="yellow"].on .dot {
+    background: radial-gradient(circle at 35% 30%, #fff0c0 0%, var(--warn-yellow) 50%, #6e4408 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(255, 211, 64, 0.85);
+    animation: led-breathe-yellow 3.8s ease-in-out infinite;
+  }
+
+  /* RED — used for REC. Always lit while the app is running. */
+  .ind-led[data-color="red"].on .dot {
+    background: radial-gradient(circle at 35% 30%, #ffd4d4 0%, #ff3a3a 50%, #6e0a0a 100%);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.5),
+      0 0 3px rgba(255, 58, 58, 0.95);
+    animation: led-breathe-red 3.0s ease-in-out infinite;
+  }
+
+  /* Legacy classes — kept for the GPS first-lock ceremony and any
+     code paths that might still reference them. Not actively used by
+     the simplified 4-LED logic. */
   .ind-led.live .dot {
     background: radial-gradient(circle at 35% 30%, #c8f8ff 0%, var(--aqua-hot) 50%, #0a6080 100%);
     box-shadow:
@@ -509,6 +557,45 @@
         inset 0 1px 1px rgba(255, 255, 255, 0.5),
         0 0 5px rgba(0, 229, 255, 1),
         0 0 9px rgba(0, 229, 255, 0.4);
+    }
+  }
+  @keyframes led-breathe-blue {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 3px rgba(58, 154, 255, 0.95);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 5px rgba(58, 154, 255, 1),
+        0 0 9px rgba(58, 154, 255, 0.4);
+    }
+  }
+  @keyframes led-breathe-yellow {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 3px rgba(255, 211, 64, 0.9);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 5px rgba(255, 211, 64, 1),
+        0 0 9px rgba(255, 211, 64, 0.4);
+    }
+  }
+  @keyframes led-breathe-red {
+    0%, 100% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 3px rgba(255, 58, 58, 0.95);
+    }
+    50% {
+      box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.5),
+        0 0 5px rgba(255, 58, 58, 1),
+        0 0 9px rgba(255, 58, 58, 0.4);
     }
   }
   /* GPS first-lock ceremony — one-shot bright pulse, then back to breathing */
