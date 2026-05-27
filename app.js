@@ -544,7 +544,7 @@ let prefShowStates = false;
 //   3 = HIGH  — visible at all zooms. Home, work, key locations.
 //   2 = MED   — visible when zoomed to metro/city level or closer (default).
 //   1 = LOW   — visible only when zoomed into neighborhood level or closer.
-const TIER_MIN_ZOOM = { 1: 15, 2: 11, 3: 0 };
+const TIER_MIN_ZOOM = { 1: 13, 2: 10, 3: 0 };
 const TIER_LABELS   = { 1: 'LOW', 2: 'MED', 3: 'HIGH' };
 let prefLandscapeMode = false;
 
