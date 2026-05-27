@@ -239,14 +239,20 @@
     </div>
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)" />
 
-    <div class="field-label">HIGH VALUE ASSET <span class="mode-tag">FLAG</span></div>
-    <div class="hva-toggle" id="hvaToggle" onclick="toggleHVA()">
-      <div class="hva-star">★</div>
-      <div class="hva-label">
-        <div class="hva-name">MARK AS HVA</div>
-        <div class="hva-desc">Pin gets star prefix + amber edge in list</div>
-      </div>
-      <div class="led-housing"><span class="led-indicator" id="hvaLed"></span></div>
+    <div class="field-label">MAP TIER <span class="mode-tag">VISIBILITY</span></div>
+    <div class="tier-control" id="tierControl">
+      <button type="button" class="tier-btn" data-tier="1" onclick="setTier(1)">
+        <div class="tier-name">LOW</div>
+        <div class="tier-desc">Close zoom only</div>
+      </button>
+      <button type="button" class="tier-btn on" data-tier="2" onclick="setTier(2)">
+        <div class="tier-name">MED</div>
+        <div class="tier-desc">City zoom + closer</div>
+      </button>
+      <button type="button" class="tier-btn" data-tier="3" onclick="setTier(3)">
+        <div class="tier-name">HIGH</div>
+        <div class="tier-desc">Always visible</div>
+      </button>
     </div>
 
     <div id="visitRow" style="display:none;">

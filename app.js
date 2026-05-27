@@ -84,20 +84,15 @@ let userMarker = null;
 let markerLayer = null;
 let boundaryLayer = null;       // Leaflet layer group for region boundary polygons
 let fogPolygon = null;          // Leaflet polygon representing fog with holes
-let oceanRings = [];            // pre-parsed ocean polygon rings from Natural Earth
-                                // 50m data. Used as additional holes in fogPolygon
-                                // so water stays clear instead of fogged. Populated
-                                // asynchronously after init by loadOceanCutouts().
-let stateOutlinesLayer = null;  // L.geoJSON layer of 48 mainland US state outlines.
-                                // Loaded once by loadStateOutlines(); added/removed
-                                // from the map by renderStateOutlines() based on
-                                // prefShowStates.
+let oceanRings = [];            // Natural Earth 50m ocean rings, baked into fog
+let stateOutlinesLayer = null;  // 48 mainland US state outlines (cyan, toggleable)
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
 let selectedType = 'NONE';
 let selectedShape = 'FLAG';
 let editorPhoto = null;         // base64 data URL for photo being edited
-let editorHVA = false;          // HVA state for POI being edited
+let editorHVA = false;          // legacy — no longer wired to UI but kept until full removal
+let editorTier = 2;             // tier (1/2/3) of POI being edited; default MED
 let selectedPoiId = null;       // currently selected on map (gets a halo)
 let liveNavPoiId = null;        // POI whose distance/bearing should live-update on GPS
 let userAltitudeM = null;       // latest GPS altitude in meters (null if not available)
@@ -182,6 +177,16 @@ function loadPOIs() {
   try {
     const raw = localStorage.getItem('recon.os.pois');
     pois = raw ? JSON.parse(raw) : [];
+    // One-time migration: backfill tier from the old hva flag.
+    //   hva: true  → tier 3 (HIGH, always visible)
+    //   anything else → tier 2 (MED, default for new POIs)
+    // Old POIs keep their hva field on disk for back-compat but it's no
+    // longer read or written anywhere meaningful.
+    pois.forEach(p => {
+      if (typeof p.tier !== 'number') {
+        p.tier = p.hva ? 3 : 2;
+      }
+    });
   } catch (e) {
     pois = [];
   }
@@ -529,6 +534,18 @@ let prefLegendOpen = false;
 let prefFogOpacity = 'HEAVY';  // 'CLEAR' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
 let prefShowBoundaries = false;
 let prefShowStates = false;
+
+// ===== POI TIER SYSTEM =====
+// Each POI has a tier 1-3 controlling at which zoom levels its marker is
+// visible — same idea as Google/Apple Maps showing major landmarks at low
+// zoom and minor places only when zoomed in. Replaces the old HVA flag
+// (which conflated "important" with "always visible").
+//
+//   3 = HIGH  — visible at all zooms. Home, work, key locations.
+//   2 = MED   — visible when zoomed to metro/city level or closer (default).
+//   1 = LOW   — visible only when zoomed into neighborhood level or closer.
+const TIER_MIN_ZOOM = { 1: 15, 2: 11, 3: 0 };
+const TIER_LABELS   = { 1: 'LOW', 2: 'MED', 3: 'HIGH' };
 let prefLandscapeMode = false;
 
 const FOG_OPACITY_VALUES = {
@@ -1314,16 +1331,13 @@ function initMap() {
     // Combined with noWrap on the tile layer below, this stops users
     // from dragging into the grey void past the map edges.
     maxBounds: [[-85, -180], [85, 180]],
-    maxBoundsViscosity: 1.0,  // 1.0 = hard wall, 0 = soft rubber-band
-  }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
+    maxBoundsViscosity: 1.0,
+  }).setView([29.74, -94.99], 14);
 
   const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
     detectRetina: true,
-    // Stop the world from repeating east/west past ±180° longitude.
-    // Without this, Leaflet defaults to wrapping tiles infinitely, which
-    // showed un-fogged duplicate worlds when the user zoomed/panned far.
     noWrap: true,
     attribution: '© CARTO © OSM'
   }).addTo(map);
@@ -1353,6 +1367,9 @@ function initMap() {
   // Re-render boundaries on zoom so label collision detection uses current pixel scale
   map.on('zoomend', () => {
     if (prefShowBoundaries) renderBoundaries();
+    // Tier-based POI visibility changes by zoom (see TIER_MIN_ZOOM).
+    // Re-render markers so newly-visible/hidden POIs reflect the new zoom.
+    renderAllMarkers();
   });
 
   markerLayer = L.layerGroup().addTo(map);
@@ -1363,13 +1380,9 @@ function initMap() {
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
 
-  // Kick off ocean cutout fetch in parallel. When it lands, renderFog() is
-  // called again from inside loadOceanCutouts to bake the water cutouts in.
+  // Kick off async data loaders. Each calls back into renderFog or
+  // renderStateOutlines once its data lands.
   loadOceanCutouts();
-
-  // Kick off state outline fetch in parallel. When it lands, renderStateOutlines()
-  // is called from inside loadStateOutlines to add the layer to the map if
-  // prefShowStates is currently true.
   loadStateOutlines();
 
   // Note: we used to redraw fog on zoomend, but the polygon scales naturally
@@ -1396,28 +1409,18 @@ function initMap() {
 // Render fog as a single polygon: huge outer ring covering everything,
 // with rectangular holes cut out for each revealed cell.
 // Loads Natural Earth 1:50m ocean polygons (data/ne_50m_ocean.json) and
-// flattens every ring (outers and holes) into a single flat list of latlng
-// rings. Those rings get appended to the fog polygon in renderFog().
-//
-// Why flat? SVG's even-odd fill rule (which Leaflet uses for polygons with
-// multiple rings) flips fill on each enclosing ring. The Natural Earth ocean
-// MultiPolygon happens to encode "ocean" as outer rings = ocean basins and
-// inner rings = continents/islands. Flattening preserves the nesting:
-//   ring count 1 (fog outer)        → fogged
-//   ring count 2 (ocean basin)      → un-fogged (water)
-//   ring count 3 (continent island) → fogged (land inside an ocean polygon)
-// So we get land-only fog for free without writing any topology logic.
+// flattens every ring into a single flat list of latlng rings. Those rings
+// get appended to the fog polygon in renderFog(). SVG's even-odd fill rule
+// handles the ocean/island nesting automatically.
 async function loadOceanCutouts() {
   try {
     const res = await fetch('data/ne_50m_ocean.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const geojson = await res.json();
-
     const rings = [];
     for (const feature of geojson.features || []) {
       const geom = feature.geometry;
       if (!geom) continue;
-      // Normalize Polygon vs MultiPolygon into "list of polygons" form
       const polygons = geom.type === 'Polygon'
         ? [geom.coordinates]
         : geom.type === 'MultiPolygon'
@@ -1425,37 +1428,28 @@ async function loadOceanCutouts() {
         : [];
       for (const poly of polygons) {
         for (const ring of poly) {
-          // GeoJSON is [lng, lat]; Leaflet wants [lat, lng]
           rings.push(ring.map(([lng, lat]) => [lat, lng]));
         }
       }
     }
     oceanRings = rings;
     dbg('Loaded ' + rings.length + ' ocean rings');
-    if (map) renderFog();  // re-render with ocean cutouts now baked in
+    if (map) renderFog();
   } catch (e) {
-    // Non-fatal: app works without ocean cutouts, water just stays fogged.
     dbg('Ocean cutouts unavailable: ' + (e && e.message));
   }
 }
 
 // Loads the 48 mainland US state polygons (data/us_states.json) into an
-// L.geoJSON layer styled with a thin cyan stroke. The layer is stored in
-// stateOutlinesLayer but only added to the map if prefShowStates is true
-// (controlled via the settings sheet toggle, see toggleStates).
-//
-// Alaska, Hawaii, DC, and any territories are filtered out by name —
-// "mainland 48" only.
+// L.geoJSON layer styled with a thin cyan stroke. Toggleable via settings.
 async function loadStateOutlines() {
   try {
     const res = await fetch('data/us_states.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const geojson = await res.json();
-
     const EXCLUDED = new Set(['Alaska', 'Hawaii', 'District of Columbia',
       'Puerto Rico', 'Guam', 'American Samoa', 'United States Virgin Islands',
       'Commonwealth of the Northern Mariana Islands']);
-
     const filtered = {
       type: 'FeatureCollection',
       features: (geojson.features || []).filter(f => {
@@ -1463,27 +1457,23 @@ async function loadStateOutlines() {
         return name && !EXCLUDED.has(name);
       }),
     };
-
     stateOutlinesLayer = L.geoJSON(filtered, {
       pane: 'boundaryPane',
       style: {
-        color: '#00e5ff',         // cyan — matches OS accent
+        color: '#00e5ff',
         weight: 1.2,
         opacity: 0.7,
-        fill: false,              // outline only, no fill
+        fill: false,
         interactive: false,
       },
     });
-
     dbg('Loaded ' + filtered.features.length + ' state outlines');
-    renderStateOutlines();  // add to map if pref is on
+    renderStateOutlines();
   } catch (e) {
     dbg('State outlines unavailable: ' + (e && e.message));
   }
 }
 
-// Adds or removes the state outlines layer from the map based on prefShowStates.
-// Safe to call before loadStateOutlines completes (no-op if layer is null).
 function renderStateOutlines() {
   if (!map || !stateOutlinesLayer) return;
   if (prefShowStates) {
@@ -1493,7 +1483,6 @@ function renderStateOutlines() {
   }
 }
 
-// Settings-sheet toggle for state outlines. Mirrors toggleBoundaries pattern.
 function toggleStates() {
   haptic('tap');
   prefShowStates = !prefShowStates;
@@ -1531,10 +1520,7 @@ function renderFog() {
     holes.push([sw, nw, ne, se]); // counter-clockwise
   });
 
-  // Combine outer + revealed-cell holes + ocean rings into one multi-ring
-  // polygon. Ocean rings rely on even-odd fill flipping (see loadOceanCutouts)
-  // and don't need their winding adjusted. If oceanRings is empty (file
-  // still loading or fetch failed), this falls back to the old behaviour.
+  // Combine outer + revealed-cell holes + ocean rings into one multi-ring polygon.
   fogPolygon = L.polygon([outer, ...holes, ...oceanRings], {
     pane: 'fogPane',
     color: '#1a0f06',
@@ -1715,6 +1701,14 @@ function renderAllMarkers() {
     // If this POI is currently being repositioned, hide its flag (the screen-center
     // crosshair represents its proposed new position instead)
     if (repositionPoiId === p.id) return;
+
+    // Tier-based zoom filtering. Each POI's tier (1/2/3) maps to a minimum
+    // zoom level via TIER_MIN_ZOOM. Below that zoom, the marker is hidden
+    // to reduce clutter. Selected POI is exempt so re-selecting after zoom
+    // never makes a marker vanish unexpectedly.
+    const tier = p.tier || 2;
+    const minZoom = TIER_MIN_ZOOM[tier] != null ? TIER_MIN_ZOOM[tier] : 0;
+    if (map && map.getZoom() < minZoom && p.id !== selectedPoiId) return;
 
     const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0];
     const m = L.marker([p.lat, p.lng], {
@@ -2279,7 +2273,8 @@ function dropPinAt(lat, lng) {
     name: '',
     notes: '',
     photo: null,           // base64 data URL
-    hva: false,
+    hva: false,            // legacy — kept on disk for back-compat, not read
+    tier: 2,               // 1=LOW, 2=MED, 3=HIGH — controls map visibility by zoom
     regionId: region ? region.id : null,
     sector: sectorId,
     created: Date.now(),
@@ -2354,9 +2349,10 @@ function openClassifySheet(poiId) {
   editorPhoto = poi.photo || null;
   updatePhotoUI();
 
-  // Load HVA
-  editorHVA = poi.hva || false;
-  updateHVAUI();
+  // Load tier (replaces old HVA toggle). Default to MED for legacy POIs
+  // missing the field, though loadPOIs migration should have set this.
+  editorTier = (typeof poi.tier === 'number') ? poi.tier : 2;
+  updateTierUI();
 
   // Show visit info only for classified POIs
   const visitRow = document.getElementById('visitRow');
@@ -2546,7 +2542,8 @@ function showStatsSheet() {
   const body = document.getElementById('statsBody');
   const classified = pois.filter(p => p.category);
   const totalVisits = pois.reduce((sum, p) => sum + (p.visits || 0), 0);
-  const hvaCount = pois.filter(p => p.hva).length;
+  // Tier-3 (HIGH) count, replacing the old HVA stat.
+  const tier3Count = pois.filter(p => (p.tier || 2) === 3).length;
 
   // Per-category breakdown
   const byCategory = {};
@@ -2581,9 +2578,9 @@ function showStatsSheet() {
         <div class="sub">${pois.filter(p => !p.category).length} pending</div>
       </div>
       <div class="stat-card">
-        <div class="label">HVA</div>
-        <div class="value">${String(hvaCount).padStart(3, '0')}</div>
-        <div class="sub">manual</div>
+        <div class="label">HIGH TIER</div>
+        <div class="value">${String(tier3Count).padStart(3, '0')}</div>
+        <div class="sub">always visible</div>
       </div>
     </div>
     <div class="stats-grid">
@@ -2802,29 +2799,30 @@ function updatePhotoUI() {
   }
 }
 
-// ===== HVA TOGGLE =====
-function toggleHVA() {
-  editorHVA = !editorHVA;
-  updateHVAUI();
+// ===== TIER CONTROL =====
+// Replaces the old HVA toggle. setTier() is called from the 3-position
+// LOW/MED/HIGH segmented control in the classify sheet.
+function setTier(t) {
+  if (t !== 1 && t !== 2 && t !== 3) return;
+  editorTier = t;
+  updateTierUI();
+  haptic('tap');
 }
 
-function updateHVAUI() {
-  const toggle = document.getElementById('hvaToggle');
-  const led = document.getElementById('hvaLed');
-  if (editorHVA) {
-    toggle.classList.add('on');
-    if (led) led.classList.add('on');
-  } else {
-    toggle.classList.remove('on');
-    if (led) led.classList.remove('on');
-  }
+function updateTierUI() {
+  // Highlight whichever of the 3 tier buttons matches editorTier.
+  // Buttons share class .tier-btn and carry data-tier="1|2|3".
+  document.querySelectorAll('#tierControl .tier-btn').forEach(btn => {
+    const t = parseInt(btn.getAttribute('data-tier'), 10);
+    btn.classList.toggle('on', t === editorTier);
+  });
 }
 
 function savePOI() {
   const poi = pois.find(p => p.id === editingId);
   if (!poi) return;
   const wasClassified = !!poi.category;
-  const oldHVA = poi.hva;
+  const oldTier = poi.tier || 2;
   // Snapshot for undo
   const beforeSnapshot = JSON.parse(JSON.stringify(poi));
   poi.category = selectedCategory;
@@ -2833,7 +2831,7 @@ function savePOI() {
   poi.name = document.getElementById('poiName').value.trim();
   poi.notes = document.getElementById('poiNotes').value.trim();
   poi.photo = editorPhoto;
-  poi.hva = editorHVA;
+  poi.tier = editorTier;
   savePOIs();
   renderAllMarkers();
   updatePendingCount();
@@ -2845,8 +2843,10 @@ function savePOI() {
   } else {
     logEvent('edit', poi.id, 'Edited: ' + displayName, poi.category);
   }
-  if (editorHVA && !oldHVA) {
-    logEvent('hva', poi.id, 'Marked HVA: ' + displayName, poi.category);
+  // Log tier changes — uses 'tier' event type. (The old 'hva' event type
+  // still appears in historical journal entries and is rendered as-is.)
+  if (editorTier !== oldTier) {
+    logEvent('tier', poi.id, 'Tier → ' + TIER_LABELS[editorTier] + ': ' + displayName, poi.category);
   }
 
   // Offer undo for the change
@@ -3067,8 +3067,11 @@ function renderListBody() {
   classified.forEach(p => {
     const cat = CATEGORIES.find(c => c.id === p.category);
     const row = document.createElement('div');
-    row.className = 'list-row' + (p.hva ? ' hva' : '');
-    const starHTML = p.hva ? '<span class="hva-star">★</span>' : '';
+    // Tier 3 (HIGH) gets the star + amber edge that HVA used to provide,
+    // both as a list-scan affordance and visual continuity with the old design.
+    const isTop = (p.tier || 2) === 3;
+    row.className = 'list-row' + (isTop ? ' hva' : '');
+    const starHTML = isTop ? '<span class="hva-star">★</span>' : '';
     const visitHTML = p.visits ? ' · ×' + p.visits : '';
     // Region name if showing across all regions; otherwise omit (it's redundant)
     let regionHTML = '';
