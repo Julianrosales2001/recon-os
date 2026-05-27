@@ -1298,12 +1298,22 @@ function initMap() {
   map = L.map('map', {
     zoomControl: false,
     attributionControl: true,
+    // Lock panning to the world extent. Web Mercator ends at ~±85° lat
+    // (the poles distort to infinity), and tiles end at ±180° lng.
+    // Combined with noWrap on the tile layer below, this stops users
+    // from dragging into the grey void past the map edges.
+    maxBounds: [[-85, -180], [85, 180]],
+    maxBoundsViscosity: 1.0,  // 1.0 = hard wall, 0 = soft rubber-band
   }).setView([29.74, -94.99], 14); // default — Baytown area; will recenter on GPS fix
 
   const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
     subdomains: 'abcd',
     detectRetina: true,
+    // Stop the world from repeating east/west past ±180° longitude.
+    // Without this, Leaflet defaults to wrapping tiles infinitely, which
+    // showed un-fogged duplicate worlds when the user zoomed/panned far.
+    noWrap: true,
     attribution: '© CARTO © OSM'
   }).addTo(map);
 
