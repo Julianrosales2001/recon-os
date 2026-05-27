@@ -84,6 +84,10 @@ let userMarker = null;
 let markerLayer = null;
 let boundaryLayer = null;       // Leaflet layer group for region boundary polygons
 let fogPolygon = null;          // Leaflet polygon representing fog with holes
+let oceanRings = [];            // pre-parsed ocean polygon rings from Natural Earth
+                                // 50m data. Used as additional holes in fogPolygon
+                                // so water stays clear instead of fogged. Populated
+                                // asynchronously after init by loadOceanCutouts().
 let editingId = null;           // currently editing POI id
 let selectedCategory = 'WAYPOINT';
 let selectedType = 'NONE';
@@ -1352,6 +1356,10 @@ function initMap() {
   // Defer fog rendering slightly so tiles get a chance to start loading first
   setTimeout(renderFog, 100);
 
+  // Kick off ocean cutout fetch in parallel. When it lands, renderFog() is
+  // called again from inside loadOceanCutouts to bake the water cutouts in.
+  loadOceanCutouts();
+
   // Note: we used to redraw fog on zoomend, but the polygon scales naturally
   // with the map. Removing that handler eliminates the brief unfogged flash
   // between the old polygon being removed and the new one being added.
@@ -1375,6 +1383,50 @@ function initMap() {
 
 // Render fog as a single polygon: huge outer ring covering everything,
 // with rectangular holes cut out for each revealed cell.
+// Loads Natural Earth 1:50m ocean polygons (data/ne_50m_ocean.json) and
+// flattens every ring (outers and holes) into a single flat list of latlng
+// rings. Those rings get appended to the fog polygon in renderFog().
+//
+// Why flat? SVG's even-odd fill rule (which Leaflet uses for polygons with
+// multiple rings) flips fill on each enclosing ring. The Natural Earth ocean
+// MultiPolygon happens to encode "ocean" as outer rings = ocean basins and
+// inner rings = continents/islands. Flattening preserves the nesting:
+//   ring count 1 (fog outer)        → fogged
+//   ring count 2 (ocean basin)      → un-fogged (water)
+//   ring count 3 (continent island) → fogged (land inside an ocean polygon)
+// So we get land-only fog for free without writing any topology logic.
+async function loadOceanCutouts() {
+  try {
+    const res = await fetch('data/ne_50m_ocean.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const geojson = await res.json();
+
+    const rings = [];
+    for (const feature of geojson.features || []) {
+      const geom = feature.geometry;
+      if (!geom) continue;
+      // Normalize Polygon vs MultiPolygon into "list of polygons" form
+      const polygons = geom.type === 'Polygon'
+        ? [geom.coordinates]
+        : geom.type === 'MultiPolygon'
+        ? geom.coordinates
+        : [];
+      for (const poly of polygons) {
+        for (const ring of poly) {
+          // GeoJSON is [lng, lat]; Leaflet wants [lat, lng]
+          rings.push(ring.map(([lng, lat]) => [lat, lng]));
+        }
+      }
+    }
+    oceanRings = rings;
+    dbg('Loaded ' + rings.length + ' ocean rings');
+    if (map) renderFog();  // re-render with ocean cutouts now baked in
+  } catch (e) {
+    // Non-fatal: app works without ocean cutouts, water just stays fogged.
+    dbg('Ocean cutouts unavailable: ' + (e && e.message));
+  }
+}
+
 function renderFog() {
   if (fogPolygon) {
     map.removeLayer(fogPolygon);
@@ -1401,8 +1453,11 @@ function renderFog() {
     holes.push([sw, nw, ne, se]); // counter-clockwise
   });
 
-  // Combine outer + holes into one multi-polygon
-  fogPolygon = L.polygon([outer, ...holes], {
+  // Combine outer + revealed-cell holes + ocean rings into one multi-ring
+  // polygon. Ocean rings rely on even-odd fill flipping (see loadOceanCutouts)
+  // and don't need their winding adjusted. If oceanRings is empty (file
+  // still loading or fetch failed), this falls back to the old behaviour.
+  fogPolygon = L.polygon([outer, ...holes, ...oceanRings], {
     pane: 'fogPane',
     color: '#1a0f06',
     weight: 0,
