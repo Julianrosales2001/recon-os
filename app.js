@@ -3272,6 +3272,16 @@ function closeSheet() {
   document.getElementById('statsSheet').classList.remove('open');
   document.getElementById('objectivesSheet').classList.remove('open');
   document.getElementById('missionFormSheet').classList.remove('open');
+  // Health sheets — these were missed in the initial wire-up, which made
+  // the HEALTH sheet's CLOSE button look broken.
+  document.getElementById('healthSheet').classList.remove('open');
+  document.getElementById('healthDetailSheet').classList.remove('open');
+  // Tear down the live fast timer interval if it's running. Without this,
+  // it keeps ticking in the background forever after the sheet is closed.
+  if (typeof fastTimerHandle !== 'undefined' && fastTimerHandle) {
+    clearInterval(fastTimerHandle);
+    fastTimerHandle = null;
+  }
   editingId = null;
   liveNavPoiId = null;
   deselectPOI();
