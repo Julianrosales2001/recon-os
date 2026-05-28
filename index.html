@@ -81,6 +81,7 @@
     <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
     <div class="map-overlay-btn" id="legendBtn" onclick="toggleLegend()"><div class="socket"></div><div class="led"></div><div class="cap">⚐</div></div>
     <div class="map-overlay-btn" onclick="openJournalSheet()"><div class="socket"></div><div class="cap">▤</div></div>
+    <div class="map-overlay-btn" onclick="openSearchSheet()"><div class="socket"></div><div class="cap">⌕</div></div>
   </div>
 
   <!-- LEGEND PANEL (hidden by default) -->
@@ -114,9 +115,9 @@
       <div class="p4-row">
         <!-- LEFT: 2x2 toggle grid -->
         <div class="toggle-grid">
-          <div class="tg-btn" onclick="openSearchSheet()" data-id="search">
-            <svg class="tg-icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 L20 20"/></svg>
-            <span class="tg-lbl">SRCH</span>
+          <div class="tg-btn" onclick="openHealthSheet()" data-id="health">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M10 4 H14 V10 H20 V14 H14 V20 H10 V14 H4 V10 H10 Z"/></svg>
+            <span class="tg-lbl">HEAL</span>
           </div>
           <div class="tg-btn" onclick="openPendingSheet()" data-id="pending" id="pendingTgBtn">
             <svg class="tg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15 14"/></svg>
@@ -599,6 +600,85 @@
     <div class="action-btn" onclick="closeSheet()">
       <div class="socket"></div>
       <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH SHEET (fasting / food / movement tracker) -->
+<!-- Self-contained silo: data stored independently from POIs/missions/etc.
+     Three tabs: FAST / FOOD / MOVE. Active tab persists across sessions
+     via recon.os.healthTab in localStorage. -->
+<div class="sheet" id="healthSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">HEALTH</div>
+
+  <!-- Tab strip -->
+  <div class="health-tabs">
+    <div class="health-tab" data-tab="fast" onclick="setHealthTab('fast')">FAST</div>
+    <div class="health-tab" data-tab="food" onclick="setHealthTab('food')">FOOD</div>
+    <div class="health-tab" data-tab="move" onclick="setHealthTab('move')">MOVE</div>
+  </div>
+
+  <!-- Each tab pane has a top quick-action card and a scrollable history below.
+       Only the active pane is visible (display toggled by setHealthTab). -->
+  <div class="sheet-body" id="healthBody">
+
+    <!-- FAST PANE -->
+    <div class="health-pane" data-pane="fast">
+      <div class="health-status-card" id="fastStatusCard">
+        <!-- Filled in by renderFastStatus() -->
+      </div>
+      <div class="health-section-head">HISTORY</div>
+      <div class="health-list" id="fastHistory"></div>
+      <div class="health-section-head" style="margin-top:14px;">WEIGH-INS</div>
+      <div class="health-quickrow">
+        <div class="action-btn small" onclick="promptWeighIn()">
+          <div class="socket"></div>
+          <div class="cap steel"><div class="lcd"><span class="lcd-text">+ WEIGH-IN</span></div></div>
+        </div>
+      </div>
+      <div class="health-list" id="weighinHistory"></div>
+    </div>
+
+    <!-- FOOD PANE -->
+    <div class="health-pane" data-pane="food" style="display:none;">
+      <div class="health-status-card" id="foodStatusCard">
+        <!-- Filled in by renderFoodStatus() -->
+      </div>
+      <div class="health-section-head">TODAY · YESTERDAY · EARLIER</div>
+      <div class="health-list" id="foodHistory"></div>
+    </div>
+
+    <!-- MOVE PANE -->
+    <div class="health-pane" data-pane="move" style="display:none;">
+      <div class="health-status-card" id="moveStatusCard">
+        <!-- Filled in by renderMoveStatus() -->
+      </div>
+      <div class="health-section-head">HISTORY</div>
+      <div class="health-list" id="moveHistory"></div>
+    </div>
+
+  </div>
+
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH DETAIL DRAWER — a secondary sheet for editing a single fast / meal /
+     workout / weigh-in. Reuses the same .sheet structure but content is
+     filled in dynamically per record. -->
+<div class="sheet" id="healthDetailSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title" id="healthDetailTitle">DETAIL</div>
+  <div class="sheet-body" id="healthDetailBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeHealthDetail()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">BACK</span></div></div>
     </div>
   </div>
 </div>

@@ -4222,3 +4222,245 @@
     body.idle-dim { filter: none; }
   }
   /* END D · IDLE DIM */
+
+  /* ============================================================
+     HEALTH MODULE — fasting / food / movement tracker sheet
+     ============================================================
+     Self-contained styles for the HEALTH sheet. Matches the
+     existing recessed-LCD / tactical-hardware visual language. */
+
+  /* Tab strip — three chips (FAST/FOOD/MOVE) under the sheet title. */
+  .health-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    padding: 6px;
+    margin-bottom: 10px;
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 6px;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(95, 216, 240, 0.08);
+  }
+  .health-tab {
+    text-align: center;
+    padding: 10px 6px;
+    background: #050a14;
+    border: 1px solid #1a2530;
+    border-radius: 4px;
+    color: #6a8098;
+    font-family: 'Orbitron', 'B612 Mono', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .health-tab:active { filter: brightness(1.3); }
+  .health-tab.on {
+    background: linear-gradient(180deg, #0a3548, #062030);
+    border-color: #00e5ff;
+    color: #d4f8ff;
+    text-shadow:
+      0 0 6px rgba(0, 229, 255, 0.7),
+      0 0 12px rgba(0, 229, 255, 0.35);
+    box-shadow:
+      0 0 8px rgba(0, 229, 255, 0.4),
+      inset 0 1px 0 rgba(95, 216, 240, 0.2);
+  }
+
+  /* Quick-action status card at the top of each pane.
+     Matches the recessed LCD bezel style used by the classify sheet. */
+  .health-status-card {
+    background: linear-gradient(180deg, #0a1822, #050a14);
+    border: 1px solid #050a14;
+    border-radius: 6px;
+    padding: 14px 12px;
+    margin-bottom: 14px;
+    box-shadow:
+      inset 0 2px 4px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(95, 216, 240, 0.08);
+  }
+  .health-card-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: #6a8098;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .health-card-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: #98a3af;
+    margin-top: 4px;
+  }
+  .health-card-bignum {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #d4f8ff;
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.35);
+    margin-top: 4px;
+  }
+
+  /* Live fast timer — the big HH:MM:SS readout. Tappable. */
+  .fast-timer {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00e5ff;
+    letter-spacing: 0.08em;
+    text-shadow:
+      0 0 8px rgba(0, 229, 255, 0.7),
+      0 0 16px rgba(0, 229, 255, 0.35);
+    margin: 8px 0;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .fast-timer:active { filter: brightness(1.3); }
+
+  /* Row of one or more quick-action buttons inside a status card. */
+  .health-quickrow {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* Small variant of .action-btn for use inside cards/rows.
+     Inherits the steel-cap LCD look but at a tighter scale. */
+  .action-btn.small {
+    transform: scale(0.78);
+    transform-origin: left center;
+    margin-right: -16px;  /* compensate for visual gap from scale */
+  }
+  .action-btn.small.primary .cap { box-shadow: 0 0 6px rgba(0, 229, 255, 0.3); }
+  .action-btn.small.danger .lcd-text { color: #ff7878; }
+
+  /* Section headers within a pane. Light, all-caps, monospace. */
+  .health-section-head {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: #5fd8f0;
+    font-weight: 700;
+    margin: 14px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #1a2530;
+  }
+
+  /* Scrollable history list — one row per record. */
+  .health-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .health-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: #0a1822;
+    border: 1px solid #1a2530;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .health-row:active { background: #102838; }
+  .health-row-main { flex: 1; min-width: 0; }
+  .health-row-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: #d4f8ff;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .health-row-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #6a8098;
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+  }
+  .health-row-action {
+    color: #5fd8f0;
+    font-size: 16px;
+    margin-left: 8px;
+    opacity: 0.6;
+  }
+
+  /* Small inline chip — used on meal rows for portion/tag */
+  .health-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #1a2530;
+    color: #5fd8f0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .health-chip.dim {
+    background: #0a1822;
+    color: #6a8098;
+    border: 1px solid #1a2530;
+  }
+
+  /* Day-group header inside the food history list ("TODAY", "MAY 26", etc.) */
+  .health-daygroup-head {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: #5fd8f0;
+    font-weight: 700;
+    padding: 8px 4px 4px;
+    margin-top: 6px;
+  }
+
+  /* Empty-state micro-message inside history lists. */
+  .empty-state-mini {
+    padding: 16px 12px;
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #6a8098;
+    letter-spacing: 0.1em;
+    background: #050a14;
+    border: 1px dashed #1a2530;
+    border-radius: 4px;
+  }
+
+  /* Detail-drawer field rows */
+  .detail-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid #1a2530;
+    gap: 12px;
+  }
+  .detail-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: #6a8098;
+    font-weight: 700;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .detail-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #d4f8ff;
+    letter-spacing: 0.05em;
+    text-align: right;
+    word-break: break-word;
+  }
+

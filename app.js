@@ -4659,7 +4659,7 @@ function renderPoiLinkedMissions(poiId) {
 
 function closeAllSheets() {
   // Doesn't change overlay state; just removes .open from each known sheet
-  ['classifySheet','pendingSheet','settingsSheet','logSheet','searchSheet','statsSheet','objectivesSheet','missionFormSheet'].forEach(id => {
+  ['classifySheet','pendingSheet','settingsSheet','logSheet','searchSheet','statsSheet','objectivesSheet','missionFormSheet','healthSheet','healthDetailSheet'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('open');
   });
@@ -4756,3 +4756,474 @@ setInterval(updateIndicatorStrip, 5000);
   // wake the chassis. Only the user's hands wake it. This is intentional.
   wake();
 })();
+
+// =============================================================================
+// HEALTH MODULE — fasting tracker, food log, exercise log
+// =============================================================================
+// Self-contained silo. Four storage keys, four arrays, one sheet with three
+// tabs. No cross-references with POIs, missions, or any other system.
+// =============================================================================
+
+let fasts = [];      // [{ id, startTs, endTs|null, startWeight|null, endWeight|null, notes }]
+let weighins = [];   // [{ id, ts, lbs, notes }]
+let meals = [];      // [{ id, ts, name, portion: 'S'|'M'|'L', tag, calories|null, notes }]
+let workouts = [];   // [{ id, ts, type, durationMin, intensity|null, distanceMi|null, sets|null, notes }]
+let healthTab = 'fast';
+let healthDetail = null;
+let fastTimerHandle = null;
+
+const FOOD_TAGS = ['PROTEIN', 'CARBS', 'VEG', 'JUNK', 'DRINK', 'OTHER'];
+const FOOD_PORTIONS = ['S', 'M', 'L'];
+const MOVE_TYPES = ['RUN', 'LIFT', 'WALK', 'OTHER'];
+const MOVE_INTENSITIES = ['LIGHT', 'MED', 'HARD'];
+
+function loadHealth() {
+  try { fasts = JSON.parse(localStorage.getItem('recon.os.fasts') || '[]'); } catch (e) { fasts = []; }
+  try { weighins = JSON.parse(localStorage.getItem('recon.os.weighins') || '[]'); } catch (e) { weighins = []; }
+  try { meals = JSON.parse(localStorage.getItem('recon.os.meals') || '[]'); } catch (e) { meals = []; }
+  try { workouts = JSON.parse(localStorage.getItem('recon.os.workouts') || '[]'); } catch (e) { workouts = []; }
+  try { healthTab = localStorage.getItem('recon.os.healthTab') || 'fast'; } catch (e) { healthTab = 'fast'; }
+}
+function saveFasts()    { safeSet('recon.os.fasts',    JSON.stringify(fasts)); }
+function saveWeighins() { safeSet('recon.os.weighins', JSON.stringify(weighins)); }
+function saveMeals()    { safeSet('recon.os.meals',    JSON.stringify(meals)); }
+function saveWorkouts() { safeSet('recon.os.workouts', JSON.stringify(workouts)); }
+
+loadHealth();
+
+function healthId(prefix) { return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6); }
+
+// Returns the most recent fast that hasn't been ended, or null.
+function activeFast() {
+  for (let i = fasts.length - 1; i >= 0; i--) {
+    if (!fasts[i].endTs) return fasts[i];
+  }
+  return null;
+}
+
+// Format ms as HH:MM:SS, or compact "Dd Hh Mm"
+function fmtDuration(ms, compact) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (compact) {
+    if (h >= 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h ' + m + 'm';
+    return h + 'h ' + m + 'm';
+  }
+  const pad = n => String(n).padStart(2, '0');
+  return pad(h) + ':' + pad(m) + ':' + pad(sec);
+}
+function fmtDate(ts)     { return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+function fmtTime(ts)     { return new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+function fmtDateTime(ts) { return fmtDate(ts) + ' · ' + fmtTime(ts); }
+function dayKey(ts)      {
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function openHealthSheet() {
+  haptic('tap');
+  setHealthTab(healthTab);
+  document.getElementById('healthSheet').classList.add('open');
+}
+
+function setHealthTab(tab) {
+  if (!['fast', 'food', 'move'].includes(tab)) tab = 'fast';
+  healthTab = tab;
+  try { localStorage.setItem('recon.os.healthTab', tab); } catch (e) {}
+  document.querySelectorAll('#healthSheet .health-tab').forEach(el => {
+    el.classList.toggle('on', el.getAttribute('data-tab') === tab);
+  });
+  document.querySelectorAll('#healthSheet .health-pane').forEach(el => {
+    el.style.display = (el.getAttribute('data-pane') === tab) ? '' : 'none';
+  });
+  if (tab === 'fast') renderFastTab();
+  else if (tab === 'food') renderFoodTab();
+  else if (tab === 'move') renderMoveTab();
+}
+
+// --- FAST tab ----------------------------------------------------------------
+function renderFastTab() {
+  renderFastStatus();
+  renderFastHistory();
+  renderWeighinHistory();
+  startFastTimerIfRunning();
+}
+
+function renderFastStatus() {
+  const card = document.getElementById('fastStatusCard');
+  if (!card) return;
+  const active = activeFast();
+  if (active) {
+    const elapsed = Date.now() - active.startTs;
+    card.innerHTML =
+      '<div class="health-card-label">FAST IN PROGRESS</div>' +
+      '<div class="fast-timer" id="fastLiveTimer" onclick="openHealthDetail(\'fast\',\'' + active.id + '\')">' + fmtDuration(elapsed) + '</div>' +
+      '<div class="health-card-sub">started ' + fmtDateTime(active.startTs) + (active.startWeight ? ' · ' + active.startWeight + ' lb' : '') + '</div>' +
+      '<div class="health-quickrow">' +
+        '<div class="action-btn small danger" onclick="endFast()">' +
+          '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">END FAST</span></div></div>' +
+        '</div>' +
+      '</div>';
+  } else {
+    card.innerHTML =
+      '<div class="health-card-label">NO FAST ACTIVE</div>' +
+      '<div class="health-card-sub">Tap to begin tracking.</div>' +
+      '<div class="health-quickrow">' +
+        '<div class="action-btn small primary" onclick="startFast()">' +
+          '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">START FAST</span></div></div>' +
+        '</div>' +
+      '</div>';
+  }
+}
+
+function renderFastHistory() {
+  const list = document.getElementById('fastHistory');
+  if (!list) return;
+  const completed = fasts.filter(f => f.endTs).sort((a, b) => b.startTs - a.startTs);
+  if (!completed.length) { list.innerHTML = '<div class="empty-state-mini">No completed fasts yet.</div>'; return; }
+  list.innerHTML = completed.map(f => {
+    const dur = fmtDuration(f.endTs - f.startTs, true);
+    let delta = '';
+    if (f.startWeight != null && f.endWeight != null) {
+      const d = (f.endWeight - f.startWeight).toFixed(1);
+      delta = (d > 0 ? '+' : '') + d + ' lb';
+    }
+    return '<div class="health-row" onclick="openHealthDetail(\'fast\',\'' + f.id + '\')">' +
+      '<div class="health-row-main"><div class="health-row-title">' + fmtDate(f.startTs) + '</div>' +
+      '<div class="health-row-sub">' + dur + (delta ? ' · ' + delta : '') + '</div></div>' +
+      '<div class="health-row-action">→</div></div>';
+  }).join('');
+}
+
+function renderWeighinHistory() {
+  const list = document.getElementById('weighinHistory');
+  if (!list) return;
+  const sorted = [...weighins].sort((a, b) => b.ts - a.ts).slice(0, 30);
+  if (!sorted.length) { list.innerHTML = '<div class="empty-state-mini">No weigh-ins logged.</div>'; return; }
+  list.innerHTML = sorted.map(w => {
+    return '<div class="health-row" onclick="openHealthDetail(\'weighin\',\'' + w.id + '\')">' +
+      '<div class="health-row-main"><div class="health-row-title">' + w.lbs + ' lb</div>' +
+      '<div class="health-row-sub">' + fmtDateTime(w.ts) + '</div></div>' +
+      '<div class="health-row-action">→</div></div>';
+  }).join('');
+}
+
+// Tick the live fast timer once per second while a fast is running and
+// the FAST tab is visible. Stops when no active fast or the user leaves.
+function startFastTimerIfRunning() {
+  if (fastTimerHandle) { clearInterval(fastTimerHandle); fastTimerHandle = null; }
+  if (!activeFast()) return;
+  fastTimerHandle = setInterval(() => {
+    const sheet = document.getElementById('healthSheet');
+    if (!sheet || !sheet.classList.contains('open') || healthTab !== 'fast') {
+      clearInterval(fastTimerHandle); fastTimerHandle = null; return;
+    }
+    const af = activeFast();
+    if (!af) {
+      clearInterval(fastTimerHandle); fastTimerHandle = null; renderFastStatus(); return;
+    }
+    const t = document.getElementById('fastLiveTimer');
+    if (t) t.textContent = fmtDuration(Date.now() - af.startTs);
+  }, 1000);
+}
+
+function startFast() {
+  if (activeFast()) { showToast('FAST ALREADY ACTIVE'); return; }
+  haptic('tap');
+  const startWeight = promptForWeight('Starting weight (lb)? leave blank to skip:');
+  if (startWeight === undefined) return;
+  const f = { id: healthId('FAST'), startTs: Date.now(), endTs: null, startWeight: startWeight, endWeight: null, notes: '' };
+  fasts.push(f);
+  saveFasts();
+  renderFastTab();
+  showToast('FAST STARTED');
+}
+
+function endFast() {
+  const af = activeFast();
+  if (!af) { showToast('NO ACTIVE FAST'); return; }
+  haptic('tap');
+  const endWeight = promptForWeight('Ending weight (lb)? leave blank to skip:');
+  if (endWeight === undefined) return;
+  af.endTs = Date.now();
+  af.endWeight = endWeight;
+  saveFasts();
+  renderFastTab();
+  showToast('FAST ENDED · ' + fmtDuration(af.endTs - af.startTs, true));
+}
+
+// Returns: number, null (skipped), or undefined (cancelled)
+function promptForWeight(message) {
+  const s = window.prompt(message, '');
+  if (s === null) return undefined;
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  const n = parseFloat(trimmed);
+  if (isNaN(n) || n <= 0 || n > 999) { showToast('INVALID WEIGHT'); return undefined; }
+  return n;
+}
+
+function promptWeighIn() {
+  haptic('tap');
+  const lbs = promptForWeight('Current weight (lb):');
+  if (lbs === undefined || lbs === null) return;
+  weighins.push({ id: healthId('WI'), ts: Date.now(), lbs: lbs, notes: '' });
+  saveWeighins();
+  renderWeighinHistory();
+  showToast('WEIGH-IN LOGGED');
+}
+
+// --- FOOD tab ----------------------------------------------------------------
+function renderFoodTab() { renderFoodStatus(); renderFoodHistory(); }
+
+function renderFoodStatus() {
+  const card = document.getElementById('foodStatusCard');
+  if (!card) return;
+  const today = dayKey(Date.now());
+  const todays = meals.filter(m => dayKey(m.ts) === today);
+  const calSum = todays.reduce((s, m) => s + (m.calories || 0), 0);
+  card.innerHTML =
+    '<div class="health-card-label">TODAY</div>' +
+    '<div class="health-card-bignum">' + todays.length + ' meal' + (todays.length === 1 ? '' : 's') + '</div>' +
+    '<div class="health-card-sub">' + (calSum > 0 ? calSum + ' kcal logged' : 'no calories logged') + '</div>' +
+    '<div class="health-quickrow">' +
+      '<div class="action-btn small primary" onclick="promptAddMeal()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ MEAL</span></div></div>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderFoodHistory() {
+  const list = document.getElementById('foodHistory');
+  if (!list) return;
+  if (!meals.length) { list.innerHTML = '<div class="empty-state-mini">No meals logged.</div>'; return; }
+  const byDay = {};
+  meals.forEach(m => { const k = dayKey(m.ts); if (!byDay[k]) byDay[k] = []; byDay[k].push(m); });
+  const days = Object.keys(byDay).sort().reverse();
+  const todayK = dayKey(Date.now());
+  list.innerHTML = days.map(k => {
+    const label = (k === todayK) ? 'TODAY' : fmtDate(new Date(k + 'T00:00:00').getTime()).toUpperCase();
+    const rows = byDay[k].sort((a, b) => b.ts - a.ts).map(m => {
+      const cal = (m.calories != null) ? ' · ' + m.calories + ' kcal' : '';
+      return '<div class="health-row" onclick="openHealthDetail(\'meal\',\'' + m.id + '\')">' +
+        '<div class="health-row-main">' +
+          '<div class="health-row-title">' + (m.name || '(unnamed)') + ' <span class="health-chip">' + m.portion + '</span> <span class="health-chip dim">' + m.tag + '</span></div>' +
+          '<div class="health-row-sub">' + fmtTime(m.ts) + cal + '</div>' +
+        '</div><div class="health-row-action">→</div></div>';
+    }).join('');
+    return '<div class="health-daygroup-head">' + label + '</div>' + rows;
+  }).join('');
+}
+
+function promptAddMeal() {
+  haptic('tap');
+  const name = window.prompt('Meal name:', '');
+  if (name === null || !name.trim()) return;
+  const portion = window.prompt('Portion? S / M / L', 'M');
+  if (portion === null) return;
+  const p = portion.trim().toUpperCase();
+  if (!FOOD_PORTIONS.includes(p)) { showToast('INVALID PORTION'); return; }
+  const tag = window.prompt('Tag? ' + FOOD_TAGS.join(' / '), 'OTHER');
+  if (tag === null) return;
+  const t = tag.trim().toUpperCase();
+  if (!FOOD_TAGS.includes(t)) { showToast('INVALID TAG'); return; }
+  const calsStr = window.prompt('Calories? (optional, leave blank to skip)', '');
+  if (calsStr === null) return;
+  let cals = null;
+  if (calsStr.trim()) {
+    cals = parseInt(calsStr, 10);
+    if (isNaN(cals) || cals < 0) { showToast('INVALID CALORIES'); return; }
+  }
+  meals.push({ id: healthId('MEAL'), ts: Date.now(), name: name.trim(), portion: p, tag: t, calories: cals, notes: '' });
+  saveMeals();
+  renderFoodTab();
+  showToast('MEAL LOGGED');
+}
+
+// --- MOVE tab ----------------------------------------------------------------
+function renderMoveTab() { renderMoveStatus(); renderMoveHistory(); }
+
+function renderMoveStatus() {
+  const card = document.getElementById('moveStatusCard');
+  if (!card) return;
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = workouts.filter(w => w.ts >= cutoff);
+  const totalMin = recent.reduce((s, w) => s + (w.durationMin || 0), 0);
+  card.innerHTML =
+    '<div class="health-card-label">LAST 7 DAYS</div>' +
+    '<div class="health-card-bignum">' + recent.length + ' workout' + (recent.length === 1 ? '' : 's') + '</div>' +
+    '<div class="health-card-sub">' + totalMin + ' min total</div>' +
+    '<div class="health-quickrow">' +
+      '<div class="action-btn small primary" onclick="promptAddWorkout()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ WORKOUT</span></div></div>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderMoveHistory() {
+  const list = document.getElementById('moveHistory');
+  if (!list) return;
+  if (!workouts.length) { list.innerHTML = '<div class="empty-state-mini">No workouts logged.</div>'; return; }
+  const sorted = [...workouts].sort((a, b) => b.ts - a.ts);
+  list.innerHTML = sorted.map(w => {
+    const intensity = w.intensity ? ' · ' + w.intensity : '';
+    const dist = w.distanceMi != null ? ' · ' + w.distanceMi + ' mi' : '';
+    const setSum = (w.sets && w.sets.length) ? ' · ' + w.sets.length + ' sets' : '';
+    return '<div class="health-row" onclick="openHealthDetail(\'workout\',\'' + w.id + '\')">' +
+      '<div class="health-row-main">' +
+        '<div class="health-row-title">' + w.type + ' <span class="health-chip dim">' + w.durationMin + 'm</span></div>' +
+        '<div class="health-row-sub">' + fmtDateTime(w.ts) + intensity + dist + setSum + '</div>' +
+      '</div><div class="health-row-action">→</div></div>';
+  }).join('');
+}
+
+function promptAddWorkout() {
+  haptic('tap');
+  const type = window.prompt('Type? ' + MOVE_TYPES.join(' / '), 'LIFT');
+  if (type === null) return;
+  const tp = type.trim().toUpperCase();
+  if (!MOVE_TYPES.includes(tp)) { showToast('INVALID TYPE'); return; }
+  const durStr = window.prompt('Duration (minutes):', '');
+  if (durStr === null) return;
+  const dur = parseInt(durStr, 10);
+  if (isNaN(dur) || dur <= 0) { showToast('INVALID DURATION'); return; }
+  const intensity = window.prompt('Intensity? ' + MOVE_INTENSITIES.join(' / ') + ' (optional)', '');
+  if (intensity === null) return;
+  let it = intensity.trim().toUpperCase();
+  if (it && !MOVE_INTENSITIES.includes(it)) { showToast('INVALID INTENSITY'); return; }
+  if (!it) it = null;
+  let distance = null;
+  if (tp === 'RUN' || tp === 'WALK') {
+    const dStr = window.prompt('Distance (mi)? (optional)', '');
+    if (dStr === null) return;
+    if (dStr.trim()) {
+      distance = parseFloat(dStr);
+      if (isNaN(distance) || distance < 0) { showToast('INVALID DISTANCE'); return; }
+    }
+  }
+  let sets = null;
+  if (tp === 'LIFT') {
+    if (window.confirm('Add sets/reps/weight detail?')) {
+      sets = [];
+      while (true) {
+        const ex = window.prompt('Exercise name (or cancel to finish):', '');
+        if (ex === null || !ex.trim()) break;
+        const repsStr = window.prompt('Reps?', '');
+        if (repsStr === null) break;
+        const reps = parseInt(repsStr, 10);
+        if (isNaN(reps) || reps <= 0) { showToast('INVALID REPS'); continue; }
+        const wtStr = window.prompt('Weight (lb)? (optional)', '');
+        if (wtStr === null) break;
+        let wt = null;
+        if (wtStr.trim()) {
+          wt = parseFloat(wtStr);
+          if (isNaN(wt) || wt < 0) { showToast('INVALID WEIGHT'); continue; }
+        }
+        sets.push({ exercise: ex.trim(), reps: reps, weight: wt });
+      }
+      if (!sets.length) sets = null;
+    }
+  }
+  const notes = window.prompt('Notes? (optional)', '');
+  if (notes === null) return;
+  workouts.push({ id: healthId('WO'), ts: Date.now(), type: tp, durationMin: dur, intensity: it, distanceMi: distance, sets: sets, notes: notes.trim() });
+  saveWorkouts();
+  renderMoveTab();
+  showToast('WORKOUT LOGGED');
+}
+
+// --- Detail drawer -----------------------------------------------------------
+function openHealthDetail(kind, id) {
+  haptic('tap');
+  const body = document.getElementById('healthDetailBody');
+  const title = document.getElementById('healthDetailTitle');
+  if (!body || !title) return;
+  let rec = null;
+  if (kind === 'fast')         rec = fasts.find(f => f.id === id);
+  else if (kind === 'weighin') rec = weighins.find(w => w.id === id);
+  else if (kind === 'meal')    rec = meals.find(m => m.id === id);
+  else if (kind === 'workout') rec = workouts.find(w => w.id === id);
+  if (!rec) { showToast('NOT FOUND'); return; }
+  healthDetail = { kind, id };
+  title.textContent = kind.toUpperCase();
+  body.innerHTML = renderHealthDetailBody(kind, rec);
+  document.getElementById('healthDetailSheet').classList.add('open');
+}
+
+function renderHealthDetailBody(kind, rec) {
+  if (kind === 'fast') {
+    const dur = rec.endTs ? fmtDuration(rec.endTs - rec.startTs, true) : fmtDuration(Date.now() - rec.startTs, true) + ' (active)';
+    return '<div class="detail-field"><div class="detail-label">START</div><div class="detail-value">' + fmtDateTime(rec.startTs) + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">END</div><div class="detail-value">' + (rec.endTs ? fmtDateTime(rec.endTs) : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">DURATION</div><div class="detail-value">' + dur + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">WEIGHT START</div><div class="detail-value">' + (rec.startWeight != null ? rec.startWeight + ' lb' : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">WEIGHT END</div><div class="detail-value">' + (rec.endWeight != null ? rec.endWeight + ' lb' : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
+      '<div class="health-quickrow">' +
+        '<div class="action-btn small" onclick="editFastNotes()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">EDIT NOTES</span></div></div></div>' +
+        '<div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div>' +
+      '</div>';
+  }
+  if (kind === 'weighin') {
+    return '<div class="detail-field"><div class="detail-label">WEIGHT</div><div class="detail-value">' + rec.lbs + ' lb</div></div>' +
+      '<div class="detail-field"><div class="detail-label">WHEN</div><div class="detail-value">' + fmtDateTime(rec.ts) + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
+      '<div class="health-quickrow"><div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div></div>';
+  }
+  if (kind === 'meal') {
+    return '<div class="detail-field"><div class="detail-label">NAME</div><div class="detail-value">' + (rec.name || '(unnamed)') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">WHEN</div><div class="detail-value">' + fmtDateTime(rec.ts) + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">PORTION</div><div class="detail-value">' + rec.portion + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">TAG</div><div class="detail-value">' + rec.tag + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">CALORIES</div><div class="detail-value">' + (rec.calories != null ? rec.calories + ' kcal' : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
+      '<div class="health-quickrow"><div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div></div>';
+  }
+  if (kind === 'workout') {
+    let setsHTML = '—';
+    if (rec.sets && rec.sets.length) {
+      setsHTML = rec.sets.map(s => s.exercise + ' · ' + s.reps + ' reps' + (s.weight != null ? ' @ ' + s.weight + ' lb' : '')).join('<br>');
+    }
+    return '<div class="detail-field"><div class="detail-label">TYPE</div><div class="detail-value">' + rec.type + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">WHEN</div><div class="detail-value">' + fmtDateTime(rec.ts) + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">DURATION</div><div class="detail-value">' + rec.durationMin + ' min</div></div>' +
+      '<div class="detail-field"><div class="detail-label">INTENSITY</div><div class="detail-value">' + (rec.intensity || '—') + '</div></div>' +
+      (rec.distanceMi != null ? '<div class="detail-field"><div class="detail-label">DISTANCE</div><div class="detail-value">' + rec.distanceMi + ' mi</div></div>' : '') +
+      '<div class="detail-field"><div class="detail-label">SETS</div><div class="detail-value">' + setsHTML + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
+      '<div class="health-quickrow"><div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div></div>';
+  }
+  return '';
+}
+
+function closeHealthDetail() {
+  document.getElementById('healthDetailSheet').classList.remove('open');
+  healthDetail = null;
+}
+
+function editFastNotes() {
+  if (!healthDetail || healthDetail.kind !== 'fast') return;
+  const rec = fasts.find(f => f.id === healthDetail.id);
+  if (!rec) return;
+  const newNotes = window.prompt('Notes:', rec.notes || '');
+  if (newNotes === null) return;
+  rec.notes = newNotes.trim();
+  saveFasts();
+  openHealthDetail('fast', rec.id);
+}
+
+function deleteHealthRecord() {
+  if (!healthDetail) return;
+  if (!window.confirm('Delete this record?')) return;
+  const { kind, id } = healthDetail;
+  if (kind === 'fast') { fasts = fasts.filter(f => f.id !== id); saveFasts(); }
+  else if (kind === 'weighin') { weighins = weighins.filter(w => w.id !== id); saveWeighins(); }
+  else if (kind === 'meal') { meals = meals.filter(m => m.id !== id); saveMeals(); }
+  else if (kind === 'workout') { workouts = workouts.filter(w => w.id !== id); saveWorkouts(); }
+  closeHealthDetail();
+  setHealthTab(healthTab);
+  showToast('DELETED');
+}
+
