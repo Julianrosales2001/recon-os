@@ -4774,8 +4774,11 @@ setInterval(updateIndicatorStrip, 5000);
 // tabs. No cross-references with POIs, missions, or any other system.
 // =============================================================================
 
-let fasts = [];      // [{ id, startTs, endTs|null, startWeight|null, endWeight|null, notes }]
-let weighins = [];   // [{ id, ts, lbs, notes }]
+let fasts = [];      // [{ id, dayNum, startTs, endTs, hours, notes }]
+                     // Note: weights are NOT stored on fasts — they live in
+                     // weighins independently (Option B). dayNum is the user's
+                     // own sequence number ("Day 1", "Day 2") that started Mar 17 2026.
+let weighins = [];   // [{ id, ts, lbs, condition: 'FASTED'|'FED'|null, notes }]
 let meals = [];      // [{ id, ts, name, portion: 'S'|'M'|'L', tag, calories|null, notes }]
 let workouts = [];   // [{ id, ts, type, durationMin, intensity|null, distanceMi|null, sets|null, notes }]
 let healthTab = 'fast';
@@ -4800,6 +4803,134 @@ function saveMeals()    { safeSet('recon.os.meals',    JSON.stringify(meals)); }
 function saveWorkouts() { safeSet('recon.os.workouts', JSON.stringify(workouts)); }
 
 loadHealth();
+seedHealthData();
+
+// =============================================================================
+// One-time seed import of user's existing fast history (Mar 17 2026 - May 27 2026).
+// Runs once per device — gates on recon.os.healthSeeded so it doesn't re-import
+// if the user later deletes records. To force re-seed: remove that flag and
+// reload. Times are interpreted as America/Chicago (user's home tz).
+// =============================================================================
+function seedHealthData() {
+  try {
+    if (localStorage.getItem('recon.os.healthSeeded') === '1') return;
+  } catch (e) { /* if storage is busted, skip seeding */ return; }
+
+  // Helper — builds a JS timestamp for a date/time pair interpreted in Houston's
+  // current UTC offset. Houston is UTC-5 (CDT) for all March-May 2026 entries
+  // because DST began Mar 8 2026 (well before our earliest data point).
+  // ISO format: YYYY-MM-DDTHH:MM:00-05:00
+  const TZ = '-05:00';
+  const ts = (dateStr, timeStr) => new Date(dateStr + 'T' + timeStr + ':00' + TZ).getTime();
+
+  // Each fast: [dayNum, startDate, startTime, endDate, endTime, hoursStated]
+  // Times are 24h, dates are YYYY-MM-DD. hoursStated matches the user's notes
+  // exactly (which round to half-hours) and is what gets displayed; we still
+  // compute real duration from start/end for the timer math.
+  const FASTS = [
+    [1,  '2026-03-17', '23:00', '2026-03-18', '22:00', 23],
+    [2,  '2026-03-19', '22:00', '2026-03-21', '02:00', 28],
+    [3,  '2026-03-21', '21:00', '2026-03-22', '20:00', 23],
+    [4,  '2026-03-23', '21:00', '2026-03-24', '17:00', 20],
+    [5,  '2026-03-25', '21:00', '2026-03-26', '17:00', 20],
+    [6,  '2026-03-28', '21:00', '2026-03-29', '19:00', 22],
+    [7,  '2026-03-29', '21:00', '2026-03-30', '20:00', 23],
+    [8,  '2026-03-31', '21:00', '2026-04-01', '18:00', 21],
+    [9,  '2026-04-02', '21:00', '2026-04-03', '16:00', 19],
+    [10, '2026-04-05', '19:00', '2026-04-06', '19:00', 24],
+    [11, '2026-04-07', '18:30', '2026-04-08', '19:00', 24.5],
+    [12, '2026-04-09', '19:45', '2026-04-10', '19:45', 24],
+    [13, '2026-04-12', '22:00', '2026-04-13', '22:30', 24.5],
+    [14, '2026-04-14', '21:00', '2026-04-15', '18:00', 21],
+    [15, '2026-04-16', '21:30', '2026-04-17', '20:00', 23.5],
+    [16, '2026-04-19', '23:30', '2026-04-21', '12:00', 36.5],
+    [17, '2026-04-21', '22:00', '2026-04-22', '20:00', 22],
+    [18, '2026-04-23', '22:30', '2026-04-24', '21:00', 22.5],
+    [19, '2026-04-26', '22:00', '2026-04-27', '15:30', 18.5],
+    [20, '2026-04-28', '19:00', '2026-04-29', '19:00', 24],
+    [21, '2026-04-30', '19:30', '2026-05-01', '19:30', 24],
+    [22, '2026-05-03', '21:30', '2026-05-04', '15:30', 18],
+    [23, '2026-05-05', '15:00', '2026-05-06', '15:00', 24],
+    [24, '2026-05-07', '15:00', '2026-05-08', '15:30', 24.5],
+    [25, '2026-05-10', '22:00', '2026-05-11', '18:00', 20],
+    [26, '2026-05-12', '19:00', '2026-05-13', '16:00', 21],
+    [27, '2026-05-14', '17:45', '2026-05-15', '13:00', 19.25],
+    [28, '2026-05-17', '21:00', '2026-05-18', '15:00', 18],
+    [29, '2026-05-19', '18:00', '2026-05-20', '15:00', 21],
+    [30, '2026-05-21', '16:30', '2026-05-22', '16:30', 24],
+    [31, '2026-05-24', '20:30', '2026-05-25', '17:30', 21],
+    [32, '2026-05-26', '18:30', '2026-05-27', '15:30', 21],
+  ];
+
+  fasts = FASTS.map(([n, sd, st, ed, et, hrs]) => ({
+    id: 'FAST-SEED-' + n,
+    dayNum: n,
+    startTs: ts(sd, st),
+    endTs:   ts(ed, et),
+    hours:   hrs,
+    notes:   '',
+  }));
+
+  // Weigh-in milestones. Approximate start dropped at Mar 17 (start of day 1).
+  // The narrative paragraph from the user's notes attaches to the May 14
+  // weigh-in (the most recent point before it was written).
+  weighins = [
+    {
+      id: 'WI-SEED-1',
+      ts: ts('2026-03-17', '20:00'),
+      lbs: 235,
+      condition: null,
+      notes: 'Approximate start, range 230-240',
+    },
+    {
+      id: 'WI-SEED-2',
+      ts: ts('2026-04-01', '18:00'),
+      lbs: 222,
+      condition: null,
+      notes: 'After day 8',
+    },
+    {
+      id: 'WI-SEED-3',
+      ts: ts('2026-04-06', '16:00'),
+      lbs: 220,
+      condition: 'FASTED',
+      notes: 'During 21hr fast (day 10)',
+    },
+    {
+      id: 'WI-SEED-4',
+      ts: ts('2026-04-15', '18:00'),
+      lbs: 219,
+      condition: null,
+      notes: 'After day 14',
+    },
+    {
+      id: 'WI-SEED-5',
+      ts: ts('2026-04-24', '21:00'),
+      lbs: 215,
+      condition: null,
+      notes: 'New low — after day 18',
+    },
+    {
+      id: 'WI-SEED-6',
+      ts: ts('2026-05-15', '13:00'),
+      lbs: 215,
+      condition: null,
+      notes: 'Since April 18, consistently hovering 220-222 even on feast days. ' +
+             'Past 3-4 days consistently under 220, usually 218-219. Hit 215 again today. Great progress.',
+    },
+    {
+      id: 'WI-SEED-7',
+      ts: ts('2026-05-22', '16:30'),
+      lbs: 213,
+      condition: null,
+      notes: 'After day 30',
+    },
+  ];
+
+  saveFasts();
+  saveWeighins();
+  try { localStorage.setItem('recon.os.healthSeeded', '1'); } catch (e) {}
+}
 
 function healthId(prefix) { return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6); }
 
@@ -4865,20 +4996,36 @@ function renderFastStatus() {
   const card = document.getElementById('fastStatusCard');
   if (!card) return;
   const active = activeFast();
+  // Summary band — visible whether a fast is active or not, gives at-a-glance
+  // progress without needing to scroll the history list.
+  const completed = fasts.filter(f => f.endTs);
+  const totalCount = completed.length;
+  const avgHours = totalCount > 0
+    ? (completed.reduce((s, f) => s + (f.hours || 0), 0) / totalCount).toFixed(1)
+    : '0';
+  const summary =
+    '<div class="health-stat-band">' +
+      '<div class="health-stat"><span class="n">' + totalCount + '</span><span class="lbl">FASTS</span></div>' +
+      '<div class="health-stat"><span class="n">' + avgHours + 'h</span><span class="lbl">AVG</span></div>' +
+    '</div>';
+
   if (active) {
     const elapsed = Date.now() - active.startTs;
     card.innerHTML =
-      '<div class="health-card-label">FAST IN PROGRESS</div>' +
+      summary +
+      '<div class="health-card-label">DAY ' + active.dayNum + ' · IN PROGRESS</div>' +
       '<div class="fast-timer" id="fastLiveTimer" onclick="openHealthDetail(\'fast\',\'' + active.id + '\')">' + fmtDuration(elapsed) + '</div>' +
-      '<div class="health-card-sub">started ' + fmtDateTime(active.startTs) + (active.startWeight ? ' · ' + active.startWeight + ' lb' : '') + '</div>' +
+      '<div class="health-card-sub">started ' + fmtDateTime(active.startTs) + '</div>' +
       '<div class="health-quickrow">' +
         '<div class="action-btn small danger" onclick="endFast()">' +
           '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">END FAST</span></div></div>' +
         '</div>' +
       '</div>';
   } else {
+    const nextDay = (fasts.reduce((m, f) => Math.max(m, f.dayNum || 0), 0)) + 1;
     card.innerHTML =
-      '<div class="health-card-label">NO FAST ACTIVE</div>' +
+      summary +
+      '<div class="health-card-label">READY FOR DAY ' + nextDay + '</div>' +
       '<div class="health-card-sub">Tap to begin tracking.</div>' +
       '<div class="health-quickrow">' +
         '<div class="action-btn small primary" onclick="startFast()">' +
@@ -4894,15 +5041,13 @@ function renderFastHistory() {
   const completed = fasts.filter(f => f.endTs).sort((a, b) => b.startTs - a.startTs);
   if (!completed.length) { list.innerHTML = '<div class="empty-state-mini">No completed fasts yet.</div>'; return; }
   list.innerHTML = completed.map(f => {
-    const dur = fmtDuration(f.endTs - f.startTs, true);
-    let delta = '';
-    if (f.startWeight != null && f.endWeight != null) {
-      const d = (f.endWeight - f.startWeight).toFixed(1);
-      delta = (d > 0 ? '+' : '') + d + ' lb';
-    }
+    const dayLabel = f.dayNum ? 'DAY ' + f.dayNum : '—';
+    const hoursLabel = (f.hours != null) ? f.hours + 'h' : fmtDuration(f.endTs - f.startTs, true);
     return '<div class="health-row" onclick="openHealthDetail(\'fast\',\'' + f.id + '\')">' +
-      '<div class="health-row-main"><div class="health-row-title">' + fmtDate(f.startTs) + '</div>' +
-      '<div class="health-row-sub">' + dur + (delta ? ' · ' + delta : '') + '</div></div>' +
+      '<div class="health-row-main">' +
+        '<div class="health-row-title">' + dayLabel + ' <span class="health-chip dim">' + hoursLabel + '</span></div>' +
+        '<div class="health-row-sub">' + fmtDate(f.startTs) + ' ' + fmtTime(f.startTs) + ' → ' + fmtDate(f.endTs) + ' ' + fmtTime(f.endTs) + '</div>' +
+      '</div>' +
       '<div class="health-row-action">→</div></div>';
   }).join('');
 }
@@ -4910,14 +5055,28 @@ function renderFastHistory() {
 function renderWeighinHistory() {
   const list = document.getElementById('weighinHistory');
   if (!list) return;
-  const sorted = [...weighins].sort((a, b) => b.ts - a.ts).slice(0, 30);
+  const sorted = [...weighins].sort((a, b) => b.ts - a.ts);
   if (!sorted.length) { list.innerHTML = '<div class="empty-state-mini">No weigh-ins logged.</div>'; return; }
-  list.innerHTML = sorted.map(w => {
+  // Summary: current (most recent), lowest, total lost (first → most recent)
+  const current = sorted[0].lbs;
+  const lowest = Math.min(...sorted.map(w => w.lbs));
+  // "Start" = earliest weigh-in chronologically (last in sorted-newest-first array)
+  const start = sorted[sorted.length - 1].lbs;
+  const lost = (start - current).toFixed(1);
+  const summary =
+    '<div class="health-stat-band weigh">' +
+      '<div class="health-stat"><span class="n">' + current + '</span><span class="lbl">CURRENT</span></div>' +
+      '<div class="health-stat"><span class="n">' + lowest + '</span><span class="lbl">LOWEST</span></div>' +
+      '<div class="health-stat"><span class="n">' + (lost > 0 ? '−' : '+') + Math.abs(lost) + '</span><span class="lbl">LOST</span></div>' +
+    '</div>';
+  const rows = sorted.slice(0, 50).map(w => {
+    const condChip = w.condition ? '<span class="health-chip">' + w.condition + '</span>' : '';
     return '<div class="health-row" onclick="openHealthDetail(\'weighin\',\'' + w.id + '\')">' +
-      '<div class="health-row-main"><div class="health-row-title">' + w.lbs + ' lb</div>' +
+      '<div class="health-row-main"><div class="health-row-title">' + w.lbs + ' lb ' + condChip + '</div>' +
       '<div class="health-row-sub">' + fmtDateTime(w.ts) + '</div></div>' +
       '<div class="health-row-action">→</div></div>';
   }).join('');
+  list.innerHTML = summary + rows;
 }
 
 // Tick the live fast timer once per second while a fast is running and
@@ -4942,26 +5101,33 @@ function startFastTimerIfRunning() {
 function startFast() {
   if (activeFast()) { showToast('FAST ALREADY ACTIVE'); return; }
   haptic('tap');
-  const startWeight = promptForWeight('Starting weight (lb)? leave blank to skip:');
-  if (startWeight === undefined) return;
-  const f = { id: healthId('FAST'), startTs: Date.now(), endTs: null, startWeight: startWeight, endWeight: null, notes: '' };
+  // Auto-assign the next day number based on the highest existing dayNum.
+  // Weights are tracked separately via weigh-ins, not on the fast itself.
+  const maxDay = fasts.reduce((m, f) => Math.max(m, f.dayNum || 0), 0);
+  const f = {
+    id: healthId('FAST'),
+    dayNum: maxDay + 1,
+    startTs: Date.now(),
+    endTs: null,
+    hours: null,        // computed on end
+    notes: '',
+  };
   fasts.push(f);
   saveFasts();
   renderFastTab();
-  showToast('FAST STARTED');
+  showToast('FAST STARTED · DAY ' + f.dayNum);
 }
 
 function endFast() {
   const af = activeFast();
   if (!af) { showToast('NO ACTIVE FAST'); return; }
   haptic('tap');
-  const endWeight = promptForWeight('Ending weight (lb)? leave blank to skip:');
-  if (endWeight === undefined) return;
   af.endTs = Date.now();
-  af.endWeight = endWeight;
+  // Round to nearest quarter-hour for display consistency with the seeded data.
+  af.hours = Math.round((af.endTs - af.startTs) / (1000 * 60 * 15)) / 4;
   saveFasts();
   renderFastTab();
-  showToast('FAST ENDED · ' + fmtDuration(af.endTs - af.startTs, true));
+  showToast('FAST ENDED · ' + af.hours + 'h');
 }
 
 // Returns: number, null (skipped), or undefined (cancelled)
@@ -4979,7 +5145,16 @@ function promptWeighIn() {
   haptic('tap');
   const lbs = promptForWeight('Current weight (lb):');
   if (lbs === undefined || lbs === null) return;
-  weighins.push({ id: healthId('WI'), ts: Date.now(), lbs: lbs, notes: '' });
+  // Condition is optional — captures whether the reading was fasted or fed,
+  // which matters because body weight fluctuates 3-6 lb across the day.
+  const cond = window.prompt('Condition? FASTED / FED  (blank to skip)', '');
+  if (cond === null) return;
+  let c = cond.trim().toUpperCase();
+  if (c && c !== 'FASTED' && c !== 'FED') { showToast('USE FASTED OR FED'); return; }
+  if (!c) c = null;
+  const notes = window.prompt('Notes? (optional)', '');
+  if (notes === null) return;
+  weighins.push({ id: healthId('WI'), ts: Date.now(), lbs: lbs, condition: c, notes: notes.trim() });
   saveWeighins();
   renderWeighinHistory();
   showToast('WEIGH-IN LOGGED');
@@ -5165,11 +5340,12 @@ function openHealthDetail(kind, id) {
 function renderHealthDetailBody(kind, rec) {
   if (kind === 'fast') {
     const dur = rec.endTs ? fmtDuration(rec.endTs - rec.startTs, true) : fmtDuration(Date.now() - rec.startTs, true) + ' (active)';
-    return '<div class="detail-field"><div class="detail-label">START</div><div class="detail-value">' + fmtDateTime(rec.startTs) + '</div></div>' +
+    const hoursLabel = (rec.hours != null) ? rec.hours + ' h' : '—';
+    return '<div class="detail-field"><div class="detail-label">DAY</div><div class="detail-value">' + (rec.dayNum != null ? rec.dayNum : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">START</div><div class="detail-value">' + fmtDateTime(rec.startTs) + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">END</div><div class="detail-value">' + (rec.endTs ? fmtDateTime(rec.endTs) : '—') + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">DURATION</div><div class="detail-value">' + dur + '</div></div>' +
-      '<div class="detail-field"><div class="detail-label">WEIGHT START</div><div class="detail-value">' + (rec.startWeight != null ? rec.startWeight + ' lb' : '—') + '</div></div>' +
-      '<div class="detail-field"><div class="detail-label">WEIGHT END</div><div class="detail-value">' + (rec.endWeight != null ? rec.endWeight + ' lb' : '—') + '</div></div>' +
+      '<div class="detail-field"><div class="detail-label">HOURS</div><div class="detail-value">' + hoursLabel + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
       '<div class="health-quickrow">' +
         '<div class="action-btn small" onclick="editFastNotes()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">EDIT NOTES</span></div></div></div>' +
@@ -5178,6 +5354,7 @@ function renderHealthDetailBody(kind, rec) {
   }
   if (kind === 'weighin') {
     return '<div class="detail-field"><div class="detail-label">WEIGHT</div><div class="detail-value">' + rec.lbs + ' lb</div></div>' +
+      '<div class="detail-field"><div class="detail-label">CONDITION</div><div class="detail-value">' + (rec.condition || '—') + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">WHEN</div><div class="detail-value">' + fmtDateTime(rec.ts) + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
       '<div class="health-quickrow"><div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div></div>';

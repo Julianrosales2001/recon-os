@@ -4464,3 +4464,43 @@
     word-break: break-word;
   }
 
+
+  /* Stat band — compact horizontal row of headline numbers, shown at the
+     top of the FAST status card and above the weigh-in list. */
+  .health-stat-band {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #050a14;
+    border: 1px solid #1a2530;
+    border-radius: 4px;
+  }
+  .health-stat-band.weigh {
+    grid-template-columns: 1fr 1fr 1fr;
+    margin-bottom: 6px;
+  }
+  .health-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .health-stat .n {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #d4f8ff;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+    font-variant-numeric: tabular-nums;
+  }
+  .health-stat .lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: #6a8098;
+    font-weight: 700;
+  }
+
