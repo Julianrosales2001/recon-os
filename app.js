@@ -5031,6 +5031,9 @@ function renderFastStatus() {
         '<div class="action-btn small primary" onclick="startFast()">' +
           '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">START FAST</span></div></div>' +
         '</div>' +
+        '<div class="action-btn small" onclick="logManualFast()">' +
+          '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ MANUAL</span></div></div>' +
+        '</div>' +
       '</div>';
   }
 }
@@ -5128,6 +5131,113 @@ function endFast() {
   saveFasts();
   renderFastTab();
   showToast('FAST ENDED · ' + af.hours + 'h');
+}
+
+// Manual backfill — for when the user forgot to hit START FAST or END FAST
+// in the moment. Walks through start datetime then end datetime via two
+// permissive prompts. Produces a completed fast record with auto-assigned
+// day number, slotted into history in chronological order on next render.
+function logManualFast() {
+  haptic('tap');
+
+  // Suggest yesterday evening as a sensible default (matches typical fast pattern).
+  const yesterdayEvening = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  yesterdayEvening.setHours(21, 0, 0, 0);
+  const defaultStart = formatLocalDateTime(yesterdayEvening);
+
+  const startStr = window.prompt(
+    'Start (when did the fast begin?)\n\nFormat: YYYY-MM-DD HH:MM (24h)\nor MM/DD HH:MM (current year)',
+    defaultStart
+  );
+  if (startStr === null || !startStr.trim()) return;
+  const startTs = parseLocalDateTime(startStr.trim());
+  if (startTs == null) { showToast('INVALID START DATE/TIME'); return; }
+
+  // Default end = start + 20 hours, a typical fast length for the user.
+  const defaultEnd = formatLocalDateTime(new Date(startTs + 20 * 60 * 60 * 1000));
+
+  const endStr = window.prompt(
+    'End (when did the fast end?)\n\nFormat: YYYY-MM-DD HH:MM (24h)\nor MM/DD HH:MM (current year)',
+    defaultEnd
+  );
+  if (endStr === null || !endStr.trim()) return;
+  const endTs = parseLocalDateTime(endStr.trim());
+  if (endTs == null) { showToast('INVALID END DATE/TIME'); return; }
+
+  // Sanity checks
+  if (endTs <= startTs) { showToast('END MUST BE AFTER START'); return; }
+  const durMs = endTs - startTs;
+  if (durMs > 7 * 24 * 60 * 60 * 1000) {
+    if (!window.confirm('Duration is over 7 days. Are you sure?')) return;
+  }
+  if (activeFast()) { showToast('END THE ACTIVE FAST FIRST'); return; }
+
+  // Optional notes
+  const notes = window.prompt('Notes? (optional)', '');
+  if (notes === null) return;
+
+  // Auto-number using the highest existing dayNum, regardless of whether this
+  // fast slots into the middle of history chronologically. Day numbers are a
+  // log of "fasts I've recorded", not strictly chronological.
+  const maxDay = fasts.reduce((m, f) => Math.max(m, f.dayNum || 0), 0);
+  const f = {
+    id: healthId('FAST'),
+    dayNum: maxDay + 1,
+    startTs: startTs,
+    endTs: endTs,
+    hours: Math.round(durMs / (1000 * 60 * 15)) / 4,
+    notes: notes.trim(),
+  };
+  fasts.push(f);
+  saveFasts();
+  renderFastTab();
+  showToast('FAST LOGGED · DAY ' + f.dayNum + ' · ' + f.hours + 'h');
+}
+
+// Parse a user-typed date/time string in the device's local timezone.
+// Accepts (forgiving):
+//   YYYY-MM-DD HH:MM       2026-05-28 21:30
+//   YYYY-MM-DD HH:MM:SS    2026-05-28 21:30:00
+//   YYYY/MM/DD HH:MM       2026/05/28 21:30
+//   MM-DD HH:MM            05-28 21:30      (uses current year)
+//   MM/DD HH:MM            5/28 21:30       (uses current year)
+//   With T separator too:  2026-05-28T21:30
+// Returns timestamp in ms, or null if unparseable. Always interprets as
+// LOCAL time (not UTC) — what the user typed is what they meant.
+function parseLocalDateTime(s) {
+  if (!s) return null;
+  // Normalize separators: T → space, / → -, collapse multiple spaces
+  const norm = s.replace(/T/g, ' ').replace(/\//g, '-').replace(/\s+/g, ' ').trim();
+  // Patterns: capture year (optional), month, day, hour, minute, second (optional)
+  // Year-first: YYYY-MM-DD HH:MM[:SS]
+  let m = norm.match(/^(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) {
+    return buildLocalTs(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6] || 0));
+  }
+  // Month-first (current year): MM-DD HH:MM[:SS]
+  m = norm.match(/^(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) {
+    const year = new Date().getFullYear();
+    return buildLocalTs(year, +m[1], +m[2], +m[3], +m[4], +(m[5] || 0));
+  }
+  return null;
+}
+
+function buildLocalTs(y, mo, d, h, mi, s) {
+  // Basic range checks. Lets the Date constructor catch the rest (e.g. Feb 30).
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59) return null;
+  const dt = new Date(y, mo - 1, d, h, mi, s || 0, 0);
+  // Date will silently normalize out-of-range (Feb 30 → Mar 2). Reject if normalized.
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return dt.getTime();
+}
+
+// Format a Date as "YYYY-MM-DD HH:MM" in the device's local timezone.
+// Used to populate manual-entry default values.
+function formatLocalDateTime(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
 // Returns: number, null (skipped), or undefined (cancelled)
