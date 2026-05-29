@@ -5020,6 +5020,11 @@ function renderFastStatus() {
         '<div class="action-btn small danger" onclick="endFast()">' +
           '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">END FAST</span></div></div>' +
         '</div>' +
+        // Edit start time directly from the live card — avoids forcing the user
+        // to drill into the detail drawer just to fix a forgotten start time.
+        '<div class="action-btn small" onclick="editActiveFastStart()">' +
+          '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">EDIT START</span></div></div>' +
+        '</div>' +
       '</div>';
   } else {
     const nextDay = (fasts.reduce((m, f) => Math.max(m, f.dayNum || 0), 0)) + 1;
@@ -5499,6 +5504,27 @@ function renderHealthDetailBody(kind, rec) {
 function closeHealthDetail() {
   document.getElementById('healthDetailSheet').classList.remove('open');
   healthDetail = null;
+}
+
+// One-prompt edit of just the active fast's start time, surfaced as a
+// button on the live status card. Distinct from editFastTimes (which lives
+// in the detail drawer and handles both start and end for completed fasts).
+function editActiveFastStart() {
+  const af = activeFast();
+  if (!af) { showToast('NO ACTIVE FAST'); return; }
+  haptic('tap');
+  const startStr = window.prompt(
+    'When did this fast actually start?\n\nFormat: YYYY-MM-DD HH:MM (24h)\nor MM/DD HH:MM (current year)',
+    formatLocalDateTime(new Date(af.startTs))
+  );
+  if (startStr === null || !startStr.trim()) return;
+  const newStart = parseLocalDateTime(startStr.trim());
+  if (newStart == null) { showToast('INVALID DATE/TIME'); return; }
+  if (newStart > Date.now()) { showToast('START CAN\'T BE IN THE FUTURE'); return; }
+  af.startTs = newStart;
+  saveFasts();
+  renderFastTab();  // live timer re-anchors on next tick
+  showToast('START UPDATED');
 }
 
 function editFastNotes() {
