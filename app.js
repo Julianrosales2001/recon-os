@@ -5458,6 +5458,7 @@ function renderHealthDetailBody(kind, rec) {
       '<div class="detail-field"><div class="detail-label">HOURS</div><div class="detail-value">' + hoursLabel + '</div></div>' +
       '<div class="detail-field"><div class="detail-label">NOTES</div><div class="detail-value">' + (rec.notes || '—') + '</div></div>' +
       '<div class="health-quickrow">' +
+        '<div class="action-btn small" onclick="editFastTimes()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">EDIT TIMES</span></div></div></div>' +
         '<div class="action-btn small" onclick="editFastNotes()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">EDIT NOTES</span></div></div></div>' +
         '<div class="action-btn small danger" onclick="deleteHealthRecord()"><div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DELETE</span></div></div></div>' +
       '</div>';
@@ -5509,6 +5510,57 @@ function editFastNotes() {
   rec.notes = newNotes.trim();
   saveFasts();
   openHealthDetail('fast', rec.id);
+}
+
+// Edit start (and end, if completed) of an existing fast. Same prompt
+// pattern as logManualFast — defaults pre-fill with the record's current
+// values so a small correction is just adjusting one number.
+// For active fasts (no endTs), only start can be changed; the live timer
+// will re-anchor to the new start automatically on next tick.
+function editFastTimes() {
+  if (!healthDetail || healthDetail.kind !== 'fast') return;
+  const rec = fasts.find(f => f.id === healthDetail.id);
+  if (!rec) return;
+  haptic('tap');
+
+  const startStr = window.prompt(
+    'Start (edit):\n\nFormat: YYYY-MM-DD HH:MM (24h)\nor MM/DD HH:MM (current year)',
+    formatLocalDateTime(new Date(rec.startTs))
+  );
+  if (startStr === null || !startStr.trim()) return;
+  const newStart = parseLocalDateTime(startStr.trim());
+  if (newStart == null) { showToast('INVALID START'); return; }
+
+  let newEnd = rec.endTs;
+  if (rec.endTs) {
+    // Completed fast — also prompt for end.
+    const endStr = window.prompt(
+      'End (edit):\n\nFormat: YYYY-MM-DD HH:MM (24h)\nor MM/DD HH:MM (current year)',
+      formatLocalDateTime(new Date(rec.endTs))
+    );
+    if (endStr === null || !endStr.trim()) return;
+    newEnd = parseLocalDateTime(endStr.trim());
+    if (newEnd == null) { showToast('INVALID END'); return; }
+    if (newEnd <= newStart) { showToast('END MUST BE AFTER START'); return; }
+    const durMs = newEnd - newStart;
+    if (durMs > 7 * 24 * 60 * 60 * 1000) {
+      if (!window.confirm('Duration is over 7 days. Are you sure?')) return;
+    }
+  } else {
+    // Active fast — new start must be in the past (otherwise the live
+    // timer would show a negative elapsed value).
+    if (newStart > Date.now()) { showToast('START CAN\'T BE IN THE FUTURE'); return; }
+  }
+
+  rec.startTs = newStart;
+  if (rec.endTs) {
+    rec.endTs = newEnd;
+    rec.hours = Math.round((newEnd - newStart) / (1000 * 60 * 15)) / 4;
+  }
+  // Leave dayNum alone — it's an identifier, not derived from timestamps.
+  saveFasts();
+  openHealthDetail('fast', rec.id);  // re-render detail with new values
+  showToast('TIMES UPDATED');
 }
 
 function deleteHealthRecord() {
