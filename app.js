@@ -195,6 +195,76 @@ function savePOIs() {
   safeSet('recon.os.pois', JSON.stringify(pois));
 }
 
+// One-time batch import of 15 auto/parts supply vendors. Runs once per device,
+// gated on recon.os.supplyPOIsSeeded so deleted entries don't re-import.
+// To force re-seed: clear that flag from localStorage and reload.
+// All entries: category=SUPPLY, type=WRENCH, shape=ICON (wrench is the marker
+// itself), tier=2 (MED). Coordinates verified manually by user.
+function seedSupplyPOIs() {
+  try {
+    if (localStorage.getItem('recon.os.supplyPOIsSeeded') === '1') return;
+  } catch (e) { return; }
+
+  const SUPPLY_POIS = [
+    { name: 'SEAT REPAIR · 11525 Main St',                lat: 29.66067, lng: -95.43974,
+      notes: '11525 Main St, Houston, TX 77025\nPhone: (346) 371-7018' },
+    { name: 'FITTINGS/HOSES · DF Sales',                  lat: 29.78199, lng: -95.12231,
+      notes: '15818 Avenue C, Channelview, TX 77530' },
+    { name: "DEF/RADIATOR · Don Hart's Radiator Shop",    lat: 29.77227, lng: -95.17521,
+      notes: '14014 Muscatine St, Houston, TX 77015\nDEF cleaning + radiator repair' },
+    { name: 'HYDRAULIC SEALS · Martin Fluid Power',       lat: 29.79534, lng: -95.46038,
+      notes: '6130 Westview Dr, Houston, TX 77055' },
+    { name: 'MUFFLERS/RADIATORS · Medinas Body Shop',     lat: 29.83004, lng: -95.36134,
+      notes: '802 Caperton St, Houston, TX 77022\nNear Ramon. Also handles muffler work.' },
+    { name: 'DECALS · Sign Pros',                         lat: 29.78168, lng: -95.11323,
+      notes: '16120 East Fwy, Channelview, TX 77530' },
+    { name: "STARTERS · Tracy's Electric Supply",         lat: 29.80521, lng: -95.30252,
+      notes: '4851 Homestead Rd Ste 100, Houston, TX 77028' },
+    { name: 'BATTERIES · Continental Battery Systems',    lat: 29.81739, lng: -95.39906,
+      notes: '3408 Yale St, Houston, TX 77018' },
+    { name: 'PROPANE · Alex',                             lat: 29.71643, lng: -95.28704,
+      notes: '7402 Lawndale St, Houston, TX 77012' },
+    { name: 'ENGINE HEAD REPAIR',                         lat: 29.77424, lng: -95.17503,
+      notes: '14021 Garber Ln, Houston, TX 77015\nPhone: (713) 628-3237' },
+    { name: 'CYLINDER REPAIR · Humberto',                 lat: 29.68451, lng: -95.29908,
+      notes: '7257 Edna St, Houston, TX 77087\nPhone: (713) 206-9405' },
+    { name: 'HYDRAULIC SEALS #2 · Power Supply Components', lat: 29.76081, lng: -95.30480,
+      notes: '4740 Eastpark Dr, Houston, TX 77028' },
+    { name: 'RADIATOR · Stop Leak Radiator (Juan)',       lat: 29.89704, lng: -95.40342,
+      notes: '218 W Mount Houston Rd, Houston, TX 77037\nPhone: (713) 658-5100' },
+    { name: 'BEARINGS · Houston Bearings',                lat: 29.77818, lng: -95.41641,
+      notes: '5311 Cornish St, Houston, TX 77007\nPhone: (713) 869-7292' },
+    { name: 'DRIVESHAFTS · C&T Driveshaft',               lat: 29.70810, lng: -95.30649,
+      notes: '6347 Griggs Rd, Houston, TX 77023' },
+  ];
+
+  const now = Date.now();
+  SUPPLY_POIS.forEach((p, i) => {
+    pois.push({
+      id: 'POI-SUPPLY-' + (i + 1).toString().padStart(2, '0'),
+      lat: p.lat,
+      lng: p.lng,
+      category: 'SUPPLY',
+      type: 'WRENCH',
+      shape: 'ICON',          // wrench symbol IS the marker (no flag wrapper)
+      name: p.name,
+      notes: p.notes,
+      photo: null,
+      hva: false,              // legacy field
+      tier: 2,                 // MED — visible at zoom 10+
+      regionId: null,          // unassigned; gets a region next time the user views nearby
+      sector: null,
+      // Spread created timestamps by a millisecond each so list sorts are stable
+      created: now + i,
+      visits: 0,
+      lastVisited: null,
+    });
+  });
+
+  savePOIs();
+  try { localStorage.setItem('recon.os.supplyPOIsSeeded', '1'); } catch (e) {}
+}
+
 function loadMissions() {
   try {
     const raw = localStorage.getItem('recon.os.missions');
@@ -4679,6 +4749,7 @@ function closeAllSheets() {
 // ===== INIT =====
 loadPrefs();
 loadPOIs();
+seedSupplyPOIs();
 loadMissions();
 loadFog();
 loadRegions();
