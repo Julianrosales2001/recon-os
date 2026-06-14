@@ -490,6 +490,22 @@
 
     <div class="settings-section-head danger">▸ DANGER ZONE</div>
 
+    <div class="settings-row" onclick="diagnoseHealth()">
+      <div>
+        <div class="settings-name">HEALTH DIAGNOSTIC</div>
+        <div class="settings-desc">Inspect raw fast/weighin storage</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-row danger" onclick="reseedHealth()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">RESEED HEALTH</div>
+        <div class="settings-desc">Re-run one-time import of 32 fasts. Only do if data is gone.</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
     <div class="settings-row danger" onclick="resetAllPOIs()">
       <div>
         <div class="settings-name" style="color: #d96850;">DELETE ALL POIs</div>

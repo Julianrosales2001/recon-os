@@ -3757,6 +3757,111 @@ function clearFog() {
   closeSheet();
 }
 
+// Diagnostic — read raw storage for all health keys and dump to the user.
+// Read-only; touches nothing. Use this first before reseed to confirm
+// what's actually in storage vs what the UI is showing.
+function diagnoseHealth() {
+  const keys = [
+    'recon.os.fasts',
+    'recon.os.weighins',
+    'recon.os.meals',
+    'recon.os.workouts',
+    'recon.os.healthSeeded',
+    'recon.os.supplyPOIsSeeded',
+    'recon.os.healthTab',
+    'recon.os.liveWorkout',
+  ];
+  const lines = [];
+  keys.forEach(k => {
+    let raw;
+    try { raw = localStorage.getItem(k); } catch (e) { raw = '<error: ' + e.message + '>'; }
+    if (raw == null) {
+      lines.push(k + ': (null/missing)');
+    } else if (raw === '') {
+      lines.push(k + ': (empty string)');
+    } else if (raw === '[]') {
+      lines.push(k + ': [] (empty array)');
+    } else {
+      // For arrays, show count and first/last record
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          lines.push(k + ': ' + parsed.length + ' record(s)');
+          if (parsed.length > 0) {
+            lines.push('  first: ' + JSON.stringify(parsed[0]).slice(0, 100));
+            lines.push('  last:  ' + JSON.stringify(parsed[parsed.length - 1]).slice(0, 100));
+          }
+        } else {
+          lines.push(k + ': ' + JSON.stringify(parsed).slice(0, 80));
+        }
+      } catch (e) {
+        lines.push(k + ': <unparseable: ' + raw.slice(0, 60) + '...>');
+      }
+    }
+  });
+  // Also show in-memory state for comparison
+  lines.push('---');
+  lines.push('IN-MEMORY:');
+  lines.push('  fasts.length = ' + fasts.length);
+  lines.push('  weighins.length = ' + weighins.length);
+  lines.push('  workouts.length = ' + workouts.length);
+  alert(lines.join('\n'));
+}
+
+// Force re-run of the health seed even if the seed flag is set. Used to
+// recover when fasting data got wiped but the flag is still in storage
+// (which is the normal failure mode — flag stays, data goes).
+// PRESERVES any existing fast/weighin records by merging instead of overwriting.
+function reseedHealth() {
+  if (!window.confirm(
+    'Re-seed health data?\n\n' +
+    'This will:\n' +
+    '• ADD the 32 historical fasts (Mar-May 2026) if they are missing\n' +
+    '• ADD the 7 weigh-in milestones if missing\n' +
+    '• Skip any record whose ID already exists (no duplicates)\n\n' +
+    'Your existing records will be preserved.\n\n' +
+    'Continue?'
+  )) return;
+
+  // Remove the gate so seedHealthData will run
+  try { localStorage.removeItem('recon.os.healthSeeded'); } catch (e) {}
+
+  // Stash current data — seedHealthData unconditionally overwrites fasts and
+  // weighins arrays, so we need to merge after.
+  const existingFasts = [...fasts];
+  const existingWeighins = [...weighins];
+  const existingFastIds = new Set(existingFasts.map(f => f.id));
+  const existingWeighinIds = new Set(existingWeighins.map(w => w.id));
+
+  // Run the seed (this REPLACES fasts and weighins with the seed data)
+  seedHealthData();
+
+  // Merge: keep all seed records, then add back any pre-existing records
+  // whose IDs weren't in the seed.
+  const seedFastIds = new Set(fasts.map(f => f.id));
+  const seedWeighinIds = new Set(weighins.map(w => w.id));
+  existingFasts.forEach(f => {
+    if (!seedFastIds.has(f.id)) fasts.push(f);
+  });
+  existingWeighins.forEach(w => {
+    if (!seedWeighinIds.has(w.id)) weighins.push(w);
+  });
+
+  // Sort fasts by startTs to keep history clean
+  fasts.sort((a, b) => a.startTs - b.startTs);
+  weighins.sort((a, b) => a.ts - b.ts);
+
+  saveFasts();
+  saveWeighins();
+  // Force-set the seeded flag so it doesn't re-trigger again
+  try { localStorage.setItem('recon.os.healthSeeded', '1'); } catch (e) {}
+
+  // Re-render whatever's open
+  if (typeof renderFastTab === 'function') renderFastTab();
+  updateHealthBadge();
+  showToast('RESEED COMPLETE · ' + fasts.length + ' FASTS · ' + weighins.length + ' WEIGH-INS');
+}
+
 function resetAllPOIs() {
   if (!confirm('DELETE ALL ' + pois.length + ' POIs?\n\nThis cannot be undone.')) return;
   if (!confirm('Are you absolutely sure?')) return;
