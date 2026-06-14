@@ -5369,12 +5369,29 @@ function dayKey(ts)      {
 }
 
 function openHealthSheet() {
-  haptic('tap');
-  setHealthTab(healthTab);
-  // Sheet overlay must be opened too — otherwise the sheet can be hidden
-  // by stacking order on some devices/orientations. This was the bug.
-  document.getElementById('sheetOverlay').classList.add('open');
-  document.getElementById('healthSheet').classList.add('open');
+  // DIAGNOSTIC version — wraps each step so we can see exactly what fails.
+  // If you see this alert, copy the message and paste it back.
+  const log = [];
+  try {
+    log.push('1: haptic'); haptic('tap');
+    log.push('2: tab=' + healthTab);
+    log.push('3: setHealthTab');
+    setHealthTab(healthTab);
+    log.push('4: get overlay');
+    const ov = document.getElementById('sheetOverlay');
+    log.push('5: overlay=' + (ov ? 'OK' : 'NULL'));
+    if (ov) ov.classList.add('open');
+    log.push('6: get sheet');
+    const sh = document.getElementById('healthSheet');
+    log.push('7: sheet=' + (sh ? 'OK' : 'NULL'));
+    if (sh) sh.classList.add('open');
+    log.push('8: done');
+  } catch (e) {
+    alert('HEAL OPEN FAILED at step ' + (log[log.length - 1] || '?') +
+          '\n\nError: ' + (e && e.message ? e.message : String(e)) +
+          '\n\nStack:\n' + (e && e.stack ? e.stack.slice(0, 500) : 'no stack') +
+          '\n\nLog:\n' + log.join('\n'));
+  }
 }
 
 function setHealthTab(tab) {
