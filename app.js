@@ -5016,6 +5016,11 @@ const FOOD_TAGS = ['PROTEIN', 'CARBS', 'VEG', 'JUNK', 'DRINK', 'OTHER'];
 const FOOD_PORTIONS = ['S', 'M', 'L'];
 const MOVE_TYPES = ['RUN', 'LIFT', 'WALK', 'OTHER'];
 const MOVE_INTENSITIES = ['LIGHT', 'MED', 'HARD'];
+// Moved up here from the streaks section below. Was being read by
+// updateHealthBadge → fastStreak on DOMContentLoaded before its original
+// declaration site was reached, causing a TDZ "cannot access before
+// initialization" error and breaking the HEAL sheet open.
+const FAST_STREAK_GAP_DAYS = 3;
 
 function loadHealth() {
   try { fasts = JSON.parse(localStorage.getItem('recon.os.fasts') || '[]'); } catch (e) { fasts = []; }
@@ -5245,8 +5250,6 @@ function activeFast() {
 // For workouts: no workout today and the day's getting late OR already past.
 // =============================================================================
 
-const FAST_STREAK_GAP_DAYS = 3;  // max days between consecutive fasts in a streak
-
 function fastStreak() {
   // Returns { current, best, atRisk, daysSinceLast }
   const completed = fasts.filter(f => f.endTs).sort((a, b) => a.startTs - b.startTs);
@@ -5369,29 +5372,10 @@ function dayKey(ts)      {
 }
 
 function openHealthSheet() {
-  // DIAGNOSTIC version — wraps each step so we can see exactly what fails.
-  // If you see this alert, copy the message and paste it back.
-  const log = [];
-  try {
-    log.push('1: haptic'); haptic('tap');
-    log.push('2: tab=' + healthTab);
-    log.push('3: setHealthTab');
-    setHealthTab(healthTab);
-    log.push('4: get overlay');
-    const ov = document.getElementById('sheetOverlay');
-    log.push('5: overlay=' + (ov ? 'OK' : 'NULL'));
-    if (ov) ov.classList.add('open');
-    log.push('6: get sheet');
-    const sh = document.getElementById('healthSheet');
-    log.push('7: sheet=' + (sh ? 'OK' : 'NULL'));
-    if (sh) sh.classList.add('open');
-    log.push('8: done');
-  } catch (e) {
-    alert('HEAL OPEN FAILED at step ' + (log[log.length - 1] || '?') +
-          '\n\nError: ' + (e && e.message ? e.message : String(e)) +
-          '\n\nStack:\n' + (e && e.stack ? e.stack.slice(0, 500) : 'no stack') +
-          '\n\nLog:\n' + log.join('\n'));
-  }
+  haptic('tap');
+  setHealthTab(healthTab);
+  document.getElementById('sheetOverlay').classList.add('open');
+  document.getElementById('healthSheet').classList.add('open');
 }
 
 function setHealthTab(tab) {
