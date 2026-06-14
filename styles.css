@@ -4603,3 +4603,55 @@
     color: #ff7878;
   }
 
+
+  /* ============================================================
+     LIVE WORKOUT — real-time run/walk tracking card
+     Lives in MOVE tab's status card while a workout is running.
+     ============================================================ */
+
+  /* Big monospace timer — same visual treatment as the fast timer. */
+  .live-timer {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00e5ff;
+    letter-spacing: 0.08em;
+    text-shadow:
+      0 0 8px rgba(0, 229, 255, 0.7),
+      0 0 16px rgba(0, 229, 255, 0.35);
+    margin: 8px 0 4px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Secondary stats row — distance + pace, smaller and warmer. */
+  .live-stats {
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: #d4f8ff;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-stats-sep {
+    color: #4a5a6a;
+    margin: 0 6px;
+  }
+
+  /* Partial-data warning when GPS gaps occurred (pause, backgrounding, recovery). */
+  .live-partial {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: #ffd340;
+    text-align: center;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    background: rgba(255, 211, 64, 0.08);
+    border: 1px solid rgba(255, 211, 64, 0.3);
+    border-radius: 3px;
+  }
+

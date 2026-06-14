@@ -1990,6 +1990,9 @@ function applyGpsCoords(coords) {
   }
   lastFix = Date.now();
   updateMarkStatus();
+  // Live workout — feed this sample into distance accumulation if one is running.
+  // Safe to call unconditionally; it no-ops when nothing's live.
+  feedLiveWorkoutGps(latitude, longitude, accuracy);
   // Ceremony — GPS just acquired for the first time this session
   if (isFirstLock) {
     haptic('lock');
@@ -3351,6 +3354,12 @@ function closeSheet() {
   if (typeof fastTimerHandle !== 'undefined' && fastTimerHandle) {
     clearInterval(fastTimerHandle);
     fastTimerHandle = null;
+  }
+  // Same for the live workout ticker. The workout itself stays alive in
+  // localStorage — closing the sheet just stops updating the no-longer-visible UI.
+  if (typeof liveTickHandle !== 'undefined' && liveTickHandle) {
+    clearInterval(liveTickHandle);
+    liveTickHandle = null;
   }
   editingId = null;
   liveNavPoiId = null;
@@ -4859,6 +4868,15 @@ let fastTimerHandle = null;
 //   { type: 'RUN'|'WALK', duration: number, distance: number|null, intensity: string|null }
 // All taps mutate this and re-render the MOVE status card.
 let quickLogState = null;
+// Live workout state. null = not tracking. Otherwise:
+//   { type, startTs, pausedMs (total ms paused), pausedAt (ts of current pause, or null),
+//     distanceMi, lastLat, lastLng, partial (true if any GPS gap suspected) }
+// Persisted to localStorage as recon.os.liveWorkout so it survives crashes.
+// Distance is computed incrementally — each GPS update with accuracy<=30m adds
+// haversine(lastPoint, newPoint) to distanceMi. lastLat/lastLng track the last
+// good sample; null means "next good sample becomes the anchor".
+let liveWorkout = null;
+let liveTickHandle = null;
 
 const FOOD_TAGS = ['PROTEIN', 'CARBS', 'VEG', 'JUNK', 'DRINK', 'OTHER'];
 const FOOD_PORTIONS = ['S', 'M', 'L'];
@@ -4871,6 +4889,21 @@ function loadHealth() {
   try { meals = JSON.parse(localStorage.getItem('recon.os.meals') || '[]'); } catch (e) { meals = []; }
   try { workouts = JSON.parse(localStorage.getItem('recon.os.workouts') || '[]'); } catch (e) { workouts = []; }
   try { healthTab = localStorage.getItem('recon.os.healthTab') || 'fast'; } catch (e) { healthTab = 'fast'; }
+  // Recover live workout if one was in progress when the app last closed.
+  // Mark partial because we definitely missed GPS samples while suspended.
+  try {
+    const raw = localStorage.getItem('recon.os.liveWorkout');
+    if (raw) {
+      liveWorkout = JSON.parse(raw);
+      // If the app was killed mid-workout, GPS samples weren't recorded for
+      // the gap. Flag partial so the saved distance reads as a lower bound.
+      liveWorkout.partial = true;
+      // Drop the lat/lng anchor — next good GPS sample becomes the new anchor.
+      // Without this, we'd compute a giant jump from wherever we last sampled.
+      liveWorkout.lastLat = null;
+      liveWorkout.lastLng = null;
+    }
+  } catch (e) { liveWorkout = null; }
 }
 function saveFasts()    { safeSet('recon.os.fasts',    JSON.stringify(fasts)); }
 function saveWeighins() { safeSet('recon.os.weighins', JSON.stringify(weighins)); }
@@ -5423,7 +5456,13 @@ function renderMoveTab() { renderMoveStatus(); renderMoveHistory(); }
 function renderMoveStatus() {
   const card = document.getElementById('moveStatusCard');
   if (!card) return;
-  // Branch: quick-log form (run/walk button-driven flow) or default status view
+  // Priority order: live workout > quick-log form > default status view
+  if (liveWorkout) {
+    card.innerHTML = renderLiveWorkoutCard();
+    // Make sure the 1Hz ticker is alive for live updates while visible.
+    startLiveTick();
+    return;
+  }
   if (quickLogState) {
     card.innerHTML = renderQuickLogForm();
     return;
@@ -5436,7 +5475,15 @@ function renderMoveStatus() {
     '<div class="health-card-bignum">' + recent.length + ' workout' + (recent.length === 1 ? '' : 's') + '</div>' +
     '<div class="health-card-sub">' + totalMin + ' min total</div>' +
     '<div class="health-quickrow">' +
-      '<div class="action-btn small primary" onclick="openQuickLog()">' +
+      '<div class="action-btn small primary" onclick="startLiveWorkout(\'WALK\')">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">▶ WALK</span></div></div>' +
+      '</div>' +
+      '<div class="action-btn small primary" onclick="startLiveWorkout(\'RUN\')">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">▶ RUN</span></div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="health-quickrow">' +
+      '<div class="action-btn small" onclick="openQuickLog()">' +
         '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ QUICK LOG</span></div></div>' +
       '</div>' +
       '<div class="action-btn small" onclick="promptAddWorkout()">' +
@@ -5444,6 +5491,253 @@ function renderMoveStatus() {
       '</div>' +
     '</div>';
 }
+
+// =============================================================================
+// LIVE WORKOUT — real-time run/walk tracking with GPS distance accumulation
+// =============================================================================
+// Hybrid approach: timer always derives duration from wall-clock start time
+// (so it's right even after the app was suspended), while distance accumulates
+// only from GPS samples we actually receive (so it's an honest lower bound
+// when the screen was locked).
+//
+// PWA limitation: iOS Safari suspends backgrounded PWAs within seconds, so
+// GPS samples stop. When the user reopens the app, we resume the timer
+// accurately but mark the workout `partial` because we missed distance.
+// =============================================================================
+
+function saveLiveWorkout() {
+  if (!liveWorkout) {
+    try { localStorage.removeItem('recon.os.liveWorkout'); } catch (e) {}
+    return;
+  }
+  safeSet('recon.os.liveWorkout', JSON.stringify(liveWorkout));
+}
+
+// Haversine — distance in miles between two lat/lng points. Used to grow
+// distanceMi incrementally on each accepted GPS sample.
+function haversineMi(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;  // Earth radius in miles
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Elapsed active duration in ms (excludes time spent paused).
+// If currently paused, the active-pause interval is excluded too.
+function liveElapsedMs() {
+  if (!liveWorkout) return 0;
+  const now = Date.now();
+  const wall = now - liveWorkout.startTs;
+  let paused = liveWorkout.pausedMs || 0;
+  if (liveWorkout.pausedAt) paused += now - liveWorkout.pausedAt;
+  return Math.max(0, wall - paused);
+}
+
+// Called from applyGpsCoords on every new fix. No-op unless a workout
+// is live and not paused. Rejects fixes with accuracy > 30m to keep
+// distance honest. First good sample establishes the anchor; each
+// subsequent sample adds haversine(anchor, new) to distance and
+// updates the anchor.
+function feedLiveWorkoutGps(lat, lng, accuracy) {
+  if (!liveWorkout) return;
+  if (liveWorkout.pausedAt) return;
+  if (accuracy == null || accuracy > 30) return;  // confidence threshold
+  if (liveWorkout.lastLat == null) {
+    // First good sample (or first after a pause/resume/recovery) — set anchor.
+    liveWorkout.lastLat = lat;
+    liveWorkout.lastLng = lng;
+    saveLiveWorkout();
+    return;
+  }
+  const segMi = haversineMi(liveWorkout.lastLat, liveWorkout.lastLng, lat, lng);
+  // GPS jitter — discard segments under ~5 meters (0.003 mi). Otherwise
+  // standing still accumulates a slow distance creep.
+  if (segMi < 0.003) return;
+  // Sanity cap — reject single-segment jumps over 0.1 mi (160m). Likely
+  // a bad fix or cold-start jump after recovery.
+  if (segMi > 0.1) {
+    liveWorkout.partial = true;
+    liveWorkout.lastLat = lat;
+    liveWorkout.lastLng = lng;
+    saveLiveWorkout();
+    return;
+  }
+  liveWorkout.distanceMi = +((liveWorkout.distanceMi || 0) + segMi).toFixed(4);
+  liveWorkout.lastLat = lat;
+  liveWorkout.lastLng = lng;
+  saveLiveWorkout();
+}
+
+function startLiveWorkout(type) {
+  if (liveWorkout) { showToast('WORKOUT ALREADY LIVE'); return; }
+  haptic('tap');
+  liveWorkout = {
+    type: type,            // 'WALK' or 'RUN'
+    startTs: Date.now(),
+    pausedMs: 0,
+    pausedAt: null,
+    distanceMi: 0,
+    lastLat: null,
+    lastLng: null,
+    partial: false,
+  };
+  // If we have a current GPS fix, seed the anchor immediately so the very
+  // first segment can register.
+  if (userPos && userPos.acc != null && userPos.acc <= 30) {
+    liveWorkout.lastLat = userPos.lat;
+    liveWorkout.lastLng = userPos.lng;
+  }
+  saveLiveWorkout();
+  startLiveTick();
+  renderMoveStatus();
+  showToast(type + ' STARTED');
+}
+
+function pauseLiveWorkout() {
+  if (!liveWorkout || liveWorkout.pausedAt) return;
+  haptic('tap');
+  liveWorkout.pausedAt = Date.now();
+  liveWorkout.partial = true;  // gaps during pause = partial data
+  saveLiveWorkout();
+  renderMoveStatus();
+}
+
+function resumeLiveWorkout() {
+  if (!liveWorkout || !liveWorkout.pausedAt) return;
+  haptic('tap');
+  liveWorkout.pausedMs += Date.now() - liveWorkout.pausedAt;
+  liveWorkout.pausedAt = null;
+  // Drop the GPS anchor so we don't compute a giant jump across the pause.
+  liveWorkout.lastLat = null;
+  liveWorkout.lastLng = null;
+  saveLiveWorkout();
+  renderMoveStatus();
+}
+
+function stopLiveWorkout() {
+  if (!liveWorkout) return;
+  if (!window.confirm('Stop and save this workout?')) return;
+  haptic('tap');
+  // Finalize duration (resolve any active pause first)
+  if (liveWorkout.pausedAt) {
+    liveWorkout.pausedMs += Date.now() - liveWorkout.pausedAt;
+    liveWorkout.pausedAt = null;
+  }
+  const ms = liveElapsedMs();
+  const durationMin = Math.max(1, Math.round(ms / 60000));
+  const dist = (liveWorkout.distanceMi && liveWorkout.distanceMi > 0)
+    ? +liveWorkout.distanceMi.toFixed(2)
+    : null;
+  workouts.push({
+    id: healthId('WO'),
+    ts: Date.now(),
+    type: liveWorkout.type,
+    durationMin: durationMin,
+    intensity: null,
+    distanceMi: dist,
+    sets: null,
+    notes: liveWorkout.partial ? '(partial GPS — distance is a lower bound)' : '',
+  });
+  saveWorkouts();
+  liveWorkout = null;
+  saveLiveWorkout();
+  stopLiveTick();
+  renderMoveTab();
+  showToast('SAVED · ' + durationMin + 'm' + (dist ? ' · ' + dist + ' mi' : ''));
+}
+
+function discardLiveWorkout() {
+  if (!liveWorkout) return;
+  if (!window.confirm('Discard this workout without saving?')) return;
+  haptic('warn');
+  liveWorkout = null;
+  saveLiveWorkout();
+  stopLiveTick();
+  renderMoveStatus();
+  showToast('DISCARDED');
+}
+
+// Tick once per second while a live workout is showing on the MOVE tab.
+// Only updates timer/pace text — distance comes from the GPS handler, not here.
+function startLiveTick() {
+  stopLiveTick();
+  liveTickHandle = setInterval(() => {
+    const sheet = document.getElementById('healthSheet');
+    if (!sheet || !sheet.classList.contains('open') || healthTab !== 'move') {
+      // Card isn't visible — drop ticking to save battery. Will restart
+      // on next renderMoveStatus if needed.
+      stopLiveTick();
+      return;
+    }
+    if (!liveWorkout) { stopLiveTick(); return; }
+    updateLiveReadouts();
+  }, 1000);
+}
+function stopLiveTick() {
+  if (liveTickHandle) { clearInterval(liveTickHandle); liveTickHandle = null; }
+}
+
+// Targeted DOM update so we don't re-render the entire card every second
+// (which would cause buttons to flicker / dropped taps).
+function updateLiveReadouts() {
+  if (!liveWorkout) return;
+  const ms = liveElapsedMs();
+  const timerEl = document.getElementById('liveTimer');
+  if (timerEl) timerEl.textContent = fmtDuration(ms);
+  const distEl = document.getElementById('liveDistance');
+  if (distEl) {
+    const d = liveWorkout.distanceMi || 0;
+    distEl.textContent = d.toFixed(2) + ' mi' + (liveWorkout.partial ? ' *' : '');
+  }
+  const paceEl = document.getElementById('livePace');
+  if (paceEl) {
+    const d = liveWorkout.distanceMi || 0;
+    if (d > 0.01 && ms > 0) {
+      const paceMinPerMi = (ms / 60000) / d;
+      const mins = Math.floor(paceMinPerMi);
+      const secs = Math.round((paceMinPerMi - mins) * 60);
+      paceEl.textContent = mins + ':' + String(secs).padStart(2, '0') + '/mi';
+    } else {
+      paceEl.textContent = '—:—/mi';
+    }
+  }
+}
+
+function renderLiveWorkoutCard() {
+  const lw = liveWorkout;
+  const paused = !!lw.pausedAt;
+  const partialNote = lw.partial
+    ? '<div class="live-partial">⚠ partial GPS — distance is a lower bound</div>'
+    : '';
+  const pauseBtn = paused
+    ? '<div class="action-btn small primary" onclick="resumeLiveWorkout()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">RESUME</span></div></div>' +
+      '</div>'
+    : '<div class="action-btn small" onclick="pauseLiveWorkout()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">PAUSE</span></div></div>' +
+      '</div>';
+  return '<div class="health-card-label">' + lw.type + (paused ? ' · PAUSED' : ' · LIVE') + '</div>' +
+    '<div class="live-timer" id="liveTimer">' + fmtDuration(liveElapsedMs()) + '</div>' +
+    '<div class="live-stats">' +
+      '<span id="liveDistance">' + (lw.distanceMi || 0).toFixed(2) + ' mi' + (lw.partial ? ' *' : '') + '</span>' +
+      '<span class="live-stats-sep">·</span>' +
+      '<span id="livePace">—:—/mi</span>' +
+    '</div>' +
+    partialNote +
+    '<div class="health-quickrow">' +
+      pauseBtn +
+      '<div class="action-btn small danger" onclick="stopLiveWorkout()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">STOP</span></div></div>' +
+      '</div>' +
+      '<div class="action-btn small" onclick="discardLiveWorkout()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">DISCARD</span></div></div>' +
+      '</div>' +
+    '</div>';
+}
+
 
 // =============================================================================
 // QUICK LOG — button-driven run/walk logger (no typing).
