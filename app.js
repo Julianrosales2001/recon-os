@@ -5371,6 +5371,9 @@ function dayKey(ts)      {
 function openHealthSheet() {
   haptic('tap');
   setHealthTab(healthTab);
+  // Sheet overlay must be opened too — otherwise the sheet can be hidden
+  // by stacking order on some devices/orientations. This was the bug.
+  document.getElementById('sheetOverlay').classList.add('open');
   document.getElementById('healthSheet').classList.add('open');
 }
 
