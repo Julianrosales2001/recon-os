@@ -4855,6 +4855,10 @@ let workouts = [];   // [{ id, ts, type, durationMin, intensity|null, distanceMi
 let healthTab = 'fast';
 let healthDetail = null;
 let fastTimerHandle = null;
+// Quick-log state for run/walk. null = form not open. Otherwise:
+//   { type: 'RUN'|'WALK', duration: number, distance: number|null, intensity: string|null }
+// All taps mutate this and re-render the MOVE status card.
+let quickLogState = null;
 
 const FOOD_TAGS = ['PROTEIN', 'CARBS', 'VEG', 'JUNK', 'DRINK', 'OTHER'];
 const FOOD_PORTIONS = ['S', 'M', 'L'];
@@ -5419,6 +5423,11 @@ function renderMoveTab() { renderMoveStatus(); renderMoveHistory(); }
 function renderMoveStatus() {
   const card = document.getElementById('moveStatusCard');
   if (!card) return;
+  // Branch: quick-log form (run/walk button-driven flow) or default status view
+  if (quickLogState) {
+    card.innerHTML = renderQuickLogForm();
+    return;
+  }
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recent = workouts.filter(w => w.ts >= cutoff);
   const totalMin = recent.reduce((s, w) => s + (w.durationMin || 0), 0);
@@ -5427,8 +5436,166 @@ function renderMoveStatus() {
     '<div class="health-card-bignum">' + recent.length + ' workout' + (recent.length === 1 ? '' : 's') + '</div>' +
     '<div class="health-card-sub">' + totalMin + ' min total</div>' +
     '<div class="health-quickrow">' +
-      '<div class="action-btn small primary" onclick="promptAddWorkout()">' +
+      '<div class="action-btn small primary" onclick="openQuickLog()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ QUICK LOG</span></div></div>' +
+      '</div>' +
+      '<div class="action-btn small" onclick="promptAddWorkout()">' +
         '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">+ WORKOUT</span></div></div>' +
+      '</div>' +
+    '</div>';
+}
+
+// =============================================================================
+// QUICK LOG — button-driven run/walk logger (no typing).
+// =============================================================================
+// Designed for the case "I just finished a walk, log it in 3-4 taps."
+// State lives in quickLogState; every tap mutates it and re-renders.
+// SAVE writes a workout record (type, durationMin, distanceMi, intensity).
+// =============================================================================
+
+// Presets for the segmented selectors. Duration in minutes, distance in miles.
+const QLOG_DURATION_PRESETS = [10, 20, 30, 45, 60];
+const QLOG_DURATION_BUMPS   = [5, 15];
+const QLOG_DISTANCE_PRESETS = [1, 2, 3, 5];
+const QLOG_DISTANCE_BUMPS   = [0.5, 1];
+
+function openQuickLog() {
+  haptic('tap');
+  // Default to WALK + 30 min — most common single tap for a typical walk.
+  // Distance and intensity start unset (logging them is optional).
+  quickLogState = { type: 'WALK', duration: 30, distance: null, intensity: null };
+  renderMoveStatus();
+}
+
+function closeQuickLog() {
+  quickLogState = null;
+  renderMoveStatus();
+}
+
+function quickLogSetType(t) {
+  if (!quickLogState) return;
+  haptic('tap');
+  quickLogState.type = t;
+  renderMoveStatus();
+}
+
+function quickLogSetDuration(min) {
+  if (!quickLogState) return;
+  haptic('tap');
+  quickLogState.duration = min;
+  renderMoveStatus();
+}
+
+function quickLogBumpDuration(delta) {
+  if (!quickLogState) return;
+  haptic('tap');
+  // Cap at a reasonable upper bound to prevent absurd values from over-tapping.
+  quickLogState.duration = Math.min(600, Math.max(1, quickLogState.duration + delta));
+  renderMoveStatus();
+}
+
+function quickLogSetDistance(mi) {
+  if (!quickLogState) return;
+  haptic('tap');
+  quickLogState.distance = mi;
+  renderMoveStatus();
+}
+
+function quickLogBumpDistance(delta) {
+  if (!quickLogState) return;
+  haptic('tap');
+  // If no distance set yet, start from the bump value (e.g. tap +0.5 → 0.5mi).
+  const current = quickLogState.distance != null ? quickLogState.distance : 0;
+  quickLogState.distance = Math.min(100, Math.max(0, +(current + delta).toFixed(2)));
+  renderMoveStatus();
+}
+
+function quickLogClearDistance() {
+  if (!quickLogState) return;
+  haptic('tap');
+  quickLogState.distance = null;
+  renderMoveStatus();
+}
+
+function quickLogSetIntensity(it) {
+  if (!quickLogState) return;
+  haptic('tap');
+  // Toggle off if tapping the already-selected intensity (so it stays optional).
+  quickLogState.intensity = (quickLogState.intensity === it) ? null : it;
+  renderMoveStatus();
+}
+
+function quickLogSave() {
+  if (!quickLogState) return;
+  haptic('tap');
+  const s = quickLogState;
+  workouts.push({
+    id: healthId('WO'),
+    ts: Date.now(),
+    type: s.type,
+    durationMin: s.duration,
+    intensity: s.intensity,
+    distanceMi: s.distance,
+    sets: null,
+    notes: '',
+  });
+  saveWorkouts();
+  quickLogState = null;
+  renderMoveTab();
+  showToast(s.type + ' LOGGED · ' + s.duration + 'm' + (s.distance != null ? ' · ' + s.distance + ' mi' : ''));
+}
+
+function renderQuickLogForm() {
+  const s = quickLogState;
+  // Readout line — live summary of current state, updates on every tap
+  const distLabel = s.distance != null ? s.distance + ' mi' : '— mi';
+  const intLabel = s.intensity || '—';
+  const readout = '<div class="qlog-readout">' + s.type + ' · ' + s.duration + ' min · ' + distLabel + ' · ' + intLabel + '</div>';
+
+  // TYPE — 2 segmented buttons
+  const typeBtns = ['WALK', 'RUN'].map(t =>
+    '<button class="qlog-chip' + (s.type === t ? ' on' : '') + '" onclick="quickLogSetType(\'' + t + '\')">' + t + '</button>'
+  ).join('');
+
+  // DURATION — preset buttons (highlighted if matches current value) + bump buttons
+  const durBtns = QLOG_DURATION_PRESETS.map(m =>
+    '<button class="qlog-chip' + (s.duration === m ? ' on' : '') + '" onclick="quickLogSetDuration(' + m + ')">' + m + 'm</button>'
+  ).join('');
+  const durBumps = QLOG_DURATION_BUMPS.map(d =>
+    '<button class="qlog-bump" onclick="quickLogBumpDuration(' + d + ')">+' + d + 'm</button>'
+  ).join('');
+
+  // DISTANCE — preset buttons + bump + clear (since distance is optional)
+  const distBtns = QLOG_DISTANCE_PRESETS.map(mi =>
+    '<button class="qlog-chip' + (s.distance === mi ? ' on' : '') + '" onclick="quickLogSetDistance(' + mi + ')">' + mi + ' mi</button>'
+  ).join('');
+  const distBumps = QLOG_DISTANCE_BUMPS.map(d =>
+    '<button class="qlog-bump" onclick="quickLogBumpDistance(' + d + ')">+' + d + '</button>'
+  ).join('');
+  const distClear = '<button class="qlog-bump qlog-clear" onclick="quickLogClearDistance()">✕</button>';
+
+  // INTENSITY — 3 segmented, tap-to-deselect (optional)
+  const intBtns = MOVE_INTENSITIES.map(it =>
+    '<button class="qlog-chip' + (s.intensity === it ? ' on' : '') + '" onclick="quickLogSetIntensity(\'' + it + '\')">' + it + '</button>'
+  ).join('');
+
+  return readout +
+    '<div class="qlog-row-label">TYPE</div>' +
+    '<div class="qlog-row">' + typeBtns + '</div>' +
+    '<div class="qlog-row-label">DURATION</div>' +
+    '<div class="qlog-row">' + durBtns + '</div>' +
+    '<div class="qlog-row qlog-row-sub">' + durBumps + '</div>' +
+    '<div class="qlog-row-label">DISTANCE <span class="qlog-optional">optional</span></div>' +
+    '<div class="qlog-row">' + distBtns + '</div>' +
+    '<div class="qlog-row qlog-row-sub">' + distBumps + distClear + '</div>' +
+    '<div class="qlog-row-label">INTENSITY <span class="qlog-optional">optional</span></div>' +
+    '<div class="qlog-row">' + intBtns + '</div>' +
+    '<div class="health-quickrow">' +
+      '<div class="action-btn small primary" onclick="quickLogSave()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">SAVE</span></div></div>' +
+      '</div>' +
+      '<div class="action-btn small" onclick="closeQuickLog()">' +
+        '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>' +
       '</div>' +
     '</div>';
 }
