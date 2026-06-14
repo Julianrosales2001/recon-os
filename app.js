@@ -3604,7 +3604,7 @@ function showRegionsList() {
 
 function exportData() {
   const data = {
-    version: 6,
+    version: 7,
     exported: new Date().toISOString(),
     pois: pois,
     fog: [...revealedCells].map(cellIdToPacked),
@@ -3612,6 +3612,15 @@ function exportData() {
     journal: journalEntries,
     trail: todayTrail,
     missions: missions,
+    // Health module — added in v7. Each is independent; restore is per-key.
+    fasts: fasts,
+    weighins: weighins,
+    meals: meals,
+    workouts: workouts,
+    healthTab: healthTab,
+    // Flags so restoring a backup doesn't re-trigger one-time seeds
+    healthSeeded: localStorage.getItem('recon.os.healthSeeded') === '1',
+    supplyPOIsSeeded: localStorage.getItem('recon.os.supplyPOIsSeeded') === '1',
     prefs: {
       showTrail: showTrail,
       activeCategoryFilter: activeCategoryFilter,
@@ -3633,7 +3642,8 @@ function exportData() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  const counts = pois.length + ' POIs · ' + revealedCells.size + ' fog cells · ' + regions.length + ' regions · ' + missions.length + ' objectives';
+  const counts = pois.length + ' POIs · ' + revealedCells.size + ' fog cells · ' + regions.length + ' regions · ' + missions.length + ' objectives · ' +
+    fasts.length + ' fasts · ' + workouts.length + ' workouts';
   showToast('FULL BACKUP DOWNLOADED · ' + counts);
 }
 
@@ -3693,6 +3703,25 @@ document.getElementById('importFile').addEventListener('change', (e) => {
         saveMissions();
         renderMissionMarkers();
       }
+      // Health module restore — added in v7. Each is independent; missing
+      // keys mean "don't touch this part of the current state."
+      if (Array.isArray(data.fasts))    { fasts = data.fasts;       saveFasts(); }
+      if (Array.isArray(data.weighins)) { weighins = data.weighins; saveWeighins(); }
+      if (Array.isArray(data.meals))    { meals = data.meals;       saveMeals(); }
+      if (Array.isArray(data.workouts)) { workouts = data.workouts; saveWorkouts(); }
+      if (typeof data.healthTab === 'string') {
+        healthTab = data.healthTab;
+        try { localStorage.setItem('recon.os.healthTab', healthTab); } catch (e) {}
+      }
+      // Restore seed flags too — without these, the seed functions would
+      // re-import default data on top of the user's restored backup.
+      if (data.healthSeeded) {
+        try { localStorage.setItem('recon.os.healthSeeded', '1'); } catch (e) {}
+      }
+      if (data.supplyPOIsSeeded) {
+        try { localStorage.setItem('recon.os.supplyPOIsSeeded', '1'); } catch (e) {}
+      }
+      updateHealthBadge();
       if (data.prefs) {
         if (typeof data.prefs.showTrail === 'boolean') showTrail = data.prefs.showTrail;
         if (typeof data.prefs.activeCategoryFilter === 'string') activeCategoryFilter = data.prefs.activeCategoryFilter;
@@ -4905,13 +4934,58 @@ function loadHealth() {
     }
   } catch (e) { liveWorkout = null; }
 }
-function saveFasts()    { safeSet('recon.os.fasts',    JSON.stringify(fasts)); }
+function saveFasts()    { safeSet('recon.os.fasts',    JSON.stringify(fasts)); updateHealthBadge(); }
 function saveWeighins() { safeSet('recon.os.weighins', JSON.stringify(weighins)); }
 function saveMeals()    { safeSet('recon.os.meals',    JSON.stringify(meals)); }
-function saveWorkouts() { safeSet('recon.os.workouts', JSON.stringify(workouts)); }
+function saveWorkouts() { safeSet('recon.os.workouts', JSON.stringify(workouts)); updateHealthBadge(); }
 
 loadHealth();
 seedHealthData();
+// updateHealthBadge needs the DOM ready. Defer until after page load.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    updateHealthBadge();
+    showStreakAtRiskToastsOnce();
+  });
+} else {
+  updateHealthBadge();
+  showStreakAtRiskToastsOnce();
+}
+
+// Show a toast when a streak is at risk, but at most once per calendar day
+// per streak type. The dismissal is implicit — once we've shown it, we
+// stamp today's date and don't show again until tomorrow. If the user logs
+// the missing activity the toast won't fire because at-risk goes false.
+function showStreakAtRiskToastsOnce() {
+  // Stagger toasts slightly so they don't stack on top of each other.
+  // Also wait for the rest of the UI to settle before toasting.
+  setTimeout(() => {
+    const today = dayKey(Date.now());
+    const fs = fastStreak();
+    if (fs.atRisk) {
+      const key = 'recon.os.fastStreakWarned';
+      if (safeGetItem(key) !== today) {
+        showToast('⚠ FAST STREAK AT RISK · ' + fs.current);
+        try { localStorage.setItem(key, today); } catch (e) {}
+      }
+    }
+    const ws = workoutStreak();
+    if (ws.atRisk) {
+      const key = 'recon.os.workoutStreakWarned';
+      if (safeGetItem(key) !== today) {
+        // Stagger 4s after the fast toast (which shows for ~3s)
+        setTimeout(() => {
+          showToast('⚠ WORKOUT STREAK AT RISK · ' + ws.current);
+          try { localStorage.setItem(key, today); } catch (e) {}
+        }, 4000);
+      }
+    }
+  }, 2500);  // delay so boot screen / initial setup doesn't drown the toast
+}
+
+function safeGetItem(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
 
 // =============================================================================
 // One-time seed import of user's existing fast history (Mar 17 2026 - May 27 2026).
@@ -5050,6 +5124,124 @@ function activeFast() {
   return null;
 }
 
+// =============================================================================
+// STREAKS — consecutive activity tracking for fasts and workouts
+// =============================================================================
+// For fasts: a "streak" is consecutive completed fasts where each one
+// started within 3 days of the previous one's end. This matches the user's
+// real cadence (roughly every-other-day fasting with occasional 2-day gaps).
+// A 4-day gap breaks the streak.
+//
+// For workouts: a streak is consecutive calendar days with at least one
+// workout. Misses a full day → broken.
+//
+// "At risk" = streak > 1 AND close to the breakpoint. For fasts: it's been
+// 2+ days since the last completed fast (1 day until the 3-day cutoff fires).
+// For workouts: no workout today and the day's getting late OR already past.
+// =============================================================================
+
+const FAST_STREAK_GAP_DAYS = 3;  // max days between consecutive fasts in a streak
+
+function fastStreak() {
+  // Returns { current, best, atRisk, daysSinceLast }
+  const completed = fasts.filter(f => f.endTs).sort((a, b) => a.startTs - b.startTs);
+  if (!completed.length) return { current: 0, best: 0, atRisk: false, daysSinceLast: null };
+
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  // Walk forward computing run lengths. A new fast extends the streak if
+  // its start - previous end <= FAST_STREAK_GAP_DAYS days. Otherwise reset.
+  let runLen = 1;
+  let best = 1;
+  const runs = [1];
+  for (let i = 1; i < completed.length; i++) {
+    const gap = completed[i].startTs - completed[i - 1].endTs;
+    if (gap <= FAST_STREAK_GAP_DAYS * dayMs) {
+      runLen++;
+    } else {
+      runLen = 1;
+    }
+    runs.push(runLen);
+    if (runLen > best) best = runLen;
+  }
+
+  // Current streak = last run, BUT only if it hasn't already gone stale.
+  // If more than FAST_STREAK_GAP_DAYS days have passed since the last fast
+  // ended, the streak is effectively zero (next fast would start fresh).
+  const last = completed[completed.length - 1];
+  const daysSinceLast = (Date.now() - last.endTs) / dayMs;
+  const current = (daysSinceLast > FAST_STREAK_GAP_DAYS) ? 0 : runs[runs.length - 1];
+
+  // At risk = streak >= 2 AND 2 < daysSinceLast <= 3 (one day or less from breaking)
+  const atRisk = current >= 2 && daysSinceLast > 2 && daysSinceLast <= FAST_STREAK_GAP_DAYS;
+
+  return { current, best, atRisk, daysSinceLast };
+}
+
+function workoutStreak() {
+  // Returns { current, best, atRisk, hasToday }
+  if (!workouts.length) return { current: 0, best: 0, atRisk: false, hasToday: false };
+
+  // Build a set of unique calendar-day keys when workouts happened.
+  const days = new Set();
+  workouts.forEach(w => days.add(dayKey(w.ts)));
+
+  // Convert to sorted ascending list of timestamps (one per day)
+  const dayTs = [...days].map(k => new Date(k + 'T00:00:00').getTime()).sort((a, b) => a - b);
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  let runLen = 1;
+  let best = 1;
+  const runs = [1];
+  for (let i = 1; i < dayTs.length; i++) {
+    // Consecutive if exactly 1 day apart
+    const gap = Math.round((dayTs[i] - dayTs[i - 1]) / dayMs);
+    if (gap === 1) runLen++;
+    else runLen = 1;
+    runs.push(runLen);
+    if (runLen > best) best = runLen;
+  }
+
+  const todayKey = dayKey(Date.now());
+  const yesterdayKey = dayKey(Date.now() - dayMs);
+  const hasToday = days.has(todayKey);
+  const hadYesterday = days.has(yesterdayKey);
+
+  // Current streak:
+  //   - has today: latest run length, no decay
+  //   - has yesterday but not today: still alive; streak counts up to yesterday
+  //   - has neither: streak broken
+  let current = 0;
+  if (hasToday || hadYesterday) current = runs[runs.length - 1];
+
+  // At risk = streak >= 2 AND today is empty AND yesterday wasn't (so missing today breaks it)
+  const atRisk = current >= 2 && !hasToday && hadYesterday;
+
+  return { current, best, atRisk, hasToday };
+}
+
+// Returns true if any health streak is at risk right now.
+// Used by updateHealthBadge to decide whether to dot the HEAL button.
+function anyStreakAtRisk() {
+  return fastStreak().atRisk || workoutStreak().atRisk;
+}
+
+// Mirror of updatePendingCount but for the HEAL button. Adds a small dot
+// when any streak is at risk so the user sees it without opening the sheet.
+function updateHealthBadge() {
+  const btn = document.querySelector('.tg-btn[data-id="health"]');
+  if (!btn) return;
+  const atRisk = anyStreakAtRisk();
+  btn.classList.toggle('has-pending', atRisk);
+  // The .has-pending class drives the existing dot styling (see tg-dot CSS).
+  // Reusing it gives us the same visual treatment as PEND for free.
+  if (atRisk && !btn.querySelector('.tg-dot')) {
+    const dot = document.createElement('span');
+    dot.className = 'tg-dot';
+    btn.appendChild(dot);
+  }
+}
+
 // Format ms as HH:MM:SS, or compact "Dd Hh Mm"
 function fmtDuration(ms, compact) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -5111,10 +5303,15 @@ function renderFastStatus() {
   const avgHours = totalCount > 0
     ? (completed.reduce((s, f) => s + (f.hours || 0), 0) / totalCount).toFixed(1)
     : '0';
+  const fs = fastStreak();
+  // Mark the streak cell visually if it's about to break, so the band itself
+  // conveys urgency without needing a separate alert.
+  const streakClass = fs.atRisk ? ' at-risk' : '';
   const summary =
-    '<div class="health-stat-band">' +
+    '<div class="health-stat-band three">' +
       '<div class="health-stat"><span class="n">' + totalCount + '</span><span class="lbl">FASTS</span></div>' +
       '<div class="health-stat"><span class="n">' + avgHours + 'h</span><span class="lbl">AVG</span></div>' +
+      '<div class="health-stat' + streakClass + '"><span class="n">' + fs.current + '</span><span class="lbl">STREAK</span></div>' +
     '</div>';
 
   if (active) {
@@ -5470,10 +5667,18 @@ function renderMoveStatus() {
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recent = workouts.filter(w => w.ts >= cutoff);
   const totalMin = recent.reduce((s, w) => s + (w.durationMin || 0), 0);
+  const ws = workoutStreak();
+  // Mini stat band: count + total min + streak. Mirrors the FAST tab.
+  const streakClass = ws.atRisk ? ' at-risk' : '';
+  const summary =
+    '<div class="health-stat-band three">' +
+      '<div class="health-stat"><span class="n">' + recent.length + '</span><span class="lbl">7-DAY</span></div>' +
+      '<div class="health-stat"><span class="n">' + totalMin + 'm</span><span class="lbl">TOTAL</span></div>' +
+      '<div class="health-stat' + streakClass + '"><span class="n">' + ws.current + '</span><span class="lbl">STREAK</span></div>' +
+    '</div>';
   card.innerHTML =
-    '<div class="health-card-label">LAST 7 DAYS</div>' +
-    '<div class="health-card-bignum">' + recent.length + ' workout' + (recent.length === 1 ? '' : 's') + '</div>' +
-    '<div class="health-card-sub">' + totalMin + ' min total</div>' +
+    summary +
+    '<div class="health-card-label">READY</div>' +
     '<div class="health-quickrow">' +
       '<div class="action-btn small primary" onclick="startLiveWorkout(\'WALK\')">' +
         '<div class="socket"></div><div class="cap steel"><div class="lcd"><span class="lcd-text">▶ WALK</span></div></div>' +

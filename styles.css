@@ -4655,3 +4655,23 @@
     border-radius: 3px;
   }
 
+
+  /* Three-cell variant of the health stat band (FAST adds STREAK column,
+     MOVE shows count/total/streak). */
+  .health-stat-band.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  /* At-risk variant for a streak cell — warm amber to signal "you'll lose
+     this if you don't act soon." Matches the indicator-strip warn color. */
+  .health-stat.at-risk .n {
+    color: #ffd340;
+    text-shadow:
+      0 0 6px rgba(255, 211, 64, 0.55),
+      0 0 12px rgba(255, 211, 64, 0.3);
+  }
+  .health-stat.at-risk .lbl {
+    color: #ffd340;
+    opacity: 0.85;
+  }
+
