@@ -15,13 +15,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="rx.css?v=2.2.1">
+<link rel="stylesheet" href="rx.css?v=2.3.0">
 </head>
 <body>
 <div id="desk">
   <div id="device" class="booting">
 
-    <div class="grille" aria-hidden="true"></div>
+    <div class="grille" aria-hidden="true"><span class="screw"></span><span class="vents"></span><span class="screw"></span></div>
 
     <header class="nameplate">
       <div class="brand"><svg class="brand-logo" viewBox="-12 0 350 100" role="img" aria-label="RP"><defs><clipPath id="rpCut"><rect x="-60" y="-10" width="460" height="56"/><rect x="-60" y="51" width="460" height="60"/></clipPath></defs><g transform="skewX(-14) translate(14 0)"><path clip-path="url(#rpCut)" fill-rule="evenodd" d="M0 0H128A22 22 0 0 1 150 22V42A22 22 0 0 1 128 64H28V100H0ZM28 25H117A7 7 0 0 1 117 39H28ZM84 64H113L152 100H123ZM170 0H298A22 22 0 0 1 320 22V42A22 22 0 0 1 298 64H198V100H170ZM198 25H287A7 7 0 0 1 287 39H198Z"/></g></svg><span class="brand-model">RP-1000</span></div>
@@ -37,6 +37,7 @@
       <div class="lamp-tag">STATUS <span class="jp">状態</span></div>
     </div>
 
+    <div class="faceplate">
     <div class="readouts">
       <button type="button" class="well lcd-well" id="lcdBtn" aria-label="Readout panel. Tap to change display.">
         <span class="lcd-glass" id="lcdHost"></span>
@@ -50,6 +51,7 @@
       <div class="ruler" aria-hidden="true">
         <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span>
       </div>
+      <div class="window" id="window">
       <div class="screen vfd" id="screen" tabindex="0" aria-label="Main display">
         <div class="mesh" aria-hidden="true"></div>
         <div class="filaments" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -60,6 +62,7 @@
         <input id="kbdNum" class="kbd" type="text" inputmode="decimal" aria-label="Number entry">
         <input id="filePhoto" type="file" accept="image/*" capture="environment" hidden>
         <input id="fileImport" type="file" accept=".json,application/json" hidden>
+      </div>
       </div>
 
       <div class="tray" id="tray" aria-label="Function tray">
@@ -79,6 +82,9 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <div class="parting" aria-hidden="true"></div>
 
     <div class="presets" id="presets">
       <button type="button" class="presets-head" id="presetsHead" aria-expanded="true" aria-controls="presetRow" title="Show or hide the category keys">
@@ -113,22 +119,23 @@
     </div>
 
     <footer class="serial">
-      <span class="screw" aria-hidden="true"></span>
-      <span class="plate">PROPERTY OF JAR · FIELD CARTOGRAPHY UNIT <span class="jp">測地班</span></span>
-      <span class="screw" aria-hidden="true"></span>
+      <span class="ribs" aria-hidden="true"></span>
+      <span class="plate"><b>RP-1000</b><span class="dc">DC 5V <svg viewBox="0 0 15 9" aria-label="direct current"><path d="M0.5 2H14.5M0.5 7H3.5M5.75 7H9.25M11.5 7H14.5"/></svg> 1A</span><span>PROPERTY OF JAR</span><span class="jp">測地班</span></span>
+      <span class="ribs" aria-hidden="true"></span>
     </footer>
+    <div class="molded" aria-hidden="true"><span>MADE IN USA</span><span>&gt;PC+ABS&lt;</span></div>
 
   </div>
   <div class="desk-hint" aria-hidden="true">M MARK · 1–6 FILE / SHOW · P PRESETS · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H FAST · O OBJ · G LEGEND · D DISPLAY</div>
 </div>
 
-<script src="js/font.js?v=2.2.1"></script>
-<script src="js/matrix.js?v=2.2.1"></script>
-<script src="js/geo.js?v=2.2.1"></script>
-<script src="js/store.js?v=2.2.1"></script>
-<script src="js/map.js?v=2.2.1"></script>
-<script src="js/ui.js?v=2.2.1"></script>
-<script src="js/screens.js?v=2.2.1"></script>
-<script src="js/main.js?v=2.2.1"></script>
+<script src="js/font.js?v=2.3.0"></script>
+<script src="js/matrix.js?v=2.3.0"></script>
+<script src="js/geo.js?v=2.3.0"></script>
+<script src="js/store.js?v=2.3.0"></script>
+<script src="js/map.js?v=2.3.0"></script>
+<script src="js/ui.js?v=2.3.0"></script>
+<script src="js/screens.js?v=2.3.0"></script>
+<script src="js/main.js?v=2.3.0"></script>
 </body>
 </html>
