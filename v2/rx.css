@@ -226,7 +226,8 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .controls { flex: 0 0 auto; display: flex; gap: 8px; height: 92px; margin-top: 8px; }
 .jog-well { flex: 0 0 41%; display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px 7px; border-radius: 10px; background: var(--well); box-shadow: inset 0 2px 4px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.06); }
 .jog-head, .jog-foot { display: flex; justify-content: space-between; align-items: center; height: 11px; font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: var(--sage); }
-.jog-foot { justify-content: center; }
+.jog-foot { justify-content: center; white-space: nowrap; overflow: hidden; }
+.jog.held { box-shadow: inset 0 2px 3px rgba(0,0,0,0.8), 0 0 0 2px var(--phosphor); }
 .jog-head b { font-family: 'DotGothic16', monospace; font-weight: 400; font-size: 10px; letter-spacing: 0.04em; color: var(--phosphor); }
 .jog { position: relative; display: block; width: 100%; height: 46px; border-radius: 6px; overflow: hidden; background: #0E1617; box-shadow: inset 0 2px 3px rgba(0,0,0,0.8); touch-action: none; cursor: ew-resize; }
 .jog-knurl {

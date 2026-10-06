@@ -149,7 +149,7 @@ window.RX = window.RX || {};
     $('menuLbl').textContent = atHome ? 'MENU' : 'BACK';
     $('menuJp').textContent = atHome ? '設定' : '戻る';
     $('menuIcon').innerHTML = atHome ? '<path d="M4 6 L16 6 M4 10 L16 10 M4 14 L16 14"/>' : '<path d="M8 5 L3 10 L8 15 M3 10 L17 10"/>';
-    const j = sc.jogLabels ? sc.jogLabels(A.top().st, A) : (mapMode ? ['◂ OUT', 'IN ▸', 'PUSH · LOCATE'] : ['◂ UP', 'DOWN ▸', 'PUSH · SELECT']);
+    const j = sc.jogLabels ? sc.jogLabels(A.top().st, A) : (mapMode ? ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP']);
     $('jogL').textContent = j[0]; $('jogR').textContent = j[1]; $('jogFoot').textContent = j[2];
     $('markSub').textContent = A.pick ? 'SET HERE' : (atHome ? 'DROP ▸ ASSIGN' : 'ANY SCREEN');
     setTray(false);
@@ -173,9 +173,28 @@ window.RX = window.RX || {};
     });
     return best;
   };
-  A.locate = function () {
-    if (A.gps) { M.setView(A.gps.lat, A.gps.lng); A.follow(true); A.say('LOCATED · FIX ±' + Math.round(A.gps.acc) + 'M · FOLLOWING', 3500); }
-    else { A.say('NO GPS FIX · ' + (A.gpsErr || 'ACQUIRING'), 3500); retryGps(); }
+  A.locate = function (zoom) {
+    if (A.gps) {
+      M.setView(A.gps.lat, A.gps.lng, zoom); A.follow(true);
+      A.say((zoom ? 'RECENTERED · Z' + zoom : 'LOCATED') + ' · FIX ±' + Math.round(A.gps.acc) + 'M · FOLLOWING', 3500);
+    } else {
+      // no fix (e.g. on the laptop): go to the last place a fix was seen
+      const lp = S.v2.lastPos;
+      if (lp) M.setView(lp.lat, lp.lng, zoom);
+      else if (zoom) M.setView(M.lat, M.lng, zoom);
+      A.say('NO GPS FIX · ' + (lp ? 'LAST KNOWN SPOT' : (A.gpsErr || 'ACQUIRING')), 3500);
+      retryGps();
+    }
+    A.dirty = true;
+  };
+  // full reset of the view: back to the map, on you, street zoom, filters off
+  A.recenter = function () {
+    U.closeField(true);
+    if (A.pick) return;
+    if (A.stack.length > 1) A.home();
+    if (A.recall != null) A.clearRecall();
+    A.target = null;
+    A.locate(15);
   };
   A.follow = function (on) { M.follow = on; A.dirty = true; };
 
@@ -335,11 +354,20 @@ window.RX = window.RX || {};
   (function () {
     const jog = $('jog'), knurl = $('jogKnurl');
     let st = null, pos = 0;
+    let holdTimer = null, lastTap = 0;
     jog.addEventListener('pointerdown', e => {
       e.preventDefault(); A.wake();
-      st = { x: e.clientX, acc: 0, moved: 0 };
+      st = { x: e.clientX, acc: 0, moved: 0, held: false };
       jog.classList.add('down');
       try { jog.setPointerCapture(e.pointerId); } catch (err) {}
+      // hold = recenter on you and reset the zoom, from any screen
+      clearTimeout(holdTimer);
+      const mine = st;
+      holdTimer = setTimeout(() => {
+        if (st !== mine || mine.moved >= 6) return;
+        mine.held = true; jog.classList.add('held');
+        A.beep('ok'); A.recenter(true);
+      }, 550);
     });
     jog.addEventListener('pointermove', e => {
       if (!st) return;
@@ -350,13 +378,23 @@ window.RX = window.RX || {};
       while (st.acc <= -16) { st.acc += 16; A.jog(-1); }
     });
     let tapAt = 0;
+    // tap = push (on the map: locate). Two quick taps on the map = recenter + reset zoom.
+    const tapped = () => {
+      A.beep('key');
+      const now = Date.now();
+      if (A.screen().map && !A.pick && now - lastTap < 420) { lastTap = 0; A.recenter(true); return; }
+      lastTap = now;
+      A.push();
+    };
     const end = e => {
       if (!st) return;
-      const tap = st.moved < 6 && e.type === 'pointerup'; st = null; jog.classList.remove('down');
-      if (tap) { tapAt = Date.now(); setTimeout(() => { if (tapAt) { tapAt = 0; A.beep('key'); A.push(); } }, 350); }
+      clearTimeout(holdTimer);
+      const tap = st.moved < 6 && !st.held && e.type === 'pointerup'; st = null;
+      jog.classList.remove('down'); jog.classList.remove('held');
+      if (tap) { tapAt = Date.now(); setTimeout(() => { if (tapAt) { tapAt = 0; tapped(); } }, 350); }
     };
     jog.addEventListener('pointerup', end); jog.addEventListener('pointercancel', end);
-    jog.addEventListener('click', e => { e.preventDefault(); if (tapAt && Date.now() - tapAt < 600) { tapAt = 0; A.beep('key'); A.push(); } });
+    jog.addEventListener('click', e => { e.preventDefault(); if (tapAt && Date.now() - tapAt < 600) { tapAt = 0; tapped(); } });
     jog.addEventListener('wheel', e => { e.preventDefault(); A.jog(e.deltaY > 0 ? -1 : 1); pos += e.deltaY > 0 ? -8 : 8; knurl.style.backgroundPosition = pos + 'px 0'; }, { passive: false });
   })();
   A.jog = function (d) {
@@ -509,6 +547,7 @@ window.RX = window.RX || {};
     else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); $('menuKey').click(); flashKey($('menuKey')); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); A.push(); }
+    else if (k === 'c' || k === 'C') { A.beep('ok'); A.recenter(true); }
     else if (k === '+' || k === '=') { if (sc.map) { M.zoomBy(0.5); A.dirty = true; } else A.jog(-1); }
     else if (k === '-' || k === '_') { if (sc.map) { M.zoomBy(-0.5); A.dirty = true; } else A.jog(1); }
     else if (k.startsWith('Arrow')) {

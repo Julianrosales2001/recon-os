@@ -197,7 +197,7 @@ window.RX = window.RX || {};
   RX.screens.map = {
     map: true,
     animating: () => true,
-    jogLabels: () => ['◂ OUT', 'IN ▸', 'PUSH · LOCATE'],
+    jogLabels: () => ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'],
     jog(d, st, A) {
       const v = A.view();
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
@@ -469,7 +469,7 @@ window.RX = window.RX || {};
       else S.log('edit', p.id, 'Edited: ' + S.markLabel(p), p.category || '');
       if (st.origTier !== p.tier) S.log('tier', p.id, 'Tier → ' + TIER_NAMES[p.tier] + ': ' + S.markLabel(p), p.category || '');
     },
-    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH · SELECT'],
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
     render(g, st, A) {
       const W = g.W, mx = g.mx;
       const p = S.poi(st.id);
@@ -649,7 +649,7 @@ window.RX = window.RX || {};
   RX.screens.fast = {
     pal: 'amber',
     animating: () => true,
-    jogLabels: st => st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH · SELECT'],
+    jogLabels: st => st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
     jog(d, st, A) {
       if (st.edit) { const f = S.activeFast(); if (f) { f.startTs = Math.min(Date.now(), f.startTs + d * 15 * 60000); S.saveFasts(); } return; }
       A.focusJog(d);
