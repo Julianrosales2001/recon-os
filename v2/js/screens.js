@@ -232,8 +232,8 @@ window.RX = window.RX || {};
       }
 
       // tiles status
-      const ts = M.status();
-      if (ts.failed > 0 && ts.loaded === 0) g.miniR('MAP OFFLINE', W - 2, 15, { c: C.amber, a: 0.9 });
+      const ml = M.statusLine();
+      if (ml) { const mw = RX.font.measure(ml, 'mini'); mx.clearRect(W - mw - 4, 13, mw + 4, 8); g.miniR(ml, W - 2, 14, { c: C.amber, a: 0.95 }); }
 
       // scale + count
       const fy = footTop(g);
@@ -819,7 +819,12 @@ window.RX = window.RX || {};
       row('NOW', A.place ? A.place.area + ' · ' + A.place.city + ' · ' + A.place.metro : (A.gps ? 'LOOKING UP' : 'NO FIX YET'), null, () => { if (A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
       row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', val(String(new Set(S.regions.map(r => r.name)).size)), null);
 
-      y = g.section('03 · TRAIL & FOG', y + 2);
+      y = g.section('03 · MAP, TRAIL & FOG', y + 2);
+      const SRC = ['AUTO', 'CARTO', 'ESRI', 'OSM'];
+      row('MAP SOURCE', 'NOW ' + M.sourceName() + (M.loaded ? ' · OK' : '') + Object.keys(M.why).map(k => ' · ' + k + ' ' + M.why[k]).join(''), val(S.v2.mapSrc || 'AUTO'), () => {
+        const nx = SRC[(SRC.indexOf(S.v2.mapSrc || 'AUTO') + 1) % SRC.length];
+        S.saveV2({ mapSrc: nx }); M.setSource(nx); A.say('MAP SOURCE ▸ ' + (nx === 'AUTO' ? 'AUTO · ' + M.sourceName() : M.sourceName()), 2500);
+      });
       row('RECORD TRAIL', S.trailMiles().toFixed(1) + ' MI · ' + S.trail.length + ' POINTS TODAY', tog(S.v2.recordTrail, ['REC', 'OFF', C.red]), () => { S.saveV2({ recordTrail: !S.v2.recordTrail }); A.updateLamps(); });
       row('SHOW TRAIL', 'DOTTED AMBER LINE ON THE MAP', tog(S.prefsV1.showTrail !== false), () => S.savePrefsV1({ showTrail: S.prefsV1.showTrail === false }));
       const mi2 = S.fog.size * 150 * 150 / 2589988;
@@ -849,7 +854,8 @@ window.RX = window.RX || {};
       y += 6;
       g.textC('RECON.OS RX-90', W / 2, y, { c: C.hot });
       g.textC('V2.0 · PWA · DATA STAYS ON THIS DEVICE', W / 2, y + 10, { face: 'mini', a: 0.5 });
-      y += 22;
+      g.textC('MAP ' + M.credit(), W / 2, y + 18, { face: 'mini', a: 0.4 });
+      y += 30;
       g.scrollEnd(y);
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'JOG SCROLLS · PUSH SELECTS');
     }
@@ -1058,6 +1064,8 @@ window.RX = window.RX || {};
       key((x, yy) => { for (let i = -7; i <= 7; i += 2) mx.set(x + i, yy, C.water, 0.6); for (let i = -6; i <= 7; i += 2) mx.set(x + i, yy + 2, C.water, 0.6); }, 'WATER');
       key((x, yy) => { mx.hline(x - 8, yy, 17, C.ink, 1); mx.hline(x - 8, yy + 3, 17, C.ink, 0.4); }, 'MAJOR · MINOR ROADS');
       key((x, yy) => { for (let i = -8; i <= 8; i++) if ((i + 8) % 5 === 0) mx.set(x + i, yy, C.fog, 0.6); mx.hline(x - 8, yy + 3, 17, C.ink, 0.2); }, 'FOG · NOT EXPLORED YET');
+      g.mini('MAP ' + M.credit(), 1, y + 2, { a: 0.45 });
+      y += 10;
       g.scrollEnd(y + 4);
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A CATEGORY TO HIDE IT');
     }

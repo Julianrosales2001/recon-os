@@ -835,6 +835,7 @@ window.RX = window.RX || {};
   function boot() {
     S.load();
     A.emptyAtBoot = S.isEmpty();
+    M.setSource(S.v2.mapSrc || 'AUTO');
     S.onWriteFail = () => { A.say('STORAGE FULL · WRITE FAILED · EXPORT A BACKUP', 8000); A.beep('err'); };
     A.disp = S.v2.disp || 'region';
     centerOnData();

@@ -9,20 +9,73 @@
 window.RX = window.RX || {};
 
 (function () {
-  const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png';
-  const SUBS = ['a', 'b', 'c', 'd'];
-  const MIN_Z = 3, MAX_Z = 18, TILE_MAX_Z = 19;
+  // Tile sources, tried in order when AUTO. All use the same Web Mercator
+  // grid, so a mark's lat/lng lands on the same street whichever is drawn.
+  const PROVIDERS = [
+    { id: 'CARTO', name: 'CARTO DARK', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png', subs: ['a', 'b', 'c', 'd'], maxZ: 20, land: [14, 14, 14], water: [[44, 53, 60], [38, 38, 38]], credit: '© OPENSTREETMAP · © CARTO' },
+    { id: 'ESRI', name: 'ESRI DARK GRAY', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', subs: [''], maxZ: 16, land: [40, 40, 40], water: [], learnWater: true, credit: '© ESRI · HERE · OPENSTREETMAP' },
+    { id: 'OSM', name: 'OPENSTREETMAP', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subs: [''], maxZ: 19, land: [242, 239, 233], water: [[170, 211, 223]], credit: '© OPENSTREETMAP CONTRIBUTORS' }
+  ];
+  const MIN_Z = 3, MAX_Z = 18;
   const K = 2; // sub-samples per cell edge
 
-  // Tile palette calibration (dark_nolabels). LAND is the base level; anything
-  // brighter is drawn as road/structure; pixels near WATER are drawn as water.
-  const CAL = { land: 14, roadSpan: 70, waterL: 38, waterTol: 10, waterDetect: true };
+  // Calibration. LAND is the basemap's ground colour; a cell lights up by how
+  // far it departs from it (works for dark and light basemaps). SPAN is the
+  // departure that reads as full brightness. Both are re-learned on screen.
+  const CAL = { land: [14, 14, 14], landL: 14, span: 60, water: [], learned: null, tol: 10 };
 
   const M = {
     lat: 29.7379, lng: -94.9846, zoom: 15,
     follow: true, dirty: true, cal: CAL,
     tiles: new Map(), loading: 0, failed: 0, loaded: 0,
-    base: null, baseKey: ''
+    base: null, baseKey: '',
+    prov: 0, mode: 'AUTO', why: {}, PROVIDERS
+  };
+  const P = () => PROVIDERS[M.prov];
+
+  function useProvider(i, keepWhy) {
+    M.prov = i;
+    const p = PROVIDERS[i];
+    CAL.land = p.land.slice(); CAL.landL = lumOf(p.land); CAL.water = p.water.slice(); CAL.learned = null;
+    CAL.span = CAL.landL > 128 ? 70 : 60;
+    M.tiles.clear(); M.loading = 0; M.failed = 0; M.loaded = 0; M.tainted = false;
+    M.base = null; M.baseKey = ''; M.dirty = true;
+    if (!keepWhy) M.why = {};
+  }
+  function lumOf(c) { return (c[0] * 3 + c[1] * 6 + c[2]) / 10; }
+
+  // choose source: 'AUTO' walks the list on failure; an id pins one source.
+  M.setSource = function (mode) {
+    M.mode = mode || 'AUTO';
+    const i = PROVIDERS.findIndex(p => p.id === M.mode);
+    useProvider(i >= 0 ? i : 0);
+  };
+  M.sourceName = () => P().name;
+  M.credit = () => P().credit;
+
+  // When a source fails with nothing loaded, find out why (blocked by the
+  // browser's cross-origin rule vs. not reachable) and move to the next one.
+  function failover(reason) {
+    const p = P();
+    if (M.why[p.id]) return;
+    M.why[p.id] = reason || 'FAILED';
+    const probe = p.url.replace('{s}', p.subs[0]).replace('{z}', '3').replace('{x}', '2').replace('{y}', '3');
+    if (!reason) fetch(probe, { mode: 'no-cors', cache: 'no-store' })
+      .then(() => { M.why[p.id] = 'BLOCKED (CORS)'; })
+      .catch(() => { M.why[p.id] = navigator.onLine === false ? 'NO CONNECTION' : 'UNREACHABLE'; })
+      .finally(() => { M.dirty = true; });
+    if (M.mode === 'AUTO' && M.prov < PROVIDERS.length - 1) useProvider(M.prov + 1, true);
+    M.dirty = true;
+  }
+  M.statusLine = function () {
+    const p = P();
+    if (M.loaded > 0 && !M.tainted) return '';
+    if (M.why[p.id]) return 'MAP ' + p.id + ' ' + M.why[p.id];
+    if (M.loading > 0) return 'MAP LOADING · ' + p.id;
+    return '';
+  };
+  M.report = function () {
+    return PROVIDERS.map(p => p.id + ':' + (M.why[p.id] || (p === P() ? (M.loaded ? 'OK ' + M.loaded : 'TRYING') : '-'))).join(' · ');
   };
 
   // ---------- tiles ----------
@@ -34,13 +87,19 @@ window.RX = window.RX || {};
     const key = tileKey(z, x, y);
     let t = M.tiles.get(key);
     if (t) { t.used = performance.now(); return t; }
+    const prov = M.prov, p = P();
     t = { img: new Image(), ok: false, err: false, used: performance.now() };
     t.img.crossOrigin = 'anonymous';
     t.img.decoding = 'async';
-    t.img.onload = () => { t.ok = true; M.loading--; M.loaded++; M.dirty = true; };
-    t.img.onerror = () => { t.err = true; M.loading--; M.failed++; };
+    t.img.onload = () => { if (prov !== M.prov) return; t.ok = true; M.loading--; M.loaded++; M.dirty = true; };
+    t.img.onerror = () => {
+      if (prov !== M.prov) return;
+      t.err = true; M.loading--; M.failed++;
+      if (M.loaded === 0 && M.failed >= 4) failover();
+      else setTimeout(() => { if (M.tiles.get(key) === t) M.tiles.delete(key); }, 15000);
+    };
     M.loading++;
-    t.img.src = TILE_URL.replace('{s}', SUBS[(x + y) % 4]).replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    t.img.src = p.url.replace('{s}', p.subs[(x + y) % p.subs.length]).replace('{z}', z).replace('{x}', x).replace('{y}', y);
     M.tiles.set(key, t);
     if (M.tiles.size > 420) evict();
     return t;
@@ -92,26 +151,43 @@ window.RX = window.RX || {};
   };
 
   // ---------- self-calibration ----------
-  // The basemap's land tone is the most common grey on screen; open water is
-  // the next big flat grey a little brighter than land. Learned from what is
-  // actually drawn, so a change in tile colours never blanks the map.
-  const hist = new Uint32Array(256);
+  // Ground = the most common colour on screen. Water = the provider's known
+  // water colour, or (for sources that need it) the next big flat colour.
+  // Span = how far the brightest 3% of features stand off the ground.
+  const qh = new Map(), dh = new Uint32Array(256);
   function autoCal(data) {
-    hist.fill(0);
+    qh.clear(); dh.fill(0);
     let n = 0;
-    for (let p = 0; p < data.length; p += 4 * 7) {
-      const R = data[p], G = data[p + 1], B = data[p + 2];
-      if (Math.abs(R - G) > 10 || Math.abs(R - B) > 10) continue;
-      hist[Math.round((R * 3 + G * 6 + B) / 10)]++; n++;
+    for (let p = 0; p < data.length; p += 4 * 5) {
+      const q = ((data[p] >> 3) << 10) | ((data[p + 1] >> 3) << 5) | (data[p + 2] >> 3);
+      qh.set(q, (qh.get(q) || 0) + 1); n++;
     }
-    if (n < 500) return;
-    let land = 0;
-    for (let i = 1; i < 256; i++) if (hist[i] > hist[land]) land = i;
-    if (land > 60) return;
-    CAL.land = Math.round(CAL.land * 0.7 + land * 0.3);
-    let wl = -1;
-    for (let i = land + 8; i <= Math.min(255, land + 48); i++) if (wl < 0 || hist[i] > hist[wl]) wl = i;
-    if (wl >= 0 && hist[wl] / n >= 0.12) CAL.waterL = Math.round(CAL.waterL * 0.6 + wl * 0.4);
+    if (n < 400) return;
+    const ranked = [...qh.entries()].sort((a, b) => b[1] - a[1]);
+    const top = ranked[0][0];
+    const land = [((top >> 10) & 31) * 8 + 4, ((top >> 5) & 31) * 8 + 4, (top & 31) * 8 + 4];
+    if (Math.abs(lumOf(land) - CAL.landL) < 70) {
+      CAL.land = CAL.land.map((v, i) => Math.round(v * 0.7 + land[i] * 0.3));
+      CAL.landL = lumOf(CAL.land);
+    }
+    if (P().learnWater && ranked[1] && ranked[1][1] / n >= 0.15) {
+      const w = ranked[1][0];
+      CAL.learned = [((w >> 10) & 31) * 8 + 4, ((w >> 5) & 31) * 8 + 4, (w & 31) * 8 + 4];
+    }
+    for (let p = 0; p < data.length; p += 4 * 5) {
+      const R = data[p], G = data[p + 1], B = data[p + 2];
+      if (isWater(R, G, B)) continue;
+      dh[Math.min(255, Math.round(Math.abs((R * 3 + G * 6 + B) / 10 - CAL.landL)))]++;
+    }
+    let acc = 0, p97 = 0;
+    const lim = n * 0.03;
+    for (let i = 255; i >= 0; i--) { acc += dh[i]; if (acc >= lim) { p97 = i; break; } }
+    if (p97 > 8) CAL.span = Math.round(CAL.span * 0.7 + Math.max(24, Math.min(140, p97)) * 0.3);
+  }
+  function near(R, G, B, c) { const t = CAL.tol; return Math.abs(R - c[0]) <= t && Math.abs(G - c[1]) <= t && Math.abs(B - c[2]) <= t; }
+  function isWater(R, G, B) {
+    for (const c of CAL.water) if (near(R, G, B, c)) return true;
+    return !!(CAL.learned && near(R, G, B, CAL.learned));
   }
 
   // ---------- sampling ----------
@@ -121,10 +197,10 @@ window.RX = window.RX || {};
     if (!oc) { oc = document.createElement('canvas'); octx = oc.getContext('2d', { willReadFrequently: true }); }
     if (oc.width !== W || oc.height !== H) { oc.width = W; oc.height = H; }
     octx.imageSmoothingEnabled = true;
-    octx.fillStyle = 'rgb(' + CAL.land + ',' + CAL.land + ',' + CAL.land + ')';
+    octx.fillStyle = 'rgb(' + CAL.land.join(',') + ')';
     octx.fillRect(0, 0, W, H);
 
-    const tz = Math.max(0, Math.min(TILE_MAX_Z, Math.round(M.zoom)));
+    const tz = Math.max(0, Math.min(P().maxZ, Math.round(M.zoom)));
     const scale = Math.pow(2, M.zoom - tz);          // world px (at M.zoom) per tile px
     const sub = K / v.pitch;                          // sample px per world px
     const ts = 256 * scale * sub;                     // tile size in sample px
@@ -133,11 +209,11 @@ window.RX = window.RX || {};
     const oy = H / 2 - (c.y / 256) * ts + (v.cy - v.rows / 2) * K;
     const x0 = Math.floor(-ox / ts), y0 = Math.floor(-oy / ts);
     const x1 = Math.floor((W - ox) / ts), y1 = Math.floor((H - oy) / ts);
-    let missing = 0;
+    let missing = 0, drawn = 0;
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
       const dx = ox + tx * ts, dy = oy + ty * ts;
       const t = getTile(tz, tx, ty);
-      if (t && t.ok) { octx.drawImage(t.img, dx, dy, ts + 0.5, ts + 0.5); continue; }
+      if (t && t.ok) { octx.drawImage(t.img, dx, dy, ts + 0.5, ts + 0.5); drawn++; continue; }
       missing++;
       for (let k = 1; k <= 5 && tz - k >= 0; k++) {
         const pt = peekTile(tz - k, tx >> k, ty >> k);
@@ -145,32 +221,33 @@ window.RX = window.RX || {};
         const n = 1 << k, part = 256 / n;
         const sx = ((tx % n) + n) % n * part, sy = ((ty % n) + n) % n * part;
         octx.drawImage(pt.img, sx, sy, part, part, dx, dy, ts + 0.5, ts + 0.5);
+        drawn++;
         break;
       }
     }
 
     let data;
     try { data = octx.getImageData(0, 0, W, H).data; }
-    catch (e) { M.tainted = true; return null; }
-    if (missing === 0) autoCal(data);
+    catch (e) { M.tainted = true; failover('BLOCKED (CANVAS)'); return null; }
+    if (drawn && missing === 0) autoCal(data);
 
     const n = v.cols * v.rows;
     const lum = new Uint8Array(n), water = new Uint8Array(n);
-    const tol = CAL.waterTol;
+    const landL = CAL.landL, span = CAL.span;
     for (let r = 0; r < v.rows; r++) for (let col = 0; col < v.cols; col++) {
       let mx = 0, sum = 0, wv = 0;
       for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) {
         const p = ((r * K + j) * W + (col * K + i)) * 4;
         const R = data[p], Gc = data[p + 1], B = data[p + 2];
-        const L = (R * 3 + Gc * 6 + B) / 10;
-        if (L > mx) mx = L;
-        sum += L;
-        if (CAL.waterDetect && Math.abs(L - CAL.waterL) <= 4 && Math.abs(R - B) <= tol && Math.abs(R - Gc) <= tol) wv++;
+        if (isWater(R, Gc, B)) { wv++; continue; }
+        const d = Math.abs((R * 3 + Gc * 6 + B) / 10 - landL);
+        if (d > mx) mx = d;
+        sum += d;
       }
       const avg = sum / (K * K);
       const L = mx * 0.6 + avg * 0.4;
       const idx = r * v.cols + col;
-      lum[idx] = Math.max(0, Math.min(255, (L - CAL.land - 4) / CAL.roadSpan * 255));
+      lum[idx] = Math.max(0, Math.min(255, (L - 4) / span * 255));
       water[idx] = wv >= (K * K) / 2 ? 1 : 0;
     }
 
@@ -229,7 +306,7 @@ window.RX = window.RX || {};
     }
   };
 
-  M.status = function () { return { loading: M.loading, failed: M.failed, loaded: M.loaded, missing: M.missing || 0, tainted: !!M.tainted }; };
+  M.status = function () { return { source: P().id, loading: M.loading, failed: M.failed, loaded: M.loaded, missing: M.missing || 0, tainted: !!M.tainted, why: M.why, land: CAL.land, span: CAL.span }; };
 
   RX.map = M;
 })();
