@@ -206,8 +206,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
   pointer-events: auto;
   flex: 0 0 24px; height: 96px; border-radius: 7px 0 0 7px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
-  background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(90deg, #405859 0%, #31484A 100%) !important;
-  background-blend-mode: overlay, normal;
+  background: linear-gradient(90deg, #405859 0%, #31484A 100%) !important;
   box-shadow: -3px 3px 0 var(--edge), -4px 5px 8px rgba(0,0,0,0.5), inset 1px 1px 0 rgba(255,255,255,0.14) !important;
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--silk);
 }
@@ -235,8 +234,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 /* ---------- keys ---------- */
 .key {
   border-radius: 6px;
-  background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(180deg, var(--cap-hi) 0%, var(--cap-lo) 100%);
-  background-blend-mode: overlay, normal;
+  background: linear-gradient(180deg, var(--cap-hi) 0%, var(--cap-lo) 100%);
   box-shadow: 0 3px 0 var(--edge), 0 4px 5px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.14);
   color: var(--silk);
   transition: transform 0.07s ease, box-shadow 0.07s ease;
@@ -274,7 +272,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .preset-key .num { position: absolute; top: 2px; left: 6px; font-size: 11px; font-weight: 700; }
 .preset-key .led { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; }
 .preset-key svg { margin-top: 6px; width: 18px; height: 18px; }
-#device.assign .preset-key { background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(180deg, #4D5440 0%, #3A4232 100%); background-blend-mode: overlay, normal; }
+#device.assign .preset-key { background: linear-gradient(180deg, #4D5440 0%, #3A4232 100%); }
 #device.assign .preset-key .num { color: #F2B566; text-shadow: 0 0 8px rgba(232,154,60,0.85); }
 #device.assign .preset-lbl { color: var(--silk-hi); }
 .preset.latched .preset-key { transform: translateY(2px); box-shadow: 0 1px 0 var(--edge), 0 1px 2px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06); }
@@ -308,7 +306,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .drum-press.down { transform: translateY(4px); transition-duration: 0.06s; }
 .drum-rotor { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 0.52s cubic-bezier(0.22, 1.28, 0.36, 1); }
 .drum-rotor.dragging { transition: transform 0.05s linear; }
-.drum-slice { position: absolute; left: calc(50% - 23px); top: calc(50% - 6.2px); width: 46px; height: 12.4px; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--tex-fine) 0 0 / 120px 120px, rgb(66, 91, 91); background-blend-mode: overlay, normal; }
+.drum-slice { position: absolute; left: calc(50% - 23px); top: calc(50% - 6.2px); width: 46px; height: 12.4px; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: rgb(66, 91, 91); }
 .drum-slice.seam { box-shadow: inset 0 2px 0 rgba(0,0,0,0.6), inset 0 3px 0 rgba(255,255,255,0.08); }
 .drum-cap { position: absolute; left: 0; width: 46px; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--silk-hi); }
 .drum-cap .led { width: 6px; height: 6px; }
@@ -324,8 +322,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .mark-key {
   position: relative; width: 100%; height: 82px; border-radius: 8px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  background: var(--tex-fine) 0 0 / 120px 120px, radial-gradient(ellipse 80% 70% at 50% 42%, #962A12 0%, var(--rust) 55%, #5C1203 100%);
-  background-blend-mode: overlay, normal;
+  background: radial-gradient(ellipse 80% 70% at 50% 42%, #962A12 0%, var(--rust) 55%, #5C1203 100%);
   box-shadow: 0 3px 0 #3A0C02, 0 5px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,190,160,0.28), inset 0 -2px 4px rgba(0,0,0,0.25);
   color: #F3E3D3; transition: transform 0.07s ease, box-shadow 0.07s ease;
 }
@@ -396,3 +393,99 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
   .tray { transition: none; }
   .led.blink.on, .led.pulse.on { animation: none; }
 }
+
+/* =============================================================
+   KEYS · rendered from the CCRB light labs (rubber, gunmetal, glass),
+   camera straight down, one fixed light from the top-left like the housing.
+   Each kind of key is its own material. Sprites are 3× phone pixels.
+   Lit states cross-fade in on a ::after layer; presses sink the key.
+   ============================================================= */
+.preset-key, .mark-key, .tray-tab, .tool { -webkit-tap-highlight-color: transparent; }
+.preset-key > *, .mark-key > *, .tray-tab > *, .tool > * { display: none !important; }
+
+/* category keys: painted & etched rubber. A bare cap, 9-sliced to any width; the number and icon sit on top */
+.preset-key {
+  background: none !important; box-shadow: none !important;
+  border: 13px solid transparent; border-image: url(keys/cap-preset.png?v=2) 39 fill / 13px;
+  filter: drop-shadow(1.2px 1.8px 1.3px rgba(0,0,0,0.55));
+  transition: transform 0.07s ease, filter 0.07s ease;
+}
+/* the border-image cap paints over the element's own background, so the legends ride on pseudo-elements: ::before off, ::after lit */
+.preset-key::before, .preset-key::after { content: ''; position: absolute; inset: -13px; pointer-events: none; }
+.preset-key::before { background: var(--k-num) 0 0 / 18px 18px no-repeat, var(--k-icon) 50% 50% / 34px 34px no-repeat; }
+.preset-key::after {
+  background: var(--k-num-lit) 0 0 / 18px 18px no-repeat, var(--k-icon-lit) 50% 50% / 34px 34px no-repeat;
+  opacity: 0; transition: opacity 0.28s ease;
+}
+.preset.latched .preset-key::after, #device.assign .preset-key::after { opacity: 1; }
+.preset-key:active, .preset-key.down, .preset.latched .preset-key {
+  transform: translateY(1px) scale(0.985); filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94);
+}
+.preset.latched .preset-key { filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)); }
+.preset-sock { background-image: radial-gradient(closest-side, var(--glow), rgba(0,0,0,0)); background-size: 0 0; background-position: center; background-repeat: no-repeat; transition: background-size 0.3s ease; }
+.preset.latched .preset-sock, #device.assign .preset-sock { background-size: 100% 100%; }
+.preset:nth-child(1) { --k-num: url(keys/p1-num.png?v=2); --k-icon: url(keys/p1-icon.png?v=2); --k-num-lit: url(keys/p1-num-lit.png?v=2); --k-icon-lit: url(keys/p1-icon-lit.png?v=2); --glow: rgba(255,139,139,0.30); }
+.preset:nth-child(2) { --k-num: url(keys/p2-num.png?v=2); --k-icon: url(keys/p2-icon.png?v=2); --k-num-lit: url(keys/p2-num-lit.png?v=2); --k-icon-lit: url(keys/p2-icon-lit.png?v=2); --glow: rgba(221,240,122,0.26); }
+.preset:nth-child(3) { --k-num: url(keys/p3-num.png?v=2); --k-icon: url(keys/p3-icon.png?v=2); --k-num-lit: url(keys/p3-num-lit.png?v=2); --k-icon-lit: url(keys/p3-icon-lit.png?v=2); --glow: rgba(108,182,255,0.30); }
+.preset:nth-child(4) { --k-num: url(keys/p4-num.png?v=2); --k-icon: url(keys/p4-icon.png?v=2); --k-num-lit: url(keys/p4-num-lit.png?v=2); --k-icon-lit: url(keys/p4-icon-lit.png?v=2); --glow: rgba(242,244,228,0.24); }
+.preset:nth-child(5) { --k-num: url(keys/p5-num.png?v=2); --k-icon: url(keys/p5-icon.png?v=2); --k-num-lit: url(keys/p5-num-lit.png?v=2); --k-icon-lit: url(keys/p5-icon-lit.png?v=2); --glow: rgba(226,139,255,0.30); }
+.preset:nth-child(6) { --k-num: url(keys/p6-num.png?v=2); --k-icon: url(keys/p6-icon.png?v=2); --k-num-lit: url(keys/p6-num-lit.png?v=2); --k-icon-lit: url(keys/p6-icon-lit.png?v=2); --glow: rgba(255,177,59,0.30); }
+
+/* MARK: red translucent silicone. Bare cap 9-sliced; the printed ink on top; armed or pressed, the whole key lights */
+.mark-key {
+  background: none !important; box-shadow: none !important;
+  border: 20px solid transparent; border-image: url(keys/mark-base.png?v=2) 60 fill / 20px;
+  filter: drop-shadow(1.6px 2.4px 1.8px rgba(0,0,0,0.55));
+  transition: transform 0.07s ease, filter 0.07s ease;
+}
+.mark-key::before {
+  content: ''; position: absolute; inset: -20px; pointer-events: none; z-index: 2;   /* the ink rides above both caps */
+  background: url(keys/mark-ink.png?v=2) center calc(50% + 3px) / 104px 34px no-repeat, url(keys/mark-jp.png?v=2) right 10px top 4px / 27px 22px no-repeat;
+}
+.mark-key::after {
+  content: ''; position: absolute; inset: -20px; pointer-events: none;
+  border: 20px solid transparent; border-image: url(keys/mark-base-lit.png?v=2) 60 fill / 20px; z-index: 1;
+  opacity: 0; transition: opacity 0.18s ease;
+}
+.mark-key:active::after, .mark-key.down::after { opacity: 1; transition-duration: 0.05s; }
+#device.assign .mark-key::after { animation: mark-armed 1.4s ease-in-out infinite; }
+@keyframes mark-armed { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.35; } }
+.mark-key:active, .mark-key.down { transform: translateY(1px) scale(0.99); filter: drop-shadow(0.6px 0.9px 0.8px rgba(0,0,0,0.6)); }
+.mark-well { background-image: radial-gradient(closest-side, rgba(255,74,42,0.32), rgba(255,74,42,0)); background-size: 0 0; background-position: center; background-repeat: no-repeat; transition: background-size 0.2s ease; }
+#device.assign .mark-well, .mark-well:has(.mark-key:active), .mark-well:has(.mark-key.down) { background-size: 100% 100%; }
+
+/* function drum: moulded grip rubber faces, etched; the face in front is lit (main.js sets the art) */
+.drum-cap { background-position: 0 0; background-size: 46px 92px; background-repeat: no-repeat; }
+.drum-cap > * { display: none; }
+
+/* FN tab + tray tools: matte silicone, etched; alerts glow through the letters */
+.tray-tab { background: url(keys/fn.png?v=2) 0 0 / 24px 96px no-repeat !important; box-shadow: none !important; border-radius: 0; filter: drop-shadow(1px 1.6px 1.2px rgba(0,0,0,0.5)); }
+.tray.open .tray-tab { background-image: url(keys/fn-open.png?v=2) !important; }
+.tool { background: url(keys/tool-search.png?v=2) 0 0 / 50px 40px no-repeat !important; box-shadow: none !important; filter: drop-shadow(1.1px 1.6px 1.2px rgba(0,0,0,0.55)); }
+.tool[data-tool=log] { background-image: url(keys/tool-log.png?v=2) !important; }
+.tool[data-tool=log]:has(.led.on) { background-image: url(keys/tool-log-lit.png?v=2) !important; }
+.tool[data-tool=fast] { background-image: url(keys/tool-fast.png?v=2) !important; }
+.tool[data-tool=fast]:has(.led.on) { background-image: url(keys/tool-fast-lit.png?v=2) !important; }
+.tool[data-tool=legend] { background-image: url(keys/tool-legend.png?v=2) !important; }
+.tool[data-tool=objectives] { background-image: url(keys/tool-objectives.png?v=2) !important; }
+.tool[data-tool=objectives]:has(.led.on) { background-image: url(keys/tool-objectives-lit.png?v=2) !important; }
+.tool:active, .tool.down { transform: translateY(1px) scale(0.985); filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94); }
+
+/* jog: gunmetal, straight knurl (main.js slides it as the wheel turns) */
+.jog-knurl { background-color: #2a2d31; background-image: url(keys/jog-knurl.jpg?v=2); background-size: 42px 38px; background-repeat: repeat-x; }
+
+/* status lamps: faceted jewels in turned steel bezels */
+.lamps .led { position: relative; width: 13px; height: 13px; border-radius: 0; background: url(keys/lamp-green.png?v=2) 0 0 / 13px 13px no-repeat; box-shadow: none; filter: drop-shadow(0.6px 1px 0.8px rgba(0,0,0,0.5)); }
+.lamps .led.red { background-image: url(keys/lamp-red.png?v=2); }
+.lamps .led.amber { background-image: url(keys/lamp-amber.png?v=2); }
+.lamps .led::after { content: ''; position: absolute; inset: 0; background: url(keys/lamp-green-lit.png?v=2) 0 0 / 13px 13px no-repeat; opacity: 0; transition: opacity 0.2s; }
+.lamps .led.red::after { background-image: url(keys/lamp-red-lit.png?v=2); }
+.lamps .led.amber::after { background-image: url(keys/lamp-amber-lit.png?v=2); }
+.lamps .led.on { background: url(keys/lamp-green.png?v=2) 0 0 / 13px 13px no-repeat; box-shadow: none; animation: none; filter: drop-shadow(0 0 3px rgba(125,255,214,0.55)); }
+.lamps .led.red.on { background-image: url(keys/lamp-red.png?v=2); filter: drop-shadow(0 0 3px rgba(255,106,77,0.6)); }
+.lamps .led.amber.on { background-image: url(keys/lamp-amber.png?v=2); filter: drop-shadow(0 0 3px rgba(255,181,71,0.55)); }
+.lamps .led.on::after { opacity: 1; }
+.lamps .led.blink.on::after { animation: led-blink 1s steps(1) infinite; }
+.lamps .led.pulse.on::after { animation: led-pulse 2.2s ease-in-out infinite; }
+.lamp { gap: 4px; }
+.lamps { gap: 10px; }

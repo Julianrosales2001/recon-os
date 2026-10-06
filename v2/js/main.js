@@ -418,25 +418,21 @@ window.RX = window.RX || {};
       for (let i = 0; i < 8; i++) {
         const ang = k * 120 + (3.5 - i) * 15;
         html += '<span class="drum-slice' + (i === 0 ? ' seam' : '') + '" style="transform: rotateX(' + ang + 'deg) translateZ(44px)">' +
-          '<span class="drum-cap" data-face="' + k + '" style="top:' + (-i * 11.5 - 0.45).toFixed(2) + 'px">' +
-          '<span class="led"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="' + F.icon + '"/></svg>' +
-          '<span class="df-lbl">' + F.id + '</span><span class="df-jp">' + F.jp + '</span></span></span>';
+          '<span class="drum-cap" data-face="' + k + '" style="top:' + (-i * 11.5 - 0.45).toFixed(2) + 'px"></span></span>';
       }
     });
     rotor.innerHTML = html;
   })();
-  function paintFace(k, F) {
-    rotor.querySelectorAll('.drum-cap[data-face="' + k + '"]').forEach(c => {
-      c.querySelector('.df-lbl').textContent = F.id;
-      c.querySelector('.df-jp').textContent = F.jp;
-      c.querySelector('path').setAttribute('d', F.icon);
-    });
-  }
+  // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
+  const faceArt = DRUM.map(F => F.id.toLowerCase());
+  const DRUM_ART = (id, lit) => 'url(keys/drum-' + id + (lit ? '-lit' : '') + '.jpg?v=1)';
+  ['menu', 'scan', 'filter', 'back', 'undo'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
+  function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   function updateDrum() {
     const face = mod(A.drumRot, 3);
     const atHome = A.stack.length <= 1;
     paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE));
-    rotor.querySelectorAll('.drum-cap').forEach(c => c.querySelector('.led').classList.toggle('on', +c.dataset.face === face));
+    rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
     const id = face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
