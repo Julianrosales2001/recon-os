@@ -11,9 +11,11 @@ window.RX = window.RX || {};
 (function () {
   // Tile sources, tried in order when AUTO. All use the same Web Mercator
   // grid, so a mark's lat/lng lands on the same street whichever is drawn.
+  // (CARTO, used by v1, now answers every tile with an "API KEY REQUIRED"
+  // image, so it is no longer in the list. Colours below were measured from
+  // the live tiles.)
   const PROVIDERS = [
-    { id: 'CARTO', name: 'CARTO DARK', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png', subs: ['a', 'b', 'c', 'd'], maxZ: 20, land: [14, 14, 14], water: [[44, 53, 60], [38, 38, 38]], credit: '© OPENSTREETMAP · © CARTO' },
-    { id: 'ESRI', name: 'ESRI DARK GRAY', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', subs: [''], maxZ: 16, land: [40, 40, 40], water: [], learnWater: true, credit: '© ESRI · HERE · OPENSTREETMAP' },
+    { id: 'ESRI', name: 'ESRI DARK GRAY', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', subs: [''], maxZ: 16, land: [71, 71, 73], water: [[35, 34, 39]], flats: [[73, 75, 74], [80, 80, 82]], checkFake: true, credit: '© ESRI · HERE · GARMIN · OSM' },
     { id: 'OSM', name: 'OPENSTREETMAP', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subs: [''], maxZ: 19, land: [242, 239, 233], water: [[170, 211, 223]], credit: '© OPENSTREETMAP CONTRIBUTORS' }
   ];
   const MIN_Z = 3, MAX_Z = 18;
@@ -22,7 +24,7 @@ window.RX = window.RX || {};
   // Calibration. LAND is the basemap's ground colour; a cell lights up by how
   // far it departs from it (works for dark and light basemaps). SPAN is the
   // departure that reads as full brightness. Both are re-learned on screen.
-  const CAL = { land: [14, 14, 14], landL: 14, span: 60, water: [], learned: null, tol: 10 };
+  const CAL = { land: [71, 71, 73], landL: 71, span: 42, water: [], learned: null, tol: 8 };
 
   const M = {
     lat: 29.7379, lng: -94.9846, zoom: 15,
@@ -37,8 +39,8 @@ window.RX = window.RX || {};
     M.prov = i;
     const p = PROVIDERS[i];
     CAL.land = p.land.slice(); CAL.landL = lumOf(p.land); CAL.water = p.water.slice(); CAL.learned = null;
-    CAL.span = CAL.landL > 128 ? 70 : 60;
-    M.tiles.clear(); M.loading = 0; M.failed = 0; M.loaded = 0; M.tainted = false;
+    CAL.span = CAL.landL > 128 ? 70 : 42;
+    M.tiles.clear(); M.loading = 0; M.failed = 0; M.loaded = 0; M.fakes = 0; M.tainted = false;
     M.base = null; M.baseKey = ''; M.dirty = true;
     if (!keepWhy) M.why = {};
   }
@@ -48,6 +50,7 @@ window.RX = window.RX || {};
   M.setSource = function (mode) {
     M.mode = mode || 'AUTO';
     const i = PROVIDERS.findIndex(p => p.id === M.mode);
+    if (i < 0) M.mode = 'AUTO';
     useProvider(i >= 0 ? i : 0);
   };
   M.sourceName = () => P().name;
@@ -91,7 +94,17 @@ window.RX = window.RX || {};
     t = { img: new Image(), ok: false, err: false, used: performance.now() };
     t.img.crossOrigin = 'anonymous';
     t.img.decoding = 'async';
-    t.img.onload = () => { if (prov !== M.prov) return; t.ok = true; M.loading--; M.loaded++; M.dirty = true; };
+    t.img.onload = () => {
+      if (prov !== M.prov) return;
+      M.loading--;
+      if (isPlaceholder(t.img)) {
+        // a "key required" / "no data" picture instead of a map
+        t.err = true; M.failed++; M.fakes = (M.fakes || 0) + 1;
+        if (M.loaded === 0 && M.fakes >= 3) failover('SENDS PLACEHOLDER TILES');
+        return;
+      }
+      t.ok = true; M.loaded++; M.dirty = true;
+    };
     t.img.onerror = () => {
       if (prov !== M.prov) return;
       t.err = true; M.loading--; M.failed++;
@@ -103,6 +116,26 @@ window.RX = window.RX || {};
     M.tiles.set(key, t);
     if (M.tiles.size > 420) evict();
     return t;
+  }
+  // A real map tile is never >90% one colour unless that colour is the
+  // ground or open water. Anything else is a stand-in image.
+  let pc = null, pctx = null;
+  function isPlaceholder(img) {
+    try {
+      if (!pc) { pc = document.createElement('canvas'); pc.width = pc.height = 32; pctx = pc.getContext('2d', { willReadFrequently: true }); }
+      pctx.clearRect(0, 0, 32, 32); pctx.drawImage(img, 0, 0, 32, 32);
+      const d = pctx.getImageData(0, 0, 32, 32).data, h = new Map();
+      let best = 0, bestK = 0;
+      for (let p = 0; p < d.length; p += 4) {
+        const k = (d[p] << 16) | (d[p + 1] << 8) | d[p + 2];
+        const n = (h.get(k) || 0) + 1; h.set(k, n);
+        if (n > best) { best = n; bestK = k; }
+      }
+      if (!P().checkFake || best / 1024 < 0.9) return false;
+      const R = bestK >> 16, G = (bestK >> 8) & 255, B = bestK & 255, pr = P();
+      const ok = c => Math.abs(R - c[0]) <= 2 && Math.abs(G - c[1]) <= 2 && Math.abs(B - c[2]) <= 2;
+      return !(ok(pr.land) || pr.water.some(ok) || (pr.flats || []).some(ok));
+    } catch (e) { return false; }
   }
   function peekTile(z, x, y) {
     const n = 1 << z;
@@ -166,7 +199,8 @@ window.RX = window.RX || {};
     const ranked = [...qh.entries()].sort((a, b) => b[1] - a[1]);
     const top = ranked[0][0];
     const land = [((top >> 10) & 31) * 8 + 4, ((top >> 5) & 31) * 8 + 4, (top & 31) * 8 + 4];
-    if (Math.abs(lumOf(land) - CAL.landL) < 70) {
+    const homeL = lumOf(P().land);
+    if (!isWater(land[0], land[1], land[2]) && Math.abs(lumOf(land) - homeL) < 18) {
       CAL.land = CAL.land.map((v, i) => Math.round(v * 0.7 + land[i] * 0.3));
       CAL.landL = lumOf(CAL.land);
     }
@@ -182,7 +216,7 @@ window.RX = window.RX || {};
     let acc = 0, p97 = 0;
     const lim = n * 0.03;
     for (let i = 255; i >= 0; i--) { acc += dh[i]; if (acc >= lim) { p97 = i; break; } }
-    if (p97 > 8) CAL.span = Math.round(CAL.span * 0.7 + Math.max(24, Math.min(140, p97)) * 0.3);
+    if (p97 > 8) CAL.span = Math.round(CAL.span * 0.7 + Math.max(CAL.landL > 128 ? 30 : 40, Math.min(140, p97)) * 0.3);
   }
   function near(R, G, B, c) { const t = CAL.tol; return Math.abs(R - c[0]) <= t && Math.abs(G - c[1]) <= t && Math.abs(B - c[2]) <= t; }
   function isWater(R, G, B) {

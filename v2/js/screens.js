@@ -820,7 +820,7 @@ window.RX = window.RX || {};
       row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', val(String(new Set(S.regions.map(r => r.name)).size)), null);
 
       y = g.section('03 · MAP, TRAIL & FOG', y + 2);
-      const SRC = ['AUTO', 'CARTO', 'ESRI', 'OSM'];
+      const SRC = ['AUTO', 'ESRI', 'OSM'];
       row('MAP SOURCE', 'NOW ' + M.sourceName() + (M.loaded ? ' · OK' : '') + Object.keys(M.why).map(k => ' · ' + k + ' ' + M.why[k]).join(''), val(S.v2.mapSrc || 'AUTO'), () => {
         const nx = SRC[(SRC.indexOf(S.v2.mapSrc || 'AUTO') + 1) % SRC.length];
         S.saveV2({ mapSrc: nx }); M.setSource(nx); A.say('MAP SOURCE ▸ ' + (nx === 'AUTO' ? 'AUTO · ' + M.sourceName() : M.sourceName()), 2500);
