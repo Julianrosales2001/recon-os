@@ -10,6 +10,23 @@ window.RX = window.RX || {};
   const $ = id => document.getElementById(id);
   const device = $('device');
 
+  // ---------- full-screen fit (home-screen app) ----------
+  // iOS bug: a home-screen app with a see-through status bar is laid out one
+  // status-bar-height short, leaving a dead strip at the bottom. When running
+  // as an installed app, size the handset to the physical screen instead.
+  function fitScreen() {
+    const standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    const desk = $('desk');
+    if (!standalone || (window.matchMedia && matchMedia('(min-width: 640px) and (min-height: 600px)').matches)) { desk.classList.remove('fit'); return; }
+    const portrait = window.innerHeight >= window.innerWidth;
+    const full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    document.documentElement.style.setProperty('--app-h', full + 'px');
+    desk.classList.add('fit');
+  }
+  fitScreen();
+  window.addEventListener('resize', fitScreen);
+  window.addEventListener('orientationchange', () => setTimeout(fitScreen, 250));
+
   const A = {
     stack: [], gps: null, gpsErr: null, place: null, regionId: null,
     assign: null, filed: null, recall: null, target: null, pick: null,
