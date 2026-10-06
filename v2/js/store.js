@@ -237,7 +237,7 @@ window.RX = window.RX || {};
     };
   };
   S.applyBackup = function (d) {
-    if (!d || !Array.isArray(d.pois)) throw new Error('NOT A RECON.OS BACKUP');
+    if (!d || !Array.isArray(d.pois)) throw new Error('NOT AN R.OS BACKUP');
     S.pois = d.pois; S.pois.forEach(p => { if (typeof p.tier !== 'number') p.tier = p.hva ? 3 : 2; });
     S.savePOIs();
     if (Array.isArray(d.fog)) { loadFog(d.fog); safeSet(K.fog, JSON.stringify([...S.fog])); }

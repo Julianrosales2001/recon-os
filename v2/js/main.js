@@ -31,7 +31,7 @@ window.RX = window.RX || {};
     stack: [], gps: null, gpsErr: null, place: null, regionId: null,
     assign: null, filed: null, recall: null, target: null, pick: null,
     trayOpen: false, dirty: true, lastInput: Date.now(), booted: false,
-    status: { text: 'RX-90 READY', start: 0, until: 0 }, frameIdx: 0,
+    status: { text: 'RP-1000 READY', start: 0, until: 0 }, frameIdx: 0,
     disp: 'region', lcdMsg: null
   };
   RX.app = A;
@@ -1120,7 +1120,7 @@ window.RX = window.RX || {};
     try {
       const file = new File([json], name, { type: 'application/json' });
       if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'RECON.OS backup' });
+        await navigator.share({ files: [file], title: 'R.OS backup' });
       } else {
         const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
         const a = document.createElement('a'); a.href = url; a.download = name;
@@ -1143,7 +1143,7 @@ window.RX = window.RX || {};
     reader.onload = ev => {
       let data;
       try { data = JSON.parse(ev.target.result); } catch (err) { A.say('NOT A VALID BACKUP FILE', 5000); A.beep('err'); return; }
-      if (!data || !Array.isArray(data.pois)) { A.say('NOT A RECON.OS BACKUP', 5000); A.beep('err'); return; }
+      if (!data || !Array.isArray(data.pois)) { A.say('NOT AN R.OS BACKUP', 5000); A.beep('err'); return; }
       const s = S.summarize(data);
       A.go('confirm', {
         title: 'IMPORT BACKUP', danger: true, confirm: 'REPLACE ALL',
@@ -1225,7 +1225,7 @@ window.RX = window.RX || {};
       });
     } else {
       const pend = S.pending().length;
-      A.say('RX-90 READY · ' + S.pois.length + ' MARKS' + (pend ? ' · ' + pend + ' PEND' : '') + (S.activeFast() ? ' · FAST RUNNING' : ''), 5000);
+      A.say('R.OS READY · ' + S.pois.length + ' MARKS' + (pend ? ' · ' + pend + ' PEND' : '') + (S.activeFast() ? ' · FAST RUNNING' : ''), 5000);
     }
   };
 

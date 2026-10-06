@@ -172,8 +172,13 @@ window.RX = window.RX || {};
       const t = performance.now() - st.t0, W = g.W, H = g.H;
       g.hit(0, 0, W, H, () => A.bootDone());
       const top = Math.max(6, Math.floor(H / 2) - 70);
-      g.textC('RECON.OS', W / 2, top, { s: 2, c: C.hot });
-      g.mx.text('RX-90 · FIELD CARTOGRAPHY TERMINAL', Math.round(W / 2 - RX.font.measure('RX-90 · FIELD CARTOGRAPHY TERMINAL', 'mini') / 2), top + 18, { face: 'mini', c: C.ink, a: 0.7 });
+      // R.OS — the OS name, with a small .OS, set on the R's baseline
+      const wR = RX.font.measure('R', 'std', 2), wOS = RX.font.measure('.OS', 'std');
+      const bx = Math.round(W / 2 - (wR + 1 + wOS) / 2);
+      g.mx.text('R', bx, top, { s: 2, c: C.hot });
+      g.mx.text('.OS', bx + wR + 1, top + 7, { c: C.hot });
+      const sub = 'RP-1000 · FIELD CARTOGRAPHY TERMINAL';
+      g.mx.text(sub, Math.round(W / 2 - RX.font.measure(sub, 'mini') / 2), top + 18, { face: 'mini', c: C.ink, a: 0.7 });
       const f = S.activeFast();
       const act = S.missions.filter(m => m.status === 'active').length;
       const lines = [
@@ -809,7 +814,7 @@ window.RX = window.RX || {};
   RX.screens.menu = {
     render(g, st, A) {
       const W = g.W, mx = g.mx;
-      let y = g.header('SYSTEM', 'RX-90 · V2.0 · LOCAL ONLY');
+      let y = g.header('SYSTEM', 'R.OS 2.0 · RP-1000');
       y = g.scrollBegin(y, footTop(g));
       const row = (label, desc, ctrl, fn, o) => {
         o = o || {};
@@ -875,7 +880,7 @@ window.RX = window.RX || {};
       row('FULL RESET', 'WIPE EVERYTHING ON THIS DEVICE', arrow, () => A.go('confirm', { title: 'FULL RESET', danger: true, confirm: 'WIPE ALL', lines: ['WIPE MARKS, FOG, TRAIL,', 'OBJECTIVES, FASTS, SETTINGS?', 'THIS CANNOT BE UNDONE.'], onConfirm: () => { S.wipe('all'); A.updateLamps(); M.dirty = true; A.say('DEVICE RESET', 3000); } }), { red: true });
 
       y += 6;
-      g.textC('RECON.OS RX-90', W / 2, y, { c: C.hot });
+      g.textC('R.OS 2.0 · RP-1000', W / 2, y, { c: C.hot });
       g.textC('V2.0 · PWA · DATA STAYS ON THIS DEVICE', W / 2, y + 10, { face: 'mini', a: 0.5 });
       g.textC('MAP ' + M.credit(), W / 2, y + 18, { face: 'mini', a: 0.4 });
       y += 30;
