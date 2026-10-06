@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RECON.OS">
+<meta name="theme-color" content="#1B2829">
+<title>RECON.OS RX-90</title>
+<link rel="apple-touch-icon" sizes="180x180" href="icons/recon-os-icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/recon-os-icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="rx.css">
+</head>
+<body>
+<div id="desk">
+  <div id="device" class="booting">
+
+    <div class="grille" aria-hidden="true"></div>
+
+    <header class="nameplate">
+      <div class="brand"><span class="brand-name">RECON</span><span class="brand-model">RX-90</span></div>
+      <div class="brand-sub"><span>FIELD CARTOGRAPHY TERMINAL</span><span class="jp">偵察端末</span></div>
+    </header>
+
+    <div class="lamps" role="status" aria-label="Status lamps">
+      <div class="lamp" data-lamp="fix" title="GPS fix quality"><span class="led"></span><span class="lbl">FIX</span></div>
+      <div class="lamp" data-lamp="rec" title="Trail recording"><span class="led red"></span><span class="lbl">REC</span></div>
+      <div class="lamp" data-lamp="near" title="Within ~800 ft of a saved mark"><span class="led"></span><span class="lbl">NEAR</span></div>
+      <div class="lamp" data-lamp="pend" title="Unfiled marks waiting"><span class="led amber"></span><span class="lbl">PEND</span></div>
+      <div class="lamp" data-lamp="bkup" title="Backup overdue"><span class="led amber"></span><span class="lbl">BKUP</span></div>
+      <div class="lamp-tag">STATUS <span class="jp">状態</span></div>
+    </div>
+
+    <div class="readouts">
+      <button type="button" class="well lcd-well" id="lcdBtn" aria-label="Readout panel. Tap to change display.">
+        <span class="lcd-glass" id="lcdHost"></span>
+      </button>
+      <div class="well clock-well" aria-label="Clock and fast timer">
+        <span class="clock-glass" id="clockHost"></span>
+      </div>
+    </div>
+
+    <div class="bezel" id="bezel">
+      <div class="ruler" aria-hidden="true">
+        <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span>
+      </div>
+      <div class="screen vfd" id="screen" tabindex="0" aria-label="Main display">
+        <div class="mesh" aria-hidden="true"></div>
+        <div class="filaments" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="glass" aria-hidden="true"></div>
+        <input id="kbd" class="kbd" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Text entry">
+        <textarea id="kbdArea" class="kbd" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Notes entry"></textarea>
+        <input id="kbdDate" class="kbd" type="datetime-local" aria-label="Date entry">
+        <input id="kbdNum" class="kbd" type="text" inputmode="decimal" aria-label="Number entry">
+        <input id="filePhoto" type="file" accept="image/*" capture="environment" hidden>
+        <input id="fileImport" type="file" accept=".json,application/json" hidden>
+      </div>
+
+      <div class="tray" id="tray" aria-label="Function tray">
+        <button type="button" class="tray-tab key" id="fnKey" aria-label="Function tray" aria-expanded="false">
+          <span class="led" id="fnLed"></span>
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M8 2 L4 6 L8 10"/></svg>
+          <span class="tab-lbl">FN</span>
+          <span class="tab-grip" aria-hidden="true"></span>
+        </button>
+        <div class="tray-body">
+          <div class="tray-head"><span>TOOLS</span><span>05</span></div>
+          <button type="button" class="tool key" data-tool="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 L14.5 14.5"/></svg><span>SRCH</span></button>
+          <button type="button" class="tool key" data-tool="log"><span class="led amber" id="logLed"></span><svg viewBox="0 0 16 16"><path d="M3 4 L13 4 M3 8 L13 8 M3 12 L10 12"/></svg><span>LOG</span></button>
+          <button type="button" class="tool key" data-tool="fast"><span class="led amber" id="fastLed"></span><svg viewBox="0 0 16 16"><path d="M4 2 L12 2 M4 14 L12 14 M5 2 C5 6 8 6.5 8 8 C8 9.5 5 10 5 14 M11 2 C11 6 8 6.5 8 8 C8 9.5 11 10 11 14"/></svg><span>FAST</span></button>
+          <button type="button" class="tool key" data-tool="legend"><svg viewBox="0 0 16 16"><circle cx="5" cy="5" r="2.6"/><circle cx="11" cy="5" r="2.6" class="fill"/><circle cx="5" cy="11" r="2.6" class="fill"/><circle cx="11" cy="11" r="2.6"/></svg><span>LGND</span></button>
+          <button type="button" class="tool key" data-tool="objectives"><span class="led red" id="objLed"></span><svg viewBox="0 0 16 16"><path d="M8 1.5 L14 5 L14 11 L8 14.5 L2 11 L2 5 Z M8 8 L14 5 M8 8 L2 5 M8 8 L8 14.5"/></svg><span>OBJ</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="presets" id="presets">
+      <div class="presets-head">
+        <span>CATEGORY PRESETS</span><i></i><b id="presetHint">TAP ▸ SHOW ONLY</b><span class="jp">類別</span>
+      </div>
+      <div class="presets-row" id="presetRow"></div>
+    </div>
+
+    <div class="controls">
+      <div class="jog-well">
+        <div class="jog-head"><span id="jogL">◂ OUT</span><b id="jogVal">Z15</b><span id="jogR">IN ▸</span></div>
+        <button type="button" class="jog" id="jog" aria-label="Jog dial. Drag sideways to turn, press to select.">
+          <span class="jog-knurl" id="jogKnurl"></span>
+          <span class="jog-shade"></span>
+        </button>
+        <div class="jog-foot" id="jogFoot">PUSH · LOCATE</div>
+      </div>
+      <div class="menu-well">
+        <button type="button" class="key menu-key" id="menuKey">
+          <svg viewBox="0 0 20 20" aria-hidden="true" id="menuIcon"><path d="M4 6 L16 6 M4 10 L16 10 M4 14 L16 14"/></svg>
+          <span class="menu-lbl" id="menuLbl">MENU</span>
+          <span class="jp" id="menuJp">設定</span>
+        </button>
+      </div>
+      <div class="mark-well">
+        <button type="button" class="mark-key" id="markKey" aria-label="Mark">
+          <span class="mark-dimple" aria-hidden="true"></span>
+          <span class="led" id="markLed"></span>
+          <span class="jp mark-jp">記録</span>
+          <span class="mark-lbl">MARK</span>
+          <span class="mark-sub" id="markSub">DROP ▸ ASSIGN</span>
+        </button>
+      </div>
+    </div>
+
+    <footer class="serial">
+      <span class="screw" aria-hidden="true"></span>
+      <span class="plate">PROPERTY OF JAR · FIELD CARTOGRAPHY UNIT <span class="jp">測地班</span></span>
+      <span class="screw" aria-hidden="true"></span>
+    </footer>
+
+  </div>
+  <div class="desk-hint" aria-hidden="true">M MARK · 1–6 FILE / SHOW · F TOOLS · ENTER PUSH · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H FAST · O OBJ · G LEGEND · D DISPLAY</div>
+</div>
+
+<script src="js/font.js"></script>
+<script src="js/matrix.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/store.js"></script>
+<script src="js/map.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
