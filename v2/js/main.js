@@ -455,13 +455,18 @@ window.RX = window.RX || {};
       } else if (ptrs.size === 2 && sc.map) {
         clearTimeout(lpTimer);
         const [a, b] = [...ptrs.values()];
-        gest = { mode: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: M.zoom, moved: 99 };
+        gest = { mode: 'pinch', d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), z0: M.zoom, moved: 99 };
       }
     });
     el.addEventListener('pointermove', e => {
       if (!ptrs.has(e.pointerId) || !gest) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const sc = A.screen();
+      if (gest.mode === 'pinch' && ptrs.size < 2) {
+        // one finger lifted mid-pinch: carry on as a plain drag from here
+        gest = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, t: 0, moved: 99, mode: 'pan' };
+        return;
+      }
       if (gest.mode === 'pinch' && ptrs.size >= 2) {
         const [a, b] = [...ptrs.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -486,6 +491,11 @@ window.RX = window.RX || {};
       ptrs.delete(e.pointerId);
       clearTimeout(lpTimer);
       if (!gest) return;
+      if (gest.mode === 'pinch' && ptrs.size === 1) {
+        const r = [...ptrs.values()][0];
+        gest = { sx: r.x, sy: r.y, lx: r.x, ly: r.y, t: 0, moved: 99, mode: 'pan' };
+        return;
+      }
       if (ptrs.size === 0) {
         const g = gest; gest = null;
         if (g.mode === 'pinch' || g.mode === 'long') return;

@@ -150,13 +150,19 @@ window.RX = window.RX || {};
   }
 
   // ---------- view helpers ----------
+  // Guarded: a bad number (NaN) must never become the map centre, or the
+  // whole map goes blank until reload.
   M.setView = function (lat, lng, zoom) {
-    M.lat = Math.max(-84, Math.min(84, lat));
-    M.lng = ((lng + 540) % 360) - 180;
-    if (zoom != null) M.zoom = Math.max(MIN_Z, Math.min(MAX_Z, zoom));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      M.lat = Math.max(-84, Math.min(84, lat));
+      M.lng = ((lng + 540) % 360) - 180;
+    }
+    if (zoom != null && Number.isFinite(zoom)) M.zoom = Math.max(MIN_Z, Math.min(MAX_Z, zoom));
     M.dirty = true;
   };
   M.zoomBy = function (dz, ax, ay, view) {
+    if (!Number.isFinite(dz)) return;
+    if (!Number.isFinite(ax) || !Number.isFinite(ay)) ax = null;
     const nz = Math.max(MIN_Z, Math.min(MAX_Z, M.zoom + dz));
     if (nz === M.zoom) return;
     if (ax != null && view) {
@@ -168,6 +174,7 @@ window.RX = window.RX || {};
     M.dirty = true;
   };
   M.panBy = function (dxCss, dyCss) {
+    if (!Number.isFinite(dxCss) || !Number.isFinite(dyCss)) return;
     const c = RX.geo.project(M.lat, M.lng, M.zoom);
     const ll = RX.geo.unproject(c.x - dxCss, c.y - dyCss, M.zoom);
     M.setView(ll.lat, ll.lng);
