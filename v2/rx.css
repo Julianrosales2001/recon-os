@@ -23,7 +23,9 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; background: var(--body); overscroll-behavior: none; }
+/* page colour = the handset's bottom edge, so any strip the browser leaves
+   uncovered (iOS 26 Safari stops fixed layers above its bottom bar) blends in */
+html, body { margin: 0; height: 100%; background: var(--body-lo); overscroll-behavior: none; }
 body {
   font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   color: var(--silk);
@@ -34,7 +36,7 @@ body {
 button { font: inherit; color: inherit; border: 0; padding: 0; background: none; cursor: pointer; }
 .jp { font-family: 'DotGothic16', 'Hiragino Sans', monospace; font-weight: 400; letter-spacing: 0.04em; }
 
-#desk { position: fixed; inset: 0; background: var(--body); }
+#desk { position: fixed; inset: 0; background: var(--body-lo); }
 
 #device {
   position: absolute; inset: 0;
