@@ -603,34 +603,70 @@ window.RX = window.RX || {};
     A.gpsErr = err.code === 1 ? 'PERMISSION DENIED' : err.code === 2 ? 'NO SIGNAL' : 'GPS TIMEOUT';
     updateLamps(); A.dirty = true;
   }
+  // GPS jitter filter. Sitting still, a phone's fix wanders 5–20 m and the
+  // speed/heading worked out from those jumps are pure noise. The shown
+  // position ("anchor") only moves when the phone reports real speed, or the
+  // fix stays outside a dead zone (sized from its accuracy) two fixes running.
+  // While still, it settles on the average of recent fixes instead.
+  const G = { anchor: null, cen: null, n: 0, pending: 0, last: null, lastMoveAt: 0 };
   function onFix(pos) {
     const c = pos.coords;
+    if (!Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return;
     const first = !A.gps;
-    const prev = A.gps;
-    let speed = (typeof c.speed === 'number' && !isNaN(c.speed)) ? c.speed : null;
-    if (speed == null && prev) {
-      const dt = (pos.timestamp - prev.ts) / 1000;
-      if (dt > 0.5 && dt < 30) speed = Geo.meters(prev.lat, prev.lng, c.latitude, c.longitude) / dt;
+    const now = Date.now();
+    const acc = Number.isFinite(c.accuracy) ? c.accuracy : 30;
+    const raw = { lat: c.latitude, lng: c.longitude };
+    const devSpeed = (typeof c.speed === 'number' && Number.isFinite(c.speed) && c.speed >= 0) ? c.speed : null;
+    const devHeading = (typeof c.heading === 'number' && Number.isFinite(c.heading)) ? c.heading : null;
+    const prevShown = A.gps ? { lat: A.gps.lat, lng: A.gps.lng } : null;
+    let speed = A.gps ? A.gps.speed : 0, heading = A.gps ? A.gps.heading : null;
+
+    if (!G.anchor) {
+      G.anchor = raw; G.cen = raw; G.n = 1; G.last = { lat: raw.lat, lng: raw.lng, ts: now };
+    } else {
+      const gate = Math.max(15, Math.min(50, acc * 1.5));
+      const d = Geo.meters(G.anchor.lat, G.anchor.lng, raw.lat, raw.lng);
+      const fast = devSpeed != null && devSpeed > 0.8;
+      if (d > gate) G.pending++; else G.pending = 0;
+      if (fast || G.pending >= 3) {
+        // really moving
+        G.pending = 0;
+        const dt = (now - G.last.ts) / 1000;
+        const dm = Geo.meters(G.last.lat, G.last.lng, raw.lat, raw.lng);
+        const est = dt >= 1 ? Math.min(60, Math.max(0, dm - acc) / dt) : speed;
+        speed = devSpeed != null ? devSpeed : speed * 0.4 + est * 0.6;
+        if (fast && devHeading != null) heading = devHeading;
+        else if (dm > 5) heading = Geo.bearing(G.last.lat, G.last.lng, raw.lat, raw.lng);
+        G.anchor = raw; G.cen = raw; G.n = 1; G.last = { lat: raw.lat, lng: raw.lng, ts: now }; G.lastMoveAt = now;
+      } else {
+        // still: average the noise, nudge the dot only if the average drifts
+        G.n = Math.min(G.n + 1, 30);
+        G.cen = { lat: G.cen.lat + (raw.lat - G.cen.lat) / G.n, lng: G.cen.lng + (raw.lng - G.cen.lng) / G.n };
+        if (Geo.meters(G.anchor.lat, G.anchor.lng, G.cen.lat, G.cen.lng) > 4) G.anchor = G.cen;
+        if (now - G.lastMoveAt > 5000) speed = 0;
+        if (now - G.lastMoveAt > 20000) heading = null;
+      }
     }
-    let heading = prev ? prev.heading : null;
-    if (typeof c.heading === 'number' && !isNaN(c.heading) && (speed == null || speed > 0.6)) heading = c.heading;
-    else if (prev && speed > 0.8) heading = Geo.bearing(prev.lat, prev.lng, c.latitude, c.longitude);
-    A.gps = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, alt: (typeof c.altitude === 'number' ? c.altitude : null), heading, speed: speed || 0, ts: Date.now() };
+    const lat = G.anchor.lat, lng = G.anchor.lng;
+    const moved = !prevShown || Geo.meters(prevShown.lat, prevShown.lng, lat, lng) > 0.5;
+    A.gps = { lat, lng, acc, alt: (typeof c.altitude === 'number' ? c.altitude : null), heading, speed: speed < 0.5 ? 0 : speed, ts: now, raw };
     A.gpsErr = null;
     if (first) {
-      M.setView(c.latitude, c.longitude, Math.max(M.zoom, 15)); M.follow = true;
-      A.say('GPS LOCK · ±' + Math.round(c.accuracy) + 'M', 3000); A.beep('ok');
-      A.flashFix = Date.now();
-    } else if (M.follow && !A.pick) M.setView(c.latitude, c.longitude);
+      M.setView(lat, lng, Math.max(M.zoom, 15)); M.follow = true;
+      A.say('GPS LOCK · ±' + Math.round(acc) + 'M', 3000); A.beep('ok');
+      A.flashFix = now;
+    } else if (moved && M.follow && !A.pick) M.setView(lat, lng);
     // fog
-    if (!lastFogPos || Geo.meters(lastFogPos.lat, lastFogPos.lng, c.latitude, c.longitude) >= 50) {
-      if (S.revealAround(c.latitude, c.longitude)) M.dirty = true;
-      lastFogPos = { lat: c.latitude, lng: c.longitude };
+    if (!lastFogPos || Geo.meters(lastFogPos.lat, lastFogPos.lng, lat, lng) >= 50) {
+      if (S.revealAround(lat, lng)) M.dirty = true;
+      lastFogPos = { lat, lng };
     }
-    S.recordTrail(c.latitude, c.longitude);
-    checkVisits(c.latitude, c.longitude);
-    placeLookup(c.latitude, c.longitude);
-    S.saveV2({ lastPos: { lat: +c.latitude.toFixed(5), lng: +c.longitude.toFixed(5) } });
+    if (moved) {
+      S.recordTrail(lat, lng);
+      placeLookup(lat, lng);
+      S.saveV2({ lastPos: { lat: +lat.toFixed(5), lng: +lng.toFixed(5) } });
+    }
+    checkVisits(lat, lng);
     updateLamps(); A.lcdDirty = true; A.dirty = true;
   }
   const VISIT_RULES = { WAYPOINT: [100, 60], VISTA: [200, 180], LANDMARK: [200, 120], SUPPLY: [100, 300], INTEL: [100, 180] };
