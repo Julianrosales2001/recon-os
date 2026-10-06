@@ -67,6 +67,19 @@ window.RX = window.RX || {};
       else if (kind === 'file') { tone(880, 0.04, 0.045); tone(1320, 0.04, 0.045, 0.045); tone(1760, 0.06, 0.04, 0.09); }
       else if (kind === 'err') tone(220, 0.14, 0.05, 0, 'sawtooth');
       else if (kind === 'ok') tone(1480, 0.05, 0.04);
+      else if (kind === 'thunk') {
+        // low, heavy thud: a falling sine plus a muffled knock — no tick
+        const v = 0.2 * (arguments[1] || 1);
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 0.18);
+        const len = Math.floor(ac.sampleRate * 0.03), buf = ac.createBuffer(1, len, ac.sampleRate), dd = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) dd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        const n = ac.createBufferSource(), lp = ac.createBiquadFilter(), ng = ac.createGain();
+        lp.type = 'lowpass'; lp.frequency.value = 380; ng.gain.value = v * 0.9;
+        n.buffer = buf; n.connect(lp); lp.connect(ng); ng.connect(ac.destination); n.start(t);
+      }
     } catch (e) {}
   };
 
@@ -162,13 +175,10 @@ window.RX = window.RX || {};
     $('screen').classList.toggle('amber', amber);
     $('bezel').classList.toggle('amber', amber);
     A.mx.setGhost(amber ? 'rgba(255,170,70,0.075)' : 'rgba(90,255,205,0.07)');
-    const atHome = A.stack.length <= 1;
-    $('menuLbl').textContent = atHome ? 'MENU' : 'BACK';
-    $('menuJp').textContent = atHome ? '設定' : '戻る';
-    $('menuIcon').innerHTML = atHome ? '<path d="M4 6 L16 6 M4 10 L16 10 M4 14 L16 14"/>' : '<path d="M8 5 L3 10 L8 15 M3 10 L17 10"/>';
+    drumOnModeChange();
     const j = sc.jogLabels ? sc.jogLabels(A.top().st, A) : (mapMode ? ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP']);
+    if (!mapMode) $('jogVal').textContent = 'Z' + (Math.round(M.zoom * 2) / 2);
     $('jogL').textContent = j[0]; $('jogR').textContent = j[1]; $('jogFoot').textContent = j[2];
-    $('markSub').textContent = A.pick ? 'SET HERE' : (atHome ? 'DROP ▸ ASSIGN' : 'ANY SCREEN');
     setTray(false);
   }
   A.refreshChrome = applyMode;
@@ -211,6 +221,8 @@ window.RX = window.RX || {};
     if (A.stack.length > 1) A.home();
     if (A.recall != null) A.clearRecall();
     A.target = null;
+    A.scan = null;
+    if (A.drumFace() !== 'MENU') A.drumTo('MENU');
     A.locate(15);
   };
   A.follow = function (on) { M.follow = on; A.dirty = true; };
@@ -230,6 +242,7 @@ window.RX = window.RX || {};
     A.beep('mark');
     A.say('MARK ' + id.slice(-4) + ' DROPPED · PRESS 1–6 TO FILE', 5200);
     A.flash = performance.now();
+    updateDrum();
     if (S.v2.autoName !== false) autoName(p);
     A.dirty = true;
     return p;
@@ -275,7 +288,7 @@ window.RX = window.RX || {};
       A.say('MARK ' + p.id.slice(-4) + ' ▸ ' + cat.id + (A.place ? ' · ' + A.place.area : ''), 4000);
       A.beep('file');
     }
-    A.dirty = true; updateLamps();
+    A.dirty = true; updateLamps(); updateDrum();
   };
   A.undoDrop = function () {
     const a = A.assign; if (!a) return false;
@@ -283,7 +296,7 @@ window.RX = window.RX || {};
     $('presetHint').classList.remove('hot'); updatePresets();
     S.pois = S.pois.filter(p => p.id !== a.id); S.savePOIs();
     S.log('delete', a.id, 'Deleted: dropped by mistake', '');
-    A.say('MARK CANCELLED', 2500); A.beep('err'); A.dirty = true; updateLamps();
+    A.say('MARK CANCELLED', 2500); A.beep('err'); A.dirty = true; updateLamps(); updateDrum();
     return true;
   };
   A.preset = function (i) {
@@ -301,12 +314,14 @@ window.RX = window.RX || {};
       A.disp = 'target'; A.lcdDirty = true;
     }
     A.beep('key'); updatePresets(); A.dirty = true;
+    if (A.rebuildScan) A.rebuildScan();
   };
   A.openMark = function (id) { A.go('mark', { id }); };
   A.clearRecall = function () {
     A.recall = null;
     if (A.dispBeforeRecall) { A.disp = A.dispBeforeRecall; A.dispBeforeRecall = null; A.lcdDirty = true; }
     updatePresets(); A.dirty = true;
+    if (A.rebuildScan) A.rebuildScan();
   };
 
   // ---------- keys ----------
@@ -317,7 +332,7 @@ window.RX = window.RX || {};
     el.addEventListener('click', e => { e.preventDefault(); fn(e); });
   }
   press($('markKey'), () => A.mark());
-  press($('menuKey'), () => { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign) A.undoDrop(); else A.back(); });
+  A.menuAction = function () { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign) A.undoDrop(); else A.back(); };
   press($('fnKey'), () => setTray(!A.trayOpen));
   document.querySelectorAll('.tool').forEach(b => press(b, () => {
     const t = b.dataset.tool;
@@ -377,9 +392,225 @@ window.RX = window.RX || {};
   A.togglePresets = function () {
     S.saveV2({ presetsCollapsed: !S.v2.presetsCollapsed });
     applyPresetsFold();
-    A.say(S.v2.presetsCollapsed ? 'PRESETS FOLDED · THEY OPEN WHEN YOU MARK' : 'PRESETS OPEN', 2500);
+    A.say(S.v2.presetsCollapsed ? 'PRESETS FOLDED' : 'PRESETS OPEN', 2000);
   };
   press($('presetsHead'), () => A.togglePresets());
+
+  // ---------- function drum ----------
+  // A chunky three-sided roller in the old MENU slot. MENU (jog zooms, press =
+  // menu/back), SCAN (jog steps through marks nearest-first, press opens one),
+  // FILTER (jog picks a category, press clears). It only rolls on the map; on
+  // any other screen it sits on MENU, which then reads BACK.
+  const DRUM = [
+    { id: 'MENU', jp: '設定', icon: 'M3 4.5 L13 4.5 M3 8 L13 8 M3 11.5 L13 11.5' },
+    { id: 'SCAN', jp: '走査', icon: 'M2 5 L2 2 L5 2 M11 2 L14 2 L14 5 M14 11 L14 14 L11 14 M5 14 L2 14 L2 11 M8 6.5 L8 9.5 M6.5 8 L9.5 8' },
+    { id: 'FILTER', jp: '選別', icon: 'M2.5 3 L13.5 3 L9.5 8 L9.5 13 L6.5 11.5 L6.5 8 Z' }
+  ];
+  const BACK_FACE = { id: 'BACK', jp: '戻る', icon: 'M6.5 4 L2.5 8 L6.5 12 M2.5 8 L13.5 8' };
+  const UNDO_FACE = { id: 'UNDO', jp: '取消', icon: 'M5 3.5 L2 6.5 L5 9.5 M2 6.5 L10 6.5 C13 6.5 14 8.5 14 10 C14 11.8 12.6 13 10.5 13 L7 13' };
+  const mod = (n, m) => ((n % m) + m) % m;
+  A.drumRot = 0; A.drumTouched = Date.now(); A.drumSaved = null; A.scan = null;
+  A.drumFace = () => DRUM[mod(A.drumRot, 3)].id;
+  const rotor = $('drumRotor'), drumEl = $('drum'), drumPressEl = $('drumPress');
+  (function buildDrum() {
+    let html = '';
+    DRUM.forEach((F, k) => {
+      for (let i = 0; i < 8; i++) {
+        const ang = k * 120 + (3.5 - i) * 15;
+        html += '<span class="drum-slice' + (i === 0 ? ' seam' : '') + '" style="transform: rotateX(' + ang + 'deg) translateZ(44px)">' +
+          '<span class="drum-cap" data-face="' + k + '" style="top:' + (-i * 11.5 - 0.45).toFixed(2) + 'px">' +
+          '<span class="led"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="' + F.icon + '"/></svg>' +
+          '<span class="df-lbl">' + F.id + '</span><span class="df-jp">' + F.jp + '</span></span></span>';
+      }
+    });
+    rotor.innerHTML = html;
+  })();
+  function paintFace(k, F) {
+    rotor.querySelectorAll('.drum-cap[data-face="' + k + '"]').forEach(c => {
+      c.querySelector('.df-lbl').textContent = F.id;
+      c.querySelector('.df-jp').textContent = F.jp;
+      c.querySelector('path').setAttribute('d', F.icon);
+    });
+  }
+  function updateDrum() {
+    const face = mod(A.drumRot, 3);
+    const atHome = A.stack.length <= 1;
+    paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE));
+    rotor.querySelectorAll('.drum-cap').forEach(c => c.querySelector('.led').classList.toggle('on', +c.dataset.face === face));
+    const id = face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
+    drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
+  }
+  A.updateDrum = updateDrum;
+  function setDrumAngle(extra) { rotor.style.transform = 'rotateX(' + (-A.drumRot * 120 + (extra || 0)) + 'deg)'; }
+  const canRoll = () => A.booted && A.stack.length <= 1 && !A.assign && !A.pick;
+  function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => A.beep('thunk', level), 190); }
+  A.drumRoll = function (dir, quiet) {
+    A.wake();
+    if (!canRoll()) { setDrumAngle(0); if (!quiet) A.say(A.assign ? 'FILE THE MARK FIRST' : 'THE DRUM ROLLS ON THE MAP', 2000); return; }
+    A.drumRot += dir; A.drumTouched = Date.now();
+    setDrumAngle(0); landThunk();
+    onFace();
+  };
+  A.drumTo = function (id, quiet) {
+    const target = DRUM.findIndex(F => F.id === id);
+    const cur = mod(A.drumRot, 3);
+    if (target < 0 || cur === target) return;
+    const d = mod(target - cur, 3) === 1 ? 1 : -1;
+    A.drumRot += d; setDrumAngle(0);
+    if (!quiet) landThunk(0.7);
+    onFace(true);
+  };
+  function onFace(silent) {
+    const id = A.drumFace();
+    if (id === 'SCAN') { buildScan(); if (!silent) sayScan('SCAN'); }
+    else { A.scan = null; }
+    if (!silent) {
+      if (id === 'MENU') A.say('DRUM ▸ MENU · JOG ZOOMS', 2200);
+      if (id === 'FILTER') A.say('DRUM ▸ FILTER · TURN THE JOG TO PICK', 2400);
+    }
+    updateDrum(); applyMode(); A.lcdDirty = true; A.dirty = true;
+  }
+  // leaving the map parks the drum on MENU (it reads BACK there); coming home restores it
+  function drumOnModeChange() {
+    const atHome = A.stack.length <= 1;
+    if (!atHome && mod(A.drumRot, 3) !== 0) {
+      A.drumSaved = { rot: A.drumRot, scan: A.scan };
+      A.drumRot += mod(A.drumRot, 3) === 1 ? -1 : 1; setDrumAngle(0);
+    } else if (atHome && A.drumSaved) {
+      const sv = A.drumSaved; A.drumSaved = null;
+      A.drumRot = sv.rot; A.scan = sv.scan; setDrumAngle(0); landThunk(0.6);
+    }
+    updateDrum();
+  }
+  A.drumPressFx = function () {
+    drumPressEl.classList.add('down');
+    clearTimeout(A._drumUpT); A._drumUpT = setTimeout(() => drumPressEl.classList.remove('down'), 170);
+    A.beep('thunk', 0.8);
+  };
+  A.drumPress = function () {
+    A.wake(); A.drumTouched = Date.now(); A.drumPressFx();
+    const id = A.stack.length <= 1 ? A.drumFace() : 'MENU';
+    if (id === 'MENU') { A.menuAction(); return; }
+    if (id === 'SCAN') {
+      const it = A.scanItem();
+      if (it) A.openMark(it.id); else A.say('NOTHING TO OPEN', 2000);
+      return;
+    }
+    if (A.recall != null) { A.clearRecall(); A.say('FILTER CLEARED ▸ ALL CATEGORIES', 2500); }
+    else A.say('NO FILTER · TURN THE JOG TO PICK ONE', 2500);
+    A.lcdDirty = true;
+  };
+  // drag: the drum leans against the finger, then swings over a face every 40 px
+  (function () {
+    let st = null;
+    const STEP = 40;
+    drumEl.addEventListener('pointerdown', e => {
+      e.preventDefault(); A.wake();
+      st = { y: e.clientY, acc: 0, moved: 0 };
+      drumPressEl.classList.add('down');
+      try { drumEl.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    drumEl.addEventListener('pointermove', e => {
+      if (!st) return;
+      const dy = e.clientY - st.y; st.y = e.clientY;
+      st.moved += Math.abs(dy); st.acc += dy;
+      if (st.moved > 5) drumPressEl.classList.remove('down');
+      if (!canRoll()) { st.acc = Math.max(-STEP * 0.4, Math.min(STEP * 0.4, st.acc)); }
+      if (canRoll() && Math.abs(st.acc) >= STEP) {
+        const dir = st.acc > 0 ? 1 : -1; st.acc = 0;
+        rotor.classList.remove('dragging');
+        A.drumRoll(dir);
+        return;
+      }
+      const f = Math.min(1, Math.abs(st.acc) / STEP);
+      rotor.classList.add('dragging');
+      setDrumAngle(-Math.sign(st.acc) * 22 * (1 - Math.pow(1 - f, 2)));
+    });
+    const end = e => {
+      if (!st) return;
+      const tap = st.moved < 6 && e.type === 'pointerup';
+      st = null;
+      rotor.classList.remove('dragging'); setDrumAngle(0);
+      drumPressEl.classList.remove('down');
+      if (tap) A.drumPress();
+    };
+    drumEl.addEventListener('pointerup', end); drumEl.addEventListener('pointercancel', end);
+    drumEl.addEventListener('click', e => e.preventDefault());
+  })();
+  // drift home after a minute untouched
+  setInterval(() => {
+    if (!canRoll() || A.drumFace() === 'MENU') return;
+    if (Date.now() - A.drumTouched > 60000) { A.drumTo('MENU', true); landThunk(0.6); A.say('DRUM ▸ MENU', 1800); }
+  }, 2000);
+
+  // ---------- SCAN: marks nearest-first, the map glides to each ----------
+  function buildScan() {
+    const from = A.gps || { lat: M.lat, lng: M.lng };
+    const hidden = new Set(S.v2.hiddenCats || []);
+    const cat = A.recall != null ? U.CATS[A.recall].id : null;
+    const list = S.pois.filter(p => !(p.category && hidden.has(p.category)) && (!cat || p.category === cat))
+      .map(p => ({ id: p.id, m: Geo.meters(from.lat, from.lng, p.lat, p.lng) }))
+      .sort((a, b) => a.m - b.m).map(o => o.id);
+    A.scan = { list, i: 0 };
+    const it = A.scanItem();
+    if (it) A.glide(it.lat, it.lng);
+  }
+  A.rebuildScan = function () { if (A.drumFace() === 'SCAN' && A.stack.length <= 1) { buildScan(); sayScan('SCAN'); } };
+  A.scanItem = function () {
+    const sc = A.scan;
+    if (!sc || !sc.list.length) return null;
+    for (let tries = 0; tries < sc.list.length; tries++) {
+      const p = S.poi(sc.list[sc.i]);
+      if (p) return p;
+      sc.list.splice(sc.i, 1);
+      if (sc.i >= sc.list.length) sc.i = Math.max(0, sc.list.length - 1);
+      if (!sc.list.length) return null;
+    }
+    return null;
+  };
+  function sayScan(prefix) {
+    const it = A.scanItem();
+    if (!it) { A.say(prefix + ' ▸ NO MARKS' + (A.recall != null ? ' IN ' + U.CATS[A.recall].id : ''), 3000); return; }
+    const from = A.gps || { lat: M.lat, lng: M.lng };
+    const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
+    A.say(prefix + ' ' + (A.scan.i + 1) + '/' + A.scan.list.length + ' ▸ ' + S.markLabel(it) + ' · ' + Geo.fmtDist(m) + ' ' + Geo.cardinal(b), 6000);
+  }
+  A.scanStep = function (d) {
+    A.drumTouched = Date.now();
+    const sc = A.scan; if (!sc || !sc.list.length) { sayScan('SCAN'); return; }
+    const ni = Math.max(0, Math.min(sc.list.length - 1, sc.i + d));
+    if (ni === sc.i) { A.say(d < 0 ? 'NEAREST MARK' : 'FARTHEST MARK', 1500); return; }
+    sc.i = ni;
+    const it = A.scanItem();
+    if (it) A.glide(it.lat, it.lng);
+    sayScan('SCAN'); A.lcdDirty = true;
+  };
+  A.filterStep = function (d) {
+    A.drumTouched = Date.now();
+    const order = [null, 0, 1, 2, 3, 4, 5];
+    const next = order[mod(order.indexOf(A.recall) + d, order.length)];
+    if (next == null) { A.clearRecall(); A.say('FILTER ▸ ALL CATEGORIES', 2500); }
+    else {
+      if (A.recall == null) A.dispBeforeRecall = A.disp;
+      A.recall = next; updatePresets();
+      const cat = U.CATS[next];
+      A.say('FILTER ▸ ' + cat.id + ' · ' + S.pois.filter(p => p.category === cat.id).length + ' MARKS', 2500);
+    }
+    A.lcdDirty = true; A.dirty = true;
+  };
+  // smooth camera move
+  A.glide = function (lat, lng) {
+    A.follow(false);
+    if (M.zoom < 13) M.setView(M.lat, M.lng, 14);
+    A.glideAnim = { a: { lat: M.lat, lng: M.lng }, b: { lat, lng }, t0: performance.now(), dur: 420 };
+  };
+  function stepGlide() {
+    const g = A.glideAnim, k = Math.min(1, (performance.now() - g.t0) / g.dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    M.setView(g.a.lat + (g.b.lat - g.a.lat) * e, g.a.lng + (g.b.lng - g.a.lng) * e);
+    if (k >= 1) A.glideAnim = null;
+    A.dirty = true;
+  }
 
   // ---------- jog dial ----------
   (function () {
@@ -585,7 +816,8 @@ window.RX = window.RX || {};
     const sc = A.screen();
     if (k >= '1' && k <= '6') { A.preset(+k - 1); flashKey(document.querySelectorAll('.preset-key')[+k - 1]); }
     else if (k === 'm' || k === 'M') { A.mark(); flashKey($('markKey')); }
-    else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); $('menuKey').click(); flashKey($('menuKey')); }
+    else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); if (A.drumFace() !== 'MENU' && A.stack.length <= 1 && !A.assign) { A.drumTo('MENU'); A.say('DRUM ▸ MENU', 1800); } else { A.drumPressFx(); A.menuAction(); } }
+    else if (k === '[' || k === ']') { A.drumRoll(k === ']' ? 1 : -1); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'p' || k === 'P') { A.togglePresets(); flashKey($('presetsHead')); }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); A.push(); }
@@ -777,7 +1009,17 @@ window.RX = window.RX || {};
     let rows;
     if (A.lcdMsg && Date.now() < A.lcdMsg.until) rows = A.lcdMsg.rows;
     else if (!A.booted) rows = [['SYS', 'SELF TEST'], ['MEM', S.pois.length + ' MARKS'], ['FOG', U.F.num(S.fog.size) + ' CELLS']];
-    else if (A.disp === 'nav') {
+    else if (A.stack.length <= 1 && A.drumFace() === 'SCAN' && A.scanItem()) {
+      const it = A.scanItem(), from = A.gps || { lat: M.lat, lng: M.lng };
+      const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
+      const mins = Math.max(1, Math.round(m / 1609.344 / 3 * 60));
+      rows = [['TGT', S.markLabel(it)], ['DST', Geo.fmtDist(m) + ' ' + Geo.cardinal(b) + ' ' + String(Math.round(b) % 360).padStart(3, '0') + '°'], ['ETA', mins > 90 ? (mins / 60).toFixed(1) + ' H WALK' : mins + ' MIN WALK']];
+    } else if (A.stack.length <= 1 && A.drumFace() === 'FILTER') {
+      const cat = A.recall != null ? U.CATS[A.recall] : null;
+      const n = cat ? S.pois.filter(p => p.category === cat.id).length : S.pois.length;
+      const nb = A.nearest(A.recall);
+      rows = [['CAT', cat ? cat.id : 'ALL'], ['MARKS', String(n)], ['NEAR', nb ? Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.brg) : '--']];
+    } else if (A.disp === 'nav') {
       const g = A.gps;
       rows = [['SPD', g ? (g.speed * 2.237).toFixed(1) + ' MPH' : '--'],
         ['HDG', g && g.heading != null ? U.F.pad2(Math.round(g.heading)).padStart(3, '0') + '° ' + Geo.cardinal(g.heading) : '--'],
@@ -801,7 +1043,8 @@ window.RX = window.RX || {};
       m.text(r[0], 2, y + 1, { face: 'mini', c: ink, a: 0.55 });
       m.text(RX.font.fit(r[1], m.cols - vx - 2), vx, y, { c: ink });
     });
-    const tag = { region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '';
+    const df = A.stack.length <= 1 ? A.drumFace() : 'MENU';
+    const tag = df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'FILTER' ? 'FLT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
     if (A.booted) m.text(tag, m.cols - 13, m.rows - 6, { face: 'mini', c: ink, a: 0.4 });
     m.present();
   }
@@ -837,6 +1080,7 @@ window.RX = window.RX || {};
   U.onAsync = () => { A.dirty = true; };
   function loop(t) {
     requestAnimationFrame(loop);
+    if (A.glideAnim) stepGlide();
     const sc = A.screen();
     const animating = (sc.animating && sc.animating(A.top().st, A)) || !!U.activeField || (performance.now() - A.status.start < 3000);
     const dimmed = device.classList.contains('dim');

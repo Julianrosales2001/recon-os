@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="rx.css?v=2.1.2">
+<link rel="stylesheet" href="rx.css?v=2.2.0">
 </head>
 <body>
 <div id="desk">
@@ -96,10 +96,9 @@
         <div class="jog-foot" id="jogFoot">TAP LOCATE · HOLD RESET</div>
       </div>
       <div class="menu-well">
-        <button type="button" class="key menu-key" id="menuKey">
-          <svg viewBox="0 0 20 20" aria-hidden="true" id="menuIcon"><path d="M4 6 L16 6 M4 10 L16 10 M4 14 L16 14"/></svg>
-          <span class="menu-lbl" id="menuLbl">MENU</span>
-          <span class="jp" id="menuJp">設定</span>
+        <button type="button" class="drum" id="drum" aria-label="Function drum: MENU. Swipe up or down to roll, press to use.">
+          <span class="drum-press" id="drumPress"><span class="drum-rotor" id="drumRotor"></span></span>
+          <span class="drum-shade" aria-hidden="true"></span>
         </button>
       </div>
       <div class="mark-well">
@@ -108,7 +107,6 @@
           <span class="led" id="markLed"></span>
           <span class="jp mark-jp">記録</span>
           <span class="mark-lbl">MARK</span>
-          <span class="mark-sub" id="markSub">DROP ▸ ASSIGN</span>
         </button>
       </div>
     </div>
@@ -123,13 +121,13 @@
   <div class="desk-hint" aria-hidden="true">M MARK · 1–6 FILE / SHOW · P PRESETS · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H FAST · O OBJ · G LEGEND · D DISPLAY</div>
 </div>
 
-<script src="js/font.js?v=2.1.2"></script>
-<script src="js/matrix.js?v=2.1.2"></script>
-<script src="js/geo.js?v=2.1.2"></script>
-<script src="js/store.js?v=2.1.2"></script>
-<script src="js/map.js?v=2.1.2"></script>
-<script src="js/ui.js?v=2.1.2"></script>
-<script src="js/screens.js?v=2.1.2"></script>
-<script src="js/main.js?v=2.1.2"></script>
+<script src="js/font.js?v=2.2.0"></script>
+<script src="js/matrix.js?v=2.2.0"></script>
+<script src="js/geo.js?v=2.2.0"></script>
+<script src="js/store.js?v=2.2.0"></script>
+<script src="js/map.js?v=2.2.0"></script>
+<script src="js/ui.js?v=2.2.0"></script>
+<script src="js/screens.js?v=2.2.0"></script>
+<script src="js/main.js?v=2.2.0"></script>
 </body>
 </html>

@@ -49,10 +49,11 @@ window.RX = window.RX || {};
     // marks
     const hidden = new Set(S.v2.hiddenCats || []);
     const recallCat = A.recall != null ? U.CATS[A.recall].id : null;
+    const scanIt = !o.noHits && A.stack.length <= 1 && A.drumFace() === 'SCAN' ? A.scanItem() : null;
     const shown = [];
     for (const p of S.pois) {
       if (p.category && hidden.has(p.category)) continue;
-      const live = (A.assign && A.assign.id === p.id) || (A.filed && A.filed.id === p.id);
+      const live = (A.assign && A.assign.id === p.id) || (A.filed && A.filed.id === p.id) || (scanIt && scanIt.id === p.id);
       if (M.zoom < (TIER_MIN[p.tier || 2] || 0) && !live && !(recallCat && p.category === recallCat)) continue;
       const d = M.latLngToDot(p.lat, p.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
       if (x < -8 || y < -8 || x > W + 8 || y > H + 8) continue;
@@ -74,6 +75,16 @@ window.RX = window.RX || {};
     if (recallCat) {
       const nb = A.nearest(A.recall);
       if (nb) { const d = M.latLngToDot(nb.p.lat, nb.p.lng, v); g.brackets(Math.floor(d.x), Math.floor(d.y), 9 + (Math.floor(t / 400) % 2), C.hot, 1); }
+    }
+
+    // SCAN: brackets and the mark's name under it
+    if (scanIt) {
+      const d = M.latLngToDot(scanIt.lat, scanIt.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
+      g.brackets(x, y, 9 + (Math.floor(t / 450) % 2), C.hot, 1);
+      const nm = RX.font.fit(S.markLabel(scanIt), W - 6, 'mini');
+      const lw = RX.font.measure(nm, 'mini');
+      const lx = Math.min(W - lw - 2, Math.max(1, x - Math.floor(lw / 2)));
+      mx.clearRect(lx - 1, y + 12, lw + 2, 7); g.mini(nm, lx, y + 13, { c: C.hot, a: 1 });
     }
 
     // search target
@@ -197,11 +208,19 @@ window.RX = window.RX || {};
   RX.screens.map = {
     map: true,
     animating: () => true,
-    jogLabels: () => ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'],
+    // the jog dial takes on the drum's face
+    jogLabels: (st, A) => {
+      const f = A.drumFace();
+      if (f === 'SCAN') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
+      if (f === 'FILTER') return ['◂ PREV', 'NEXT ▸', 'DRUM ▸ CLEAR · HOLD RESET'];
+      return ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'];
+    },
     jog(d, st, A) {
+      const f = A.drumFace();
+      if (f === 'SCAN') { A.scanStep(d); return; }
+      if (f === 'FILTER') { A.filterStep(d); return; }
       const v = A.view();
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
-      document.getElementById('jogVal').textContent = 'Z' + (Math.round(M.zoom * 2) / 2);
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
     push(st, A) { A.locate(); },
@@ -219,7 +238,11 @@ window.RX = window.RX || {};
       const W = g.W, H = g.H, mx = g.mx;
       drawMap(g, A);
       hud(g, A);
-      document.getElementById('jogVal').textContent = 'Z' + (Math.round(M.zoom * 2) / 2);
+      {
+        const f = A.drumFace(), it = f === 'SCAN' ? A.scanItem() : null;
+        document.getElementById('jogVal').textContent = f === 'SCAN' ? (it ? (A.scan.i + 1) + '/' + A.scan.list.length : '0/0')
+          : f === 'FILTER' ? (A.recall != null ? U.CATS[A.recall].short : 'ALL') : 'Z' + (Math.round(M.zoom * 2) / 2);
+      }
 
       // recall banner
       if (A.recall != null) {
