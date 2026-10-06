@@ -259,7 +259,7 @@ window.RX = window.RX || {};
     A.assign = null;
     device.classList.remove('assign');
     $('presetHint').classList.remove('hot');
-    $('presetHint').textContent = 'TAP ▸ SHOW ONLY';
+    updatePresets();
     const p = S.poi(a.id);
     if (!p) return;
     if (catIdx == null) {
@@ -280,7 +280,7 @@ window.RX = window.RX || {};
   A.undoDrop = function () {
     const a = A.assign; if (!a) return false;
     A.assign = null; device.classList.remove('assign');
-    $('presetHint').classList.remove('hot'); $('presetHint').textContent = 'TAP ▸ SHOW ONLY';
+    $('presetHint').classList.remove('hot'); updatePresets();
     S.pois = S.pois.filter(p => p.id !== a.id); S.savePOIs();
     S.log('delete', a.id, 'Deleted: dropped by mistake', '');
     A.say('MARK CANCELLED', 2500); A.beep('err'); A.dirty = true; updateLamps();
@@ -363,9 +363,23 @@ window.RX = window.RX || {};
       d.querySelector('.led').classList.toggle('on', !!A.assign || latched);
       d.querySelector('.preset-lbl').style.color = latched ? U.CATS[i].color : '';
     });
-    $('presetHint').textContent = A.assign ? 'ASSIGN ▸ 1–6' : (A.recall != null ? 'SHOWING ' + U.CATS[A.recall].short : 'TAP ▸ SHOW ONLY');
+    const collapsed = !!S.v2.presetsCollapsed;
+    $('presetHint').textContent = A.assign ? 'ASSIGN ▸ 1–6' : (A.recall != null ? 'SHOWING ' + U.CATS[A.recall].short : (collapsed ? 'TAP TO OPEN' : 'TAP ▸ SHOW ONLY'));
   }
   A.updatePresets = updatePresets;
+  // the strip header folds the preset keys away (they pop back while filing a mark)
+  function applyPresetsFold() {
+    const c = !!S.v2.presetsCollapsed;
+    device.classList.toggle('presets-collapsed', c);
+    $('presetsHead').setAttribute('aria-expanded', c ? 'false' : 'true');
+    updatePresets();
+  }
+  A.togglePresets = function () {
+    S.saveV2({ presetsCollapsed: !S.v2.presetsCollapsed });
+    applyPresetsFold();
+    A.say(S.v2.presetsCollapsed ? 'PRESETS FOLDED · THEY OPEN WHEN YOU MARK' : 'PRESETS OPEN', 2500);
+  };
+  press($('presetsHead'), () => A.togglePresets());
 
   // ---------- jog dial ----------
   (function () {
@@ -573,6 +587,7 @@ window.RX = window.RX || {};
     else if (k === 'm' || k === 'M') { A.mark(); flashKey($('markKey')); }
     else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); $('menuKey').click(); flashKey($('menuKey')); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
+    else if (k === 'p' || k === 'P') { A.togglePresets(); flashKey($('presetsHead')); }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); A.push(); }
     else if (k === 'c' || k === 'C') { A.beep('ok'); A.recenter(true); }
     else if (k === '+' || k === '=') { if (sc.map) { M.zoomBy(0.5); A.dirty = true; } else A.jog(-1); }
@@ -945,7 +960,7 @@ window.RX = window.RX || {};
     RX.applyBrightness();
     A.stack = [];
     A.go('boot');
-    updateLamps(); updatePresets();
+    updateLamps(); applyPresetsFold();
     requestAnimationFrame(loop);
     startGps();
     document.addEventListener('pointerdown', () => { if (!A.gps && A.gpsErr) retryGps(); }, { once: true });

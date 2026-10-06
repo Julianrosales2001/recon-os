@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="rx.css?v=2.1.1">
+<link rel="stylesheet" href="rx.css?v=2.1.2">
 </head>
 <body>
 <div id="desk">
@@ -80,9 +80,9 @@
     </div>
 
     <div class="presets" id="presets">
-      <div class="presets-head">
-        <span>CATEGORY PRESETS</span><i></i><b id="presetHint">TAP ▸ SHOW ONLY</b><span class="jp">類別</span>
-      </div>
+      <button type="button" class="presets-head" id="presetsHead" aria-expanded="true" aria-controls="presetRow" title="Show or hide the category keys">
+        <span class="ph-chev" aria-hidden="true"></span><span>CATEGORY PRESETS</span><i></i><b id="presetHint">TAP ▸ SHOW ONLY</b><span class="jp">類別</span>
+      </button>
       <div class="presets-row" id="presetRow"></div>
     </div>
 
@@ -120,16 +120,16 @@
     </footer>
 
   </div>
-  <div class="desk-hint" aria-hidden="true">M MARK · 1–6 FILE / SHOW · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H FAST · O OBJ · G LEGEND · D DISPLAY</div>
+  <div class="desk-hint" aria-hidden="true">M MARK · 1–6 FILE / SHOW · P PRESETS · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H FAST · O OBJ · G LEGEND · D DISPLAY</div>
 </div>
 
-<script src="js/font.js?v=2.1.1"></script>
-<script src="js/matrix.js?v=2.1.1"></script>
-<script src="js/geo.js?v=2.1.1"></script>
-<script src="js/store.js?v=2.1.1"></script>
-<script src="js/map.js?v=2.1.1"></script>
-<script src="js/ui.js?v=2.1.1"></script>
-<script src="js/screens.js?v=2.1.1"></script>
-<script src="js/main.js?v=2.1.1"></script>
+<script src="js/font.js?v=2.1.2"></script>
+<script src="js/matrix.js?v=2.1.2"></script>
+<script src="js/geo.js?v=2.1.2"></script>
+<script src="js/store.js?v=2.1.2"></script>
+<script src="js/map.js?v=2.1.2"></script>
+<script src="js/ui.js?v=2.1.2"></script>
+<script src="js/screens.js?v=2.1.2"></script>
+<script src="js/main.js?v=2.1.2"></script>
 </body>
 </html>
