@@ -4,12 +4,12 @@
    - Google Fonts: stored after the first load
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.9.0';
+const VERSION = '2.10.0';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,
   ...['font', 'matrix', 'geo', 'store', 'map', 'parcel', 'traffic', 'area', 'ui', 'screens', 'main'].map(n => 'js/' + n + '.js?v=' + VERSION),
-  'ref/firstaid.json?v=1', 'ref/knots.json?v=1', 'ref/convert.json?v=1', 'ref/cipher.json?v=1',
+  'ref/firstaid.json?v=1', 'ref/knots.json?v=1', 'ref/convert.json?v=1', 'ref/cipher.json?v=1', 'data/tx-acs.json?v=2024',
   'icons/ros-icon-180.png', 'icons/ros-icon-192.png'
 ];
 

@@ -57,5 +57,21 @@ RX.traffic = (function () {
   // the main road by a spot: the busiest whole-road station within reach
   const main = list => (list || []).filter(s => !s.sub && s.dist < 600).sort((x, y) => y.aadt - x.aadt)[0] || (list || []).filter(s => !s.sub)[0] || null;
 
-  return { near, k, full, pct, main, meters };
+  // busiest whole-road stations inside a city: box query, then keep the ones inside the limits
+  async function busiest(box, inside, n) {
+    const q = new URLSearchParams({
+      geometry: [box[1], box[0], box[3], box[2]].join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+      where: 'ACTIVE = 1', outFields: ['TRFC_STATN_ID', 'ON_ROAD', 'AADT_RPT_YEAR', 'AADT_RPT_QTY', 'LATITUDE', 'LONGITUDE'].concat(HIST).join(','),
+      orderByFields: 'AADT_RPT_QTY DESC', returnGeometry: 'false', resultRecordCount: '400', f: 'json'
+    });
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+    let j;
+    try { j = await (await fetch(URL + '?' + q, { signal: ctl.signal })).json(); } finally { clearTimeout(timer); }
+    if (j.error) throw new Error(j.error.message || 'service error');
+    const c = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], seen = new Set();
+    return (j.features || []).map(f => shape(f.attributes, c[0], c[1])).filter(s => s.aadt > 0 && !s.sub && (!inside || inside(s.lat, s.lng)))
+      .sort((x, y) => y.aadt - x.aadt).filter(s => { if (seen.has(s.road)) return false; seen.add(s.road); return true; }).slice(0, n || 5);
+  }
+
+  return { near, busiest, k, full, pct, main, meters };
 })();

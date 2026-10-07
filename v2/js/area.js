@@ -10,7 +10,8 @@ RX.area = (function () {
   const FCC = 'https://geo.fcc.gov/api/census/area';
   const ACS = 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/ACS_Highlights_Population_Housing_Basics_Boundaries/FeatureServer/';
   const FIELDS = 'GEOID,NAME,B01001_001E,B01002_001E,B19049_001E,B25002_001E,B25002_003E,B25003_calc_pctOwnE,B25058_001E,B25077_001E,ALAND';
-  const tracts = new Map(), counties = new Map(), spots = new Map();
+  const TIGER = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/';
+  const tracts = new Map(), counties = new Map(), spots = new Map(), fccs = new Map(), places = [];
 
   async function getJSON(url, ms) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 12000);
@@ -32,13 +33,57 @@ RX.area = (function () {
     return out;
   }
 
+  async function fcc(lat, lng) {
+    const key = lat.toFixed(4) + ',' + lng.toFixed(4);
+    if (fccs.has(key)) return fccs.get(key);
+    const f = await getJSON(FCC + '?' + new URLSearchParams({ lat: lat.toFixed(6), lon: lng.toFixed(6), censusYear: '2020', format: 'json' }));
+    const r = (f.results || [])[0] || null;
+    fccs.set(key, r); if (fccs.size > 60) fccs.delete(fccs.keys().next().value);
+    return r;
+  }
+
+  // ---------- city scale: a yearly Texas snapshot (data/tx-acs.json) + live city limits ----------
+  let SNAP = null, snapP = null;
+  function snap() {
+    if (SNAP) return Promise.resolve(SNAP);
+    if (!snapP) snapP = fetch('data/tx-acs.json?v=2024').then(r => r.json()).then(d => {
+      const F = d.fields, row = a => { const o = {}; F.forEach((k, i) => { o[k] = a[i]; }); o.growth = o.pop5 ? (o.pop - o.pop5) / o.pop5 : null; return o; };
+      SNAP = { year: d.year, prior: d.prior, state: row(d.state), county: new Map(d.counties.map(a => [a[0], row(a)])), place: new Map(d.places.map(a => [a[0], row(a)])) };
+      return SNAP;
+    }).catch(e => { snapP = null; throw e; });
+    return snapP;
+  }
+  const inRings = (rings, lat, lng) => { let c = 0; rings.forEach(r => { if (RX.parcel.contains(r, lat, lng)) c++; }); return c % 2 === 1; };
+  async function placeAt(lat, lng) {
+    for (const p of places) if (inRings(p.rings, lat, lng)) return p;
+    for (const layer of [4, 5]) {   // incorporated city first, then a census-designated community
+      const q = new URLSearchParams({ geometry: lng + ',' + lat, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outFields: 'GEOID,NAME,BASENAME,AREALAND', returnGeometry: 'true', outSR: '4326', geometryPrecision: '5', maxAllowableOffset: '0.0003', f: 'json' });
+      const j = await getJSON(TIGER + layer + '/query?' + q);
+      if (j.error) throw new Error(j.error.message);
+      const f = (j.features || [])[0];
+      if (f) {
+        const rings = (f.geometry && f.geometry.rings || []).map(r => r.map(q => [q[1], q[0]]));
+        let s = 90, w = 180, n = -90, e = -180; rings.forEach(r => r.forEach(q => { s = Math.min(s, q[0]); n = Math.max(n, q[0]); w = Math.min(w, q[1]); e = Math.max(e, q[1]); }));
+        const p = { geoid: f.attributes.GEOID, name: f.attributes.BASENAME, full: f.attributes.NAME, cdp: layer === 5, sqmi: f.attributes.AREALAND / 2589988.11, rings, box: [s, w, n, e] };
+        places.unshift(p); if (places.length > 12) places.pop();
+        return p;
+      }
+    }
+    return false;   // outside any city or community
+  }
+  // { place (stats + rings) | false, county, state, countyName, year }
+  async function cityAt(lat, lng) {
+    const [S, p, f] = await Promise.all([snap(), placeAt(lat, lng), fcc(lat, lng)]);
+    const cid = f && f.county_fips;
+    return { place: p ? Object.assign({}, S.place.get(p.geoid) || {}, p, { stats: !!S.place.get(p.geoid) }) : false, county: cid ? S.county.get(cid) : null, countyName: f && f.county_name, state: S.state, year: S.year, prior: S.prior };
+  }
+
   // everything for a spot: { tract, county } with the tract's outline
   async function at(lat, lng) {
     const key = lat.toFixed(4) + ',' + lng.toFixed(4);
     if (spots.has(key)) return spots.get(key);
     for (const v of spots.values()) if (v && v.tract && v.tract.ring && RX.parcel.contains(v.tract.ring, lat, lng)) return v;   // same tract: no new calls
-    const f = await getJSON(FCC + '?' + new URLSearchParams({ lat: lat.toFixed(6), lon: lng.toFixed(6), censusYear: '2020', format: 'json' }));
-    const r = (f.results || [])[0];
+    const r = await fcc(lat, lng);
     if (!r || !r.block_fips) return null;
     const tid = r.block_fips.slice(0, 11), cid = r.block_fips.slice(0, 5);
     const [tract, county] = await Promise.all([
@@ -54,7 +99,8 @@ RX.area = (function () {
   const money = n => n == null || n < 0 ? '—' : n >= 1e6 ? '$' + (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'K' : '$' + n.toLocaleString('en-US');
   const vs = (a, b) => (a == null || b == null || b <= 0 || a < 0) ? '' : (a >= b ? '+' : '') + Math.round((a - b) / b * 100) + '%';
   // a compact copy for storing on a mark
-  const brief = A => A && A.tract ? { tract: A.tract.name, pop: A.tract.pop, income: A.tract.income, home: A.tract.home, own: A.tract.own, cIncome: A.county && A.county.income, cHome: A.county && A.county.home, county: A.countyName } : null;
+  const brief = (A, C) => A && A.tract ? { city: C && C.place ? C.place.name + (C.place.cdp ? ' (UNINC)' : '') : null, tract: A.tract.name, pop: A.tract.pop, income: A.tract.income, home: A.tract.home, own: A.tract.own, cIncome: A.county && A.county.income, cHome: A.county && A.county.home, county: A.countyName } : null;
 
-  return { at, money, vs, brief };
+  const growth = g => g == null ? '' : (g >= 0 ? '+' : '') + Math.round(g * 100) + '%';
+  return { at, cityAt, snap, inRings, money, vs, brief, growth };
 })();

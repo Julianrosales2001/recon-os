@@ -488,7 +488,7 @@ window.RX = window.RX || {};
       if (!r) { st.lotErr = 'NO PARCEL ON RECORD HERE'; return; }
       const before = JSON.stringify(p) === st.orig;
       try { const t = RX.traffic.main(await RX.traffic.near(p.lat, p.lng, 1200)); r.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) {}
-      try { r.area = RX.area.brief(await RX.area.at(p.lat, p.lng)); } catch (e) {}
+      try { const [aa, cc] = await Promise.all([RX.area.at(p.lat, p.lng), RX.area.cityAt(p.lat, p.lng).catch(() => null)]); r.area = RX.area.brief(aa, cc); } catch (e) {}
       p.parcel = r; S.savePOIs();
       if (before) st.orig = JSON.stringify(p);   // a lookup is not an edit
       A.beep('ok');
@@ -634,7 +634,7 @@ window.RX = window.RX || {};
         g.mini(g.fit([RX.parcel.fmtAcres(r.acres), r.mkt ? RX.parcel.fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 19, { a: 0.7 });
         y += 27;
         if (r.traffic) { g.mini(g.fit('TRAFFIC ' + RX.traffic.full(r.traffic.aadt) + '/DAY · ' + r.traffic.road + ' · ' + Geo.fmtDist(r.traffic.dist) + (r.traffic.trend5 != null ? ' · ' + RX.traffic.pct(r.traffic.trend5) + ' 5 YR' : ''), W - 4, 'mini'), 1, y, { c: C.amber, a: 0.95 }); y += 9; }
-        if (r.area) { const a = r.area; g.mini(g.fit('AREA INCOME ' + RX.area.money(a.income) + ' ' + RX.area.vs(a.income, a.cIncome) + ' · HOME ' + RX.area.money(a.home) + ' ' + RX.area.vs(a.home, a.cHome) + ' VS CO', W - 4, 'mini'), 1, y, { a: 0.8 }); y += 9; }
+        if (r.area) { const a = r.area; g.mini(g.fit((a.city ? a.city + ' · ' : '') + 'AREA INCOME ' + RX.area.money(a.income) + ' ' + RX.area.vs(a.income, a.cIncome) + ' · HOME ' + RX.area.money(a.home) + ' ' + RX.area.vs(a.home, a.cHome) + ' VS CO', W - 4, 'mini'), 1, y, { a: 0.8 }); y += 9; }
         const lw = Math.floor((W - 6) / 2);
         g.btn(0, y, lw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r, markId: p.id }), { face: 'mini' });
         g.btn(lw + 4, y, W - 6 - lw, 12, st.lotBusy ? 'READING...' : 'REFRESH', () => markLot(st, A, p), { face: 'mini' });
@@ -1711,7 +1711,7 @@ window.RX = window.RX || {};
   async function lotToMark(A, lot, lat, lng) {
     const id = 'POI-' + Date.now();
     if (lot.traffic === undefined) { try { const t = RX.traffic.main(await RX.traffic.near(lat, lng, 1200)); lot.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) { lot.traffic = null; } }
-    if (lot.area === undefined) { try { lot.area = RX.area.brief(await RX.area.at(lat, lng)); } catch (e) { lot.area = null; } }
+    if (lot.area === undefined) { try { const [aa, cc] = await Promise.all([RX.area.at(lat, lng), RX.area.cityAt(lat, lng).catch(() => null)]); lot.area = RX.area.brief(aa, cc); } catch (e) { lot.area = null; } }
     S.pois.push({ id, lat, lng, category: null, name: lot.situs ? lot.situs.split(',')[0] : (lot.owner || 'LOT'), notes: P().summary(lot), photo: null, hva: false, tier: 2, regionId: null, sector: null, created: Date.now(), parcel: lot });
     S.savePOIs(); S.log('drop', id, 'Pin dropped', 'FROM LOT LOOKUP');
     A.updateLamps(); A.beep('mark'); A.go('mark', { id });
@@ -1750,8 +1750,29 @@ window.RX = window.RX || {};
     if (st.aBusy) return;
     const key = lat.toFixed(4) + ',' + lng.toFixed(4);
     if (st.aKey === key) return;
-    st.aKey = key; st.aBusy = true; st.aErr = null;
-    RX.area.at(lat, lng).then(v => { st.area = v; if (!v) st.aErr = 'NONE'; }).catch(() => { st.aErr = 'NET'; }).then(() => { st.aBusy = false; A.dirty = true; A.lcdDirty = true; });
+    st.aKey = key; st.aBusy = true; st.aErr = null; st.cErr = null;
+    Promise.all([
+      RX.area.at(lat, lng).then(v => { st.area = v; if (!v) st.aErr = 'NONE'; }).catch(() => { st.aErr = 'NET'; }),
+      RX.area.cityAt(lat, lng).then(v => { st.city = v; }).catch(() => { st.cErr = 'NET'; })
+    ]).then(() => { st.aBusy = false; A.dirty = true; A.lcdDirty = true; });
+  }
+  const SCALES = ['tract', 'city', 'county'];
+  const kfmt = n => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : n.toLocaleString('en-US');
+  const gk = n => n == null ? '—' : n >= 1e7 ? (n / 1e6).toFixed(1) + 'M' : kfmt(n);
+  const gm = n => n == null || n < 0 ? '—' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n);
+  const vacPct = o => o && o.units ? Math.round(o.vacant / o.units * 100) + '%' : '—';
+  function cityOutline(g, A, p) {
+    if (!p || !p.rings) return;
+    const v = A.view();
+    p.rings.forEach(r => { const pts = r.map(q => M.latLngToDot(q[0], q[1], v)); for (let i = 0; i < pts.length - 1; i++) g.mx.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, C.hot, 0.75); });
+  }
+  function setScale(st, A, sc) {
+    st.scale = sc;
+    const p = st.city && st.city.place;
+    if (sc === 'tract') { if (M.zoom < 13 || M.zoom > 15) M.setView(M.lat, M.lng, 14); }
+    else if (sc === 'city') M.setView(M.lat, M.lng, p ? (p.sqmi < 15 ? 13 : p.sqmi < 60 ? 12 : p.sqmi < 250 ? 11 : 10) : 12);
+    else M.setView(M.lat, M.lng, 10);
+    A.say('AREA ▸ ' + sc.toUpperCase(), 1500); A.lcdDirty = true; A.dirty = true;
   }
   function areaOutline(g, A, area) {
     const ring = area && area.tract && area.tract.ring; if (!ring) return;
@@ -1791,6 +1812,15 @@ window.RX = window.RX || {};
         if (!s) return { rows: [['ROAD', st.tBusy ? 'READING...' : 'NO COUNTS HERE'], ['AADT', '--'], ['5YR', '--']], tag: 'TRF' };
         return { rows: [['ROAD', s.road + (list.length > 1 ? ' ' + ((st.tPick || 0) % list.length + 1) + '/' + list.length : '')], ['/DAY', RX.traffic.full(s.aadt) + ' (' + s.year + ')'], ['5YR', s.trend5 != null ? RX.traffic.pct(s.trend5) + ' · ' + Geo.fmtDist(s.dist) : Geo.fmtDist(s.dist)]], tag: 'TRF' };
       }
+      const sc = st.scale || 'tract', cy = st.city;
+      if (sc !== 'tract') {
+        const tag = sc === 'city' ? 'CTY' : 'CNT';
+        if (!cy) return { rows: [[sc === 'city' ? 'CITY' : 'CNTY', st.aBusy ? 'READING...' : (st.cErr ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['POP', '--']], tag };
+        const o = sc === 'city' ? cy.place : cy.county, ref = sc === 'city' ? cy.county : cy.state, refN = sc === 'city' ? ' CO' : ' TX';
+        if (!o) return { rows: [['CITY', 'UNINCORPORATED'], ['CNTY', (cy.countyName || '--').replace(/ County$/i, '').toUpperCase()], ['', 'TAP LCD ▸ COUNTY']], tag };
+        if (sc === 'city' && !o.stats) return { rows: [['CITY', o.name.toUpperCase()], ['', 'NO CENSUS FIGURES'], ['', '']], tag };
+        return { rows: [[sc === 'city' ? 'CITY' : 'CNTY', o.name.replace(/ County$/i, '').toUpperCase() + (o.cdp ? ' (UNINC)' : '')], ['INC', RX.area.money(o.income) + ' ' + RX.area.vs(o.income, ref && ref.income) + refN], ['POP', kfmt(o.pop) + ' ' + RX.area.growth(o.growth) + ' 5Y']], tag };
+      }
       const a = st.area, t = a && a.tract, c = a && a.county;
       if (!t) return { rows: [['TRCT', st.aBusy ? 'READING...' : (st.aErr === 'NET' ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['HOME', '--']], tag: 'TRC' };
       return { rows: [['INC', RX.area.money(t.income) + ' ' + RX.area.vs(t.income, c && c.income) + ' CO'], ['HOME', RX.area.money(t.home) + ' ' + RX.area.vs(t.home, c && c.home) + ' CO'], ['POP', (t.pop || 0).toLocaleString('en-US') + ' · OWN ' + Math.round(t.own || 0) + '%']], tag: 'TRC' };
@@ -1799,7 +1829,7 @@ window.RX = window.RX || {};
       const pg = st.page || 'lot';
       if (pg === 'lot') { if (st.res) taxCheck(A, st.res); else A.say('NO LOT READ YET', 2000); }
       else if (pg === 'traffic') { st.tPick = (st.tPick || 0) + 1; }
-      else if (st.res) A.go('lotinfo', { lot: st.res, area: st.area }); else A.say('NO LOT READ HERE YET', 2000);
+      else { const i = SCALES.indexOf(st.scale || 'tract'); setScale(st, A, SCALES[(i + 1) % SCALES.length]); }
     },
     render(g, st, A) {
       const W = g.W, H = g.H, mx = g.mx, pg = st.page || 'lot';
@@ -1812,15 +1842,21 @@ window.RX = window.RX || {};
         A.lcdDirty = true;
       }
       drawMap(g, A, { reticle: true, noHits: true });
-      if (pg === 'area') areaOutline(g, A, st.area);
+      const scl = st.scale || 'tract';
+      if (pg === 'area') { if (scl === 'tract') areaOutline(g, A, st.area); else if (scl === 'city') cityOutline(g, A, st.city && st.city.place); }
       lotOutline(g, A, st.res, { dim: pg !== 'lot' });
       if (pg === 'traffic') trafficLayer(g, A, st);
-      hud(g, A, ({ lot: 'LOT · COUNTY RECORDS', traffic: 'TRAFFIC · CARS PER DAY', area: 'AREA · CENSUS TRACT' })[pg]);
+      hud(g, A, ({ lot: 'LOT · COUNTY RECORDS', traffic: 'TRAFFIC · CARS PER DAY', area: 'AREA · ' + ({ tract: 'CENSUS TRACT', city: 'CITY', county: 'COUNTY' })[scl] })[pg]);
       // page tabs: which drum face is up
       const tw = Math.floor((W - 2) / 3);
       mx.clearRect(0, 12, W, 9);
       PAGES.forEach((p, i) => { const on = p === pg; if (on) mx.rect(i * tw + 1, 12, tw - 2, 8, C.ink, 0.22); g.miniR(p.toUpperCase(), i * tw + tw / 2 + RX.font.measure(p.toUpperCase(), 'mini') / 2, 14, { a: on ? 1 : 0.4, c: on ? C.hot : C.ink }); });
       if (pg === 'traffic') { mx.clearRect(0, 21, 11 + RX.font.measure('/D = VEHICLES PER DAY', 'mini'), 9); [[2, 0], [1, 1], [3, 1], [0, 2], [2, 2], [4, 2], [1, 3], [3, 3], [2, 4]].forEach(q => mx.set(2 + q[0], 23 + q[1], C.amber, 1)); g.mini('/D = VEHICLES PER DAY', 9, 23, { c: C.amber, a: 0.95 }); }
+      if (pg === 'area') { // scale strip: tap the LCD to step it
+        let x = 2; mx.clearRect(0, 21, 4 + SCALES.reduce((w, k) => w + RX.font.measure(k.toUpperCase(), 'mini') + 6, 0) + RX.font.measure('LCD ▸', 'mini'), 9);
+        x += g.mini('LCD ▸', x, 23, { a: 0.5 }) + 4;
+        SCALES.forEach(k => { const on = k === scl; x += g.mini(k.toUpperCase(), x, 23, { c: on ? C.hot : C.ink, a: on ? 1 : 0.4 }) + 6; });
+      }
       // the card
       const ch = 44, cy = footTop(g) - ch - 1;
       mx.clearRect(0, cy - 1, W, ch + 2); mx.frame(0, cy, W - 1, ch, C.ink, 0.5);
@@ -1848,6 +1884,27 @@ window.RX = window.RX || {};
           g.btn(3, cy + 29, bw, 12, 'HISTORY ▸', () => { if (r) A.go('lotinfo', { lot: r }); else A.say('NO LOT READ HERE YET', 2000); }, { face: 'mini', dim: !r });
           g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ NEXT ROAD', () => { st.tPick = (st.tPick || 0) + 1; A.lcdDirty = true; }, { face: 'mini' });
         }
+      } else if (scl !== 'tract') {
+        const cy0 = st.city, o = cy0 && (scl === 'city' ? cy0.place : cy0.county), ref = cy0 && (scl === 'city' ? cy0.county : cy0.state), refN = scl === 'city' ? 'COUNTY' : 'TEXAS';
+        const nextBtn = () => g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ ' + SCALES[(SCALES.indexOf(scl) + 1) % 3].toUpperCase(), () => { setScale(st, A, SCALES[(SCALES.indexOf(scl) + 1) % 3]); }, { face: 'mini' });
+        if (!cy0) g.textC(st.aBusy ? 'READING CENSUS...' : (st.cErr ? 'NO SIGNAL · AREA NEEDS A CONNECTION' : 'PUSH THE JOG TO READ THIS AREA'), W / 2, cy + 18, { a: 0.7, c: st.cErr ? C.amber : C.ink });
+        else if (!o) {
+          g.text('UNINCORPORATED', 4, cy + 3, { c: C.hot });
+          g.mini(g.fit('NOT INSIDE ANY CITY OR CENSUS COMMUNITY · ' + (cy0.countyName || '').toUpperCase() + ' RULES HERE', W - 8, 'mini'), 4, cy + 13, { a: 0.8 });
+          g.mini('NO CITY ZONING OR CITY TAX · CHECK COUNTY RULES', 4, cy + 21, { a: 0.6 });
+          nextBtn();
+        } else if (scl === 'city' && !o.stats) {
+          g.text(g.fit(o.full.toUpperCase(), W - 8), 4, cy + 3, { c: C.hot });
+          g.mini('NO CENSUS FIGURES FOR THIS PLACE IN THE ' + cy0.year + ' FILE', 4, cy + 13, { a: 0.7 });
+          nextBtn();
+        } else {
+          const nm = scl === 'city' ? o.name.toUpperCase() + (o.cdp ? ' · UNINC. COMMUNITY' : ' · CITY') + ' · ' + (cy0.countyName || '').replace(/ County$/i, '').toUpperCase() + ' CO' : o.name.toUpperCase() + ' · TEXAS';
+          g.text(g.fit(nm, W - 8), 4, cy + 3, { c: C.hot });
+          g.mini(g.fit(kfmt(o.pop) + ' PEOPLE (' + RX.area.growth(o.growth) + ' SINCE ' + cy0.prior + ') · INCOME ' + RX.area.money(o.income) + ' (' + RX.area.vs(o.income, ref && ref.income) + ' VS ' + refN + ')', W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
+          g.mini(g.fit('HOME ' + RX.area.money(o.home) + ' (' + RX.area.vs(o.home, ref && ref.home) + ') · RENT ' + RX.area.money(o.rent) + ' · ' + Math.round(o.own || 0) + '% OWN · ' + vacPct(o) + ' VACANT · AGE ' + o.age, W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
+          g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => A.go('areainfo', { lat: M.lat, lng: M.lng, area: st.area, city: st.city }), { face: 'mini' });
+          nextBtn();
+        }
       } else {
         const a = st.area, t = a && a.tract, c = a && a.county;
         if (!t) g.textC(st.aBusy ? 'READING CENSUS TRACT...' : (st.aErr === 'NET' ? 'NO SIGNAL · AREA NEEDS A CONNECTION' : 'PUSH THE JOG TO READ THIS AREA'), W / 2, cy + 18, { a: 0.7, c: st.aErr === 'NET' ? C.amber : C.ink });
@@ -1855,11 +1912,72 @@ window.RX = window.RX || {};
           g.text(g.fit(t.name.toUpperCase() + ' · ' + (a.countyName || '').toUpperCase(), W - 8), 4, cy + 3, { c: C.hot });
           g.mini(g.fit('INCOME ' + RX.area.money(t.income) + ' (' + RX.area.vs(t.income, c && c.income) + ' VS COUNTY) · HOME ' + RX.area.money(t.home) + ' (' + RX.area.vs(t.home, c && c.home) + ')', W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
           g.mini(g.fit((t.pop || 0).toLocaleString('en-US') + ' PEOPLE · ' + Math.round(t.own || 0) + '% OWN · MEDIAN AGE ' + t.age + ' · RENT ' + RX.area.money(t.rent), W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
-          g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => { if (r) A.go('lotinfo', { lot: r, area: a }); else A.say('NO LOT READ HERE YET', 2000); }, { face: 'mini', dim: !r });
-          g.btn(7 + bw, cy + 29, bw, 12, '+ MARK THIS SPOT', () => { if (r) lotToMark(A, r, r.at[0], r.at[1]); else A.say('NO LOT HERE TO SAVE', 2000); }, { face: 'mini', dim: !r });
+          g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => A.go('areainfo', { lat: M.lat, lng: M.lng, area: st.area, city: st.city }), { face: 'mini' });
+          g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ CITY', () => setScale(st, A, 'city'), { face: 'mini' });
         }
       }
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'DRUM ▸ PAGE', 'PRESS ▸ BACK');
+    }
+  };
+
+  // the whole picture for a spot: tract, city, county and Texas side by side, plus the city's busiest roads
+  RX.screens.areainfo = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'DRUM ▸ BACK · HOLD MAP'],
+    jog(d, st) { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) + d * 18)); },
+    enter(st, params, A) {
+      st.area = params.area || null; st.city = params.city || null;
+      if (!st.area) RX.area.at(params.lat, params.lng).then(v => { st.area = v; }).catch(() => {}).then(() => { A.dirty = true; });
+      if (!st.city) RX.area.cityAt(params.lat, params.lng).then(v => { st.city = v; }).catch(() => { st.cErr = true; }).then(() => { A.dirty = true; });
+    },
+    lcd(st) {
+      const p = st.city && st.city.place;
+      return { rows: [['CITY', p ? p.name.toUpperCase() : (st.city ? 'UNINCORPORATED' : '--')], ['CNTY', st.city && st.city.countyName ? st.city.countyName.replace(/ County$/i, '').toUpperCase() : '--'], ['ROAD', st.roads && st.roads[0] ? st.roads[0].road + ' ' + RX.traffic.k(st.roads[0].aadt) + '/D' : '--']], tag: 'PRF' };
+    },
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, cy0 = st.city, t = st.area && st.area.tract, p = cy0 && cy0.place, co = cy0 && cy0.county, tx = cy0 && cy0.state;
+      let y = g.header('AREA PROFILE', cy0 ? 'ACS ' + (cy0.year - 4) + '–' + String(cy0.year).slice(2) : 'CENSUS');
+      y = g.scrollBegin(y, footTop(g));
+      g.text(g.fit(p ? p.full.toUpperCase() : (cy0 ? 'UNINCORPORATED' : 'READING...'), W - 4), 1, y + 1, { c: C.hot }); y += 10;
+      g.mini(g.fit([t && t.name.toUpperCase(), cy0 && cy0.countyName && cy0.countyName.toUpperCase(), p && p.sqmi ? (p.sqmi < 10 ? p.sqmi.toFixed(1) : Math.round(p.sqmi)) + ' SQ MI' : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 1, { a: 0.6 }); y += 10;
+      // the grid: one row per figure, one column per scale
+      const cols = [['TRACT', t], ['CITY', p && p.stats ? p : null], ['COUNTY', co], ['TEXAS', tx]];
+      const lw = 30, cw = Math.floor((W - 2 - lw) / 4);
+      cols.forEach((c, i) => g.miniR(c[0], lw + cw * (i + 1) - 2, y + 1, { a: c[1] ? 0.8 : 0.35 }));
+      y += 8; mx.hline(0, y, W, C.ink, 0.25, 2); y += 2;
+      const rows = [
+        ['PEOPLE', o => gk(o.pop)],
+        ['GROWTH', o => o.growth != null ? RX.area.growth(o.growth) : '—'],
+        ['INCOME', o => gm(o.income)],
+        ['HOME', o => gm(o.home)],
+        ['RENT', o => gm(o.rent)],
+        ['OWN', o => o.own != null ? Math.round(o.own) + '%' : '—'],
+        ['VACANT', o => vacPct(o)],
+        ['AGE', o => o.age != null ? String(o.age) : '—']
+      ];
+      rows.forEach((r, ri) => {
+        g.mini(r[0], 1, y + 2, { a: 0.6 });
+        cols.forEach((c, i) => { const v = c[1] ? r[1](c[1]) : '—'; g.textR(g.fit(v, cw - 3), lw + cw * (i + 1) - 2, y + 1, { c: i === 1 && c[1] ? C.hot : C.ink, a: c[1] ? 1 : 0.35 }); });
+        y += 10; if (ri % 2 === 1) mx.hline(0, y - 1, W, C.ink, 0.08, 2);
+      });
+      g.mini('GROWTH = PEOPLE NOW VS ' + (cy0 ? cy0.prior : '5 YRS AGO') + ' · TRACT GROWTH NOT IN THIS FILE', 1, y + 1, { a: 0.45 }); y += 10;
+      // busiest roads inside the city
+      if (p && !st.rReq) { st.rReq = true; RX.traffic.busiest(p.box, (la, ln) => RX.area.inRings(p.rings, la, ln), 6).then(l => { st.roads = l; }).catch(() => { st.rErr = true; }).then(() => { A.dirty = true; A.lcdDirty = true; }); }
+      if (p) {
+        y = g.section('BUSIEST ROADS IN ' + p.name.toUpperCase(), y + 2, 'TXDOT · /DAY');
+        if (!st.roads) { g.mini(st.rErr ? 'NO SIGNAL · ROADS NEED A CONNECTION' : 'READING TXDOT COUNTS...', 2, y + 1, { a: 0.6, c: st.rErr ? C.amber : C.ink }); y += 10; }
+        else if (!st.roads.length) { g.mini('NO COUNT STATIONS INSIDE THE LIMITS', 2, y + 1, { a: 0.6 }); y += 10; }
+        else st.roads.forEach((s, i) => {
+          const mx0 = st.roads[0].aadt, bwid = Math.max(2, Math.round((W - 120) * s.aadt / mx0));
+          g.text(g.fit(s.road, 60), 2, y + 1, { c: i ? C.ink : C.hot });
+          mx.rect(64, y + 2, bwid, 5, i ? C.ink : C.hot, i ? 0.5 : 0.9);
+          g.textR(RX.traffic.k(s.aadt), W - 4, y + 1, { c: i ? C.ink : C.hot });
+          y += 10;
+        });
+      }
+      y += 4;
+      U.wrap('U.S. CENSUS BUREAU, AMERICAN COMMUNITY SURVEY 5-YEAR ESTIMATES. CITY, COUNTY AND TEXAS FROM THE ' + (cy0 ? cy0.year : '') + ' FILE STORED ON THIS RP; TRACT LIVE FROM THE CENSUS MAP SERVICE. MEDIANS ARE ESTIMATES WITH A MARGIN OF ERROR, WIDEST FOR SMALL PLACES.', Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      g.scrollEnd(y + 4);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'CENSUS · STORED ON THIS RP');
     }
   };
 
@@ -1930,6 +2048,7 @@ window.RX = window.RX || {};
         kv('HOUSING', (t.units || 0).toLocaleString('en-US') + ' UNITS · ' + Math.round(t.own || 0) + '% OWNED · ' + (t.units ? Math.round(t.vacant / t.units * 100) : 0) + '% VACANT');
         kv('COUNTY', (st.area.countyName || '').toUpperCase() + ' · INC ' + RX.area.money(c.income) + ' · HOME ' + RX.area.money(c.home));
       }
+      g.btn(0, y + 2, W - 2, 13, 'CITY · COUNTY · TEXAS ▸ FULL PROFILE', () => A.go('areainfo', { lat: r.at[0], lng: r.at[1], area: st.area || null }), { face: 'mini' }); y += 17;
       y += 3;
       const bw = Math.floor((W - 6) / 2);
       g.btn(0, y, bw, 13, 'COUNTY RECORD ▸', () => window.open(P().recordUrl(r), '_blank'), { face: 'mini' });
