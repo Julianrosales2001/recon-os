@@ -23,6 +23,7 @@ window.RX = window.RX || {};
     o = o || {};
     const v = A.view(), mx = g.mx, W = g.W, H = g.H, t = g.t;
     M.drawBase(mx, v, { ink: C.ink, water: C.water, fog: C.fog });
+    if (S.v2.hicon) { const tw = RX.font.measure('HI-CON', 'mini') + 4; mx.rect(W - tw - 2, 13, tw, 7, '#FFFFFF', 1); g.miniR('HI-CON', W - 4, 14, { c: '#000000', a: 1 }); }
 
     // today's trail
     if (S.prefsV1.showTrail !== false && S.trail.length > 1) {
@@ -2093,4 +2094,36 @@ window.RX = window.RX || {};
     let kb = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); kb += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch (e) {}
     return { rows: [['GPS', g && g.acc != null ? '±' + Math.round(g.acc * 3.28084) + ' FT' : 'NO FIX'], ['MEM', Math.round(kb / 1024) + ' KB · ' + S.pois.length + ' MRK'], ['VER', 'R.OS ' + RX.VERSION]], tag: 'SYS' };
   };
+
+  // ---------- VIS: explored-ground totals for the LCD while HI-CON is on ----------
+  RX.vis = (function () {
+    const CELL_SQMI = 22500 / 2589988;   // same 150 m square the rest of the RP counts
+    let city = null, cityKey = null, busy = false, pct = null, pctKey = null;
+    function cityPct(p) {
+      const D = S.FOG_CELL_DEG, b = p.box; let n = 0;
+      for (const k of S.fog) {
+        const ix = S.unpackIdx(k), la = (ix[0] + 0.5) * D, ln = (ix[1] + 0.5) * D;
+        if (la < b[0] || la > b[2] || ln < b[1] || ln > b[3]) continue;
+        if (RX.area.inRings(p.rings, la, ln)) n++;
+      }
+      return Math.min(100, n * CELL_SQMI / p.sqmi * 100);
+    }
+    function lcd(A) {
+      const key = M.lat.toFixed(2) + ',' + M.lng.toFixed(2);
+      if (key !== cityKey && !busy) {
+        busy = true; cityKey = key;
+        RX.area.cityAt(M.lat, M.lng).then(c => { city = c; }).catch(() => { city = city || null; }).then(() => { busy = false; A.lcdDirty = true; });
+      }
+      const p = city && city.place;
+      let cityRow = ['CITY', busy && !city ? 'READING...' : (city ? 'UNINCORPORATED' : 'NO SIGNAL')];
+      if (p) {
+        const pk = p.geoid + ':' + S.fog.size;
+        if (pk !== pctKey) { pctKey = pk; pct = cityPct(p); }
+        cityRow = ['CITY', p.name.toUpperCase() + ' ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%'];
+      }
+      const mi = S.fog.size * CELL_SQMI;
+      return { rows: [['EXPL', (mi < 100 ? mi.toFixed(1) : Math.round(mi)) + ' SQ MI'], cityRow, ['CELL', F.num(S.fog.size)]], tag: 'VIS' };
+    }
+    return { lcd };
+  })();
 })();

@@ -33,7 +33,7 @@ window.RX = window.RX || {};
     sound: true, idleDim: true, recordTrail: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'region', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', presetsCollapsed: false, conv: {}, code: null
+    autoName: true, recent: [], mapSrc: 'AUTO', presetsCollapsed: false, conv: {}, code: null, hicon: false
   };
 
   // ---------- low level ----------
@@ -66,6 +66,7 @@ window.RX = window.RX || {};
   }
   S.cellKey = function (lat, lng) { return packIdx(Math.floor(lat / FOG_CELL_DEG), Math.floor(lng / FOG_CELL_DEG)); };
   S.packIdx = packIdx;
+  S.unpackIdx = k => [Math.floor(k / FOG_STRIDE) - FOG_OFF, k % FOG_STRIDE - FOG_OFF];
   S.isRevealed = function (latIdx, lngIdx) { return S.fog.has(packIdx(latIdx, lngIdx)); };
   function loadFog(arr) {
     const set = new Set();

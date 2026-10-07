@@ -175,7 +175,9 @@ window.RX = window.RX || {};
     const amber = sc.pal === 'amber';
     $('screen').classList.toggle('amber', amber);
     $('bezel').classList.toggle('amber', amber);
-    A.mx.setGhost(amber ? 'rgba(255,170,70,0.075)' : 'rgba(90,255,205,0.07)');
+    const hi = mapMode && !!S.v2.hicon;
+    $('bezel').classList.toggle('hicon', hi); $('screen').classList.toggle('hicon', hi);
+    A.mx.setGhost(amber ? 'rgba(255,170,70,0.075)' : hi ? 'rgba(210,210,210,0.05)' : 'rgba(90,255,205,0.07)');
     drumOnModeChange();
     const j = sc.jogLabels ? sc.jogLabels(A.top().st, A) : (mapMode ? ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP']);
     if (!mapMode) $('jogVal').textContent = 'Z' + (Math.round(M.zoom * 2) / 2);
@@ -184,6 +186,16 @@ window.RX = window.RX || {};
     setTray(false);
   }
   A.refreshChrome = applyMode;
+  // VIS: the high-contrast explored map, on until switched off
+  A.setHicon = function (on) {
+    S.saveV2({ hicon: !!on });
+    const l = $('visLed'); if (l) l.classList.toggle('on', !!on);
+    if (on && A.stack.length > 1) A.home();
+    applyMode();
+    M.dirty = true; A.dirty = true; A.lcdDirty = true;
+    A.beep(on ? 'ok' : 'key');
+    A.say(on ? 'HI-CON ON · WHITE = EXPLORED · VIS AGAIN TO EXIT' : 'HI-CON OFF', 3000);
+  };
 
   // ---------- map view ----------
   A.view = function () {
@@ -338,6 +350,7 @@ window.RX = window.RX || {};
   press($('fnKey'), () => setTray(!A.trayOpen));
   document.querySelectorAll('.tool').forEach(b => press(b, () => {
     const t = b.dataset.tool;
+    if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false); return; }
     setTray(false);
     if (A.top().name === t) return;
     if (A.stack.length > 1) A.home();
@@ -1000,6 +1013,7 @@ window.RX = window.RX || {};
     el.classList.toggle('pulse', cls === 'pulse');
   }
   function updateLamps() {
+    { const l = $('visLed'); if (l) l.classList.toggle('on', !!S.v2.hicon); }
     const g = A.gps, fresh = g && Date.now() - g.ts < 30000;
     lamp('fix', fresh || !A.gpsErr, fresh && g.acc < 30 ? null : 'blink');
     lamp('rec', S.v2.recordTrail);
@@ -1030,6 +1044,7 @@ window.RX = window.RX || {};
     if (A.lcdMsg && Date.now() < A.lcdMsg.until) rows = A.lcdMsg.rows;
     else if (!A.booted) rows = [['SYS', 'SELF TEST'], ['MEM', S.pois.length + ' MARKS'], ['FOG', U.F.num(S.fog.size) + ' CELLS']];
     else if (A.screen().lcd && (scLcd = A.screen().lcd(A.top().st, A))) { rows = scLcd.rows; }
+    else if (S.v2.hicon && A.stack.length <= 1 && RX.vis && (scLcd = RX.vis.lcd(A))) { rows = scLcd.rows; }
     else if (A.stack.length <= 1 && A.drumFace() === 'SCAN' && A.scanItem()) {
       const it = A.scanItem(), from = A.gps || { lat: M.lat, lng: M.lng };
       const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);

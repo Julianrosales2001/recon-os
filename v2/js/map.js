@@ -294,7 +294,18 @@ window.RX = window.RX || {};
 
     // Fog: which cells sit in unrevealed 150 m squares.
     const fog = new Uint8Array(n);
-    if (M.zoom >= 9.5 && RX.store.fog.size) {
+    const S = RX.store, HI = !!(S.v2 && S.v2.hicon);
+    const cellDots = S.FOG_CELL_DEG / Math.max(1e-12, Math.abs(M.dotToLatLng(0, 0, v).lat - M.dotToLatLng(0, 1, v).lat));
+    if (HI && cellDots < 1.5) {
+      // zoomed out: cells are smaller than a dot · plot every explored cell so none disappear
+      fog.fill(1);
+      const D = S.FOG_CELL_DEG;
+      for (const k of S.fog) {
+        const ix = S.unpackIdx(k), d = M.latLngToDot((ix[0] + 0.5) * D, (ix[1] + 0.5) * D, v);
+        const x = Math.floor(d.x), y = Math.floor(d.y);
+        if (x >= 0 && y >= 0 && x < v.cols && y < v.rows) fog[y * v.cols + x] = 0;
+      }
+    } else if ((M.zoom >= 9.5 || HI) && RX.store.fog.size) {
       const D = RX.store.FOG_CELL_DEG;
       const latIdx = new Int32Array(v.rows), lngIdx = new Int32Array(v.cols);
       for (let r = 0; r < v.rows; r++) latIdx[r] = Math.floor(M.dotToLatLng(0, r + 0.5, v).lat / D);
@@ -302,7 +313,7 @@ window.RX = window.RX || {};
       for (let r = 0; r < v.rows; r++) for (let col = 0; col < v.cols; col++) {
         if (!RX.store.isRevealed(latIdx[r], lngIdx[col])) fog[r * v.cols + col] = 1;
       }
-    } else if (M.zoom >= 9.5) {
+    } else if (M.zoom >= 9.5 || HI) {
       fog.fill(1);
     }
     M.missing = missing;
@@ -310,7 +321,7 @@ window.RX = window.RX || {};
   }
 
   M.ensureBase = function (v) {
-    const key = [v.cols, v.rows, v.pitch, v.cx, v.cy, M.lat.toFixed(6), M.lng.toFixed(6), M.zoom.toFixed(3), RX.store.fog.size].join('|');
+    const key = [v.cols, v.rows, v.pitch, v.cx, v.cy, M.lat.toFixed(6), M.lng.toFixed(6), M.zoom.toFixed(3), RX.store.fog.size, RX.store.v2 && RX.store.v2.hicon ? 'HI' : ''].join('|');
     if (!M.dirty && key === M.baseKey && M.base) return M.base;
     const b = sample(v);
     if (b) { M.base = b; M.baseKey = key; }
@@ -327,6 +338,19 @@ window.RX = window.RX || {};
     const fogF = FOG_FACTOR[RX.store.prefsV1.fogOpacity] != null ? FOG_FACTOR[RX.store.prefsV1.fogOpacity] : 0.32;
     const ink = RX.rgb(colors.ink), wat = RX.rgb(colors.water), hatch = RX.rgb(colors.fog);
     const buf = mx.buf, cols = mx.cols;
+    if (RX.store.v2 && RX.store.v2.hicon) {
+      // HI-CON: explored ground is solid white, the rest drops to a faint grey sketch
+      const WH = [255, 255, 255], GR = [150, 150, 150];
+      for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
+        const i = r * cols + c, p = i * 4, L = b.lum[i] / 255, fg = b.fog[i] === 1;
+        let a = 0, col = GR;
+        if (!fg) { col = WH; a = b.water[i] ? 0.34 : 0.52 + 0.48 * Math.min(1, L * 1.2); }
+        else if (b.water[i]) { if (((c + r * 3) % 4) === 0) a = 0.16; }
+        else if (L > 0.06) a = 0.07 + 0.12 * Math.min(1, L);
+        if (a > 0) { buf[p] = col[0]; buf[p + 1] = col[1]; buf[p + 2] = col[2]; buf[p + 3] = a * 255; }
+      }
+      return;
+    }
     for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
       const i = r * cols + c, p = i * 4;
       const fogged = b.fog[i] === 1;
