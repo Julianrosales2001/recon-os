@@ -339,6 +339,17 @@ window.RX = window.RX || {};
   };
 
   // ---------- keys ----------
+  // rubber physics: whichever key was squashed springs back when the finger lifts
+  (function () {
+    const SEL = '.preset-key, .mark-key, .tool, .tray-tab';
+    let held = null;
+    const boing = el => { el.classList.remove('boing'); void el.offsetWidth; el.classList.add('boing'); };
+    document.addEventListener('pointerdown', e => { const el = e.target.closest && e.target.closest(SEL); if (el) { held = el; el.classList.remove('boing'); } }, true);
+    const lift = () => { if (held) { boing(held); held = null; } };
+    document.addEventListener('pointerup', lift, true); document.addEventListener('pointercancel', lift, true);
+    document.addEventListener('animationend', e => { if (e.target.classList && e.target.classList.contains('boing')) e.target.classList.remove('boing'); }, true);
+    A.boing = boing;
+  })();
   function press(el, fn) {
     el.addEventListener('pointerdown', e => { e.preventDefault(); A.wake(); el.classList.add('down'); A.beep('key'); });
     const up = () => el.classList.remove('down');
@@ -871,7 +882,7 @@ window.RX = window.RX || {};
     else if (k === 'h' || k === 'H') { if (A.stack.length > 1) A.home(); A.go('fast'); }
     else if (k === 'd' || k === 'D') $('lcdBtn').click();
   });
-  function flashKey(el) { if (!el) return; el.classList.add('down'); setTimeout(() => el.classList.remove('down'), 120); }
+  function flashKey(el) { if (!el) return; el.classList.add('down'); setTimeout(() => { el.classList.remove('down'); if (A.boing) A.boing(el); }, 120); }
 
   // ---------- idle dim ----------
   A.wake = function () {

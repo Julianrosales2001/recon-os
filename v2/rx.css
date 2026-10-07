@@ -421,9 +421,8 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
   opacity: 0; transition: opacity 0.28s ease;
 }
 .preset.latched .preset-key::after, #device.assign .preset-key::after { opacity: 1; }
-.preset-key:active, .preset-key.down, .preset.latched .preset-key {
-  transform: translateY(1px) scale(0.985); filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94);
-}
+.preset.latched .preset-key { transform: translateY(1px) scale(0.985); }
+.preset-key:active, .preset-key.down { filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94); }
 .preset.latched .preset-key { filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)); }
 .preset-sock { background-image: radial-gradient(closest-side, var(--glow), rgba(0,0,0,0)); background-size: 0 0; background-position: center; background-repeat: no-repeat; transition: background-size 0.3s ease; }
 .preset.latched .preset-sock, #device.assign .preset-sock { background-size: 100% 100%; }
@@ -453,7 +452,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .mark-key:active::after, .mark-key.down::after { opacity: 1; transition-duration: 0.05s; }
 #device.assign .mark-key::after { animation: mark-armed 1.4s ease-in-out infinite; }
 @keyframes mark-armed { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.35; } }
-.mark-key:active, .mark-key.down { transform: translateY(1px) scale(0.99); filter: drop-shadow(0.6px 0.9px 0.8px rgba(0,0,0,0.6)); }
+.mark-key:active, .mark-key.down { filter: drop-shadow(0.6px 0.9px 0.8px rgba(0,0,0,0.6)); }
 .mark-well { background-image: radial-gradient(closest-side, rgba(255,74,42,0.32), rgba(255,74,42,0)); background-size: 0 0; background-position: center; background-repeat: no-repeat; transition: background-size 0.2s ease; }
 #device.assign .mark-well, .mark-well:has(.mark-key:active), .mark-well:has(.mark-key.down) { background-size: 100% 100%; }
 
@@ -476,7 +475,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tool[data-tool=vis] { background-image: url(keys/tool-vis.png?v=1) !important; }
 .tool[data-tool=vis]:has(.led.on) { background-image: url(keys/tool-vis-lit.png?v=1) !important; }
 .tool[data-tool=objectives]:has(.led.on) { background-image: url(keys/tool-objectives-lit.png?v=2) !important; }
-.tool:active, .tool.down { transform: translateY(1px) scale(0.985); filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94); }
+.tool:active, .tool.down { filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94); }
 
 /* jog: gunmetal, straight knurl (main.js slides it as the wheel turns) */
 .jog-knurl { background-color: #2a2d31; background-image: url(keys/jog-knurl.jpg?v=2); background-size: 42px 38px; background-repeat: repeat-x; }
@@ -496,3 +495,33 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .lamps .led.pulse.on::after { animation: led-pulse 2.2s ease-in-out infinite; }
 .lamp { gap: 4px; }
 .lamps { gap: 10px; }
+
+/* ---------- rubber physics: keys squash into the deck while held, then spring back with a wobble ---------- */
+.preset-key, .mark-key, .tool, .tray-tab { transform-origin: 50% 85%; transition: transform 0.11s cubic-bezier(0.25, 0.8, 0.35, 1), filter 0.08s ease; will-change: transform; }
+.preset-key:active, .preset-key.down, .tool:active, .tool.down { transform: translateY(1.5px) scale(1.045, 0.9); transition-duration: 0.07s; }
+.preset.latched .preset-key:active, .preset.latched .preset-key.down { transform: translateY(2px) scale(1.05, 0.88); }
+.mark-key:active, .mark-key.down { transform: translateY(2.5px) scale(1.03, 0.9); transition-duration: 0.08s; }
+.tray-tab:active, .tray-tab.down { transform: translateX(-1px) scale(0.9, 1.035); transform-origin: 100% 50%; transition-duration: 0.07s; }
+@keyframes rp-boing {
+  0%   { transform: translateY(1.5px) scale(1.045, 0.9); }
+  32%  { transform: translateY(-1.2px) scale(0.965, 1.055); }
+  56%  { transform: translateY(0.4px) scale(1.018, 0.976); }
+  76%  { transform: translateY(-0.2px) scale(0.994, 1.009); }
+  100% { transform: none; }
+}
+@keyframes rp-boing-latched {
+  0%   { transform: translateY(2px) scale(1.05, 0.88); }
+  35%  { transform: translateY(0) scale(0.97, 1.03); }
+  65%  { transform: translateY(1.2px) scale(0.995, 0.975); }
+  100% { transform: translateY(1px) scale(0.985); }
+}
+@keyframes rp-boing-tab {
+  0%   { transform: translateX(-1px) scale(0.9, 1.035); }
+  35%  { transform: translateX(1px) scale(1.05, 0.975); }
+  65%  { transform: translateX(-0.3px) scale(0.985, 1.008); }
+  100% { transform: none; }
+}
+.preset-key.boing, .mark-key.boing, .tool.boing { animation: rp-boing 0.46s cubic-bezier(0.3, 0.6, 0.4, 1) both; }
+.preset.latched .preset-key.boing { animation-name: rp-boing-latched; }
+.tray-tab.boing { animation: rp-boing-tab 0.42s cubic-bezier(0.3, 0.6, 0.4, 1) both; transform-origin: 100% 50%; }
+@media (prefers-reduced-motion: reduce) { .preset-key.boing, .mark-key.boing, .tool.boing, .tray-tab.boing { animation: none; } }
