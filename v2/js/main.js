@@ -832,6 +832,7 @@ window.RX = window.RX || {};
     else if (k === 's' || k === 'S' || k === '/') { e.preventDefault(); if (A.stack.length > 1) A.home(); A.go('search'); }
     else if (k === 'o' || k === 'O') { if (A.stack.length > 1) A.home(); A.go('objectives'); }
     else if (k === 'g' || k === 'G') { if (A.stack.length > 1) A.home(); A.go('legend'); }
+    else if (k === 'r' || k === 'R') { if (A.stack.length > 1) A.home(); A.go('ref'); }
     else if (k === 'h' || k === 'H') { if (A.stack.length > 1) A.home(); A.go('fast'); }
     else if (k === 'd' || k === 'D') $('lcdBtn').click();
   });

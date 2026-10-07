@@ -1,0 +1,22 @@
+{
+  "title": "CONVERT",
+  "note": "EXACT FACTORS WHERE DEFINED (INCH, POUND, GALLON, ACRE). US UNITS, NOT IMPERIAL.",
+  "cats": [
+    { "id": "length", "label": "LENGTH", "default": "FT", "value": 1,
+      "units": [["IN", 0.0254], ["FT", 0.3048], ["YD", 0.9144], ["MI", 1609.344], ["MM", 0.001], ["CM", 0.01], ["M", 1], ["KM", 1000], ["NMI", 1852]] },
+    { "id": "weight", "label": "WEIGHT", "default": "LB", "value": 1,
+      "units": [["OZ", 0.028349523125], ["LB", 0.45359237], ["TON US", 907.18474], ["G", 0.001], ["KG", 1], ["TONNE", 1000]] },
+    { "id": "volume", "label": "VOLUME", "default": "GAL", "value": 1,
+      "units": [["TSP", 0.00492892159375], ["TBSP", 0.01478676478125], ["FL OZ", 0.0295735295625], ["CUP", 0.2365882365], ["PINT", 0.473176473], ["QUART", 0.946352946], ["GAL", 3.785411784], ["ML", 0.001], ["L", 1], ["CU FT", 28.316846592], ["CU YD", 764.554857984]] },
+    { "id": "temp", "label": "TEMP", "default": "°F", "value": 72,
+      "units": [["°F", "F"], ["°C", "C"], ["K", "K"]] },
+    { "id": "speed", "label": "SPEED", "default": "MPH", "value": 60,
+      "units": [["MPH", 0.44704], ["KM/H", 0.2777777777777778], ["KNOT", 0.5144444444444445], ["M/S", 1], ["FT/S", 0.3048]] },
+    { "id": "area", "label": "AREA", "default": "ACRE", "value": 1,
+      "units": [["SQ FT", 0.09290304], ["SQ YD", 0.83612736], ["ACRE", 4046.8564224], ["SQ MI", 2589988.110336], ["SQ M", 1], ["HECTARE", 10000], ["SQ KM", 1000000]] },
+    { "id": "pressure", "label": "PRESSURE", "default": "PSI", "value": 35,
+      "units": [["PSI", 6894.757293168], ["BAR", 100000], ["KPA", 1000], ["ATM", 101325], ["IN HG", 3386.389], ["MM HG", 133.322387415]] },
+    { "id": "torque", "label": "TORQUE", "default": "FT-LB", "value": 100,
+      "units": [["FT-LB", 1.3558179483314004], ["IN-LB", 0.1129848290276167], ["N-M", 1], ["KGF-M", 9.80665]] }
+  ]
+}

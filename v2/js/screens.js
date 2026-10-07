@@ -1259,4 +1259,200 @@ window.RX = window.RX || {};
       g.footer('JOG CHOOSES · PUSH SELECTS');
     }
   };
+
+  // ======================================================================
+  // REF · pocket reference: first aid, knots, conversions.
+  // Content ships as ref/*.json (cached by the service worker, so it works
+  // with no signal). Index → entry; CONVERT is a live converter.
+  // ======================================================================
+  const REF = RX.ref = { data: {}, busy: false, err: false, V: '1' };
+  REF.load = function (A) {
+    if (REF.busy || (REF.data.aid && REF.data.knots && REF.data.conv)) return;
+    REF.busy = true; REF.err = false;
+    const get = n => fetch('ref/' + n + '.json?v=' + REF.V).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    Promise.all([get('firstaid'), get('knots'), get('convert')])
+      .then(([aid, knots, conv]) => { REF.data = { aid, knots, conv }; })
+      .catch(() => { REF.err = true; })
+      .then(() => { REF.busy = false; if (A) A.dirty = true; });
+  };
+  const refReady = (g, A) => {
+    if (REF.data.aid) return true;
+    REF.load(A);
+    g.textC(REF.err ? 'REFERENCE NOT LOADED' : 'LOADING…', g.W / 2, Math.floor(g.H / 2) - 4, { c: REF.err ? C.amber : C.ink, a: 0.8 });
+    if (REF.err) g.miniR('CONNECT ONCE TO STORE IT ON THIS RP', g.W - 2, Math.floor(g.H / 2) + 8, { a: 0.6 });
+    g.footer(REF.err ? 'BACK · TRY AGAIN LATER' : 'READING ROM');
+    return false;
+  };
+  // lines of std text wrapped to a width in dots
+  const para = (g, s, x, y, w, o) => { U.wrap(s, Math.max(4, Math.floor((w + 1) / 6))).forEach(l => { g.text(l, x, y, o); y += 9; }); return y; };
+
+  RX.screens.ref = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH OPEN · HOLD MAP'],
+    enter(st, params, A) { REF.load(A); },
+    render(g, st, A) {
+      const W = g.W;
+      let y = g.header('REFERENCE', 'FIELD ROM');
+      if (!refReady(g, A)) return;
+      const D = REF.data;
+      y = g.scrollBegin(y, footTop(g));
+      y = g.section('FIRST AID · ' + D.aid.items.length, y, 'CALL 911 FIRST');
+      D.aid.items.forEach(it => {
+        const sel = g.row(0, y, W - 2, 18, () => A.go('refentry', { kind: 'aid', id: it.id }));
+        g.text(it.title, 4, y + 2, { c: sel ? C.hot : C.ink });
+        g.mini(g.fit(it.tag, W - 10, 'mini'), 4, y + 11, { a: 0.6 });
+        y += 19;
+      });
+      y = g.section('KNOTS · ' + D.knots.items.length, y + 3);
+      D.knots.items.forEach(it => {
+        const sel = g.row(0, y, W - 2, 18, () => A.go('refentry', { kind: 'knot', id: it.id }));
+        g.text(it.title, 4, y + 2, { c: sel ? C.hot : C.ink });
+        g.mini(g.fit(it.use, W - 10, 'mini'), 4, y + 11, { a: 0.6 });
+        y += 19;
+      });
+      y = g.section('CONVERT · ' + D.conv.cats.length, y + 3);
+      D.conv.cats.forEach(c => {
+        const sel = g.row(0, y, W - 2, 18, () => A.go('refconv', { cat: c.id }));
+        g.text(c.label, 4, y + 2, { c: sel ? C.hot : C.ink });
+        g.mini(g.fit(c.units.map(u => u[0]).join(' · '), W - 10, 'mini'), 4, y + 11, { a: 0.6 });
+        y += 19;
+      });
+      y += 4;
+      U.wrap(D.aid.note, Math.floor((W - 6) / 4)).forEach((l, i) => g.mini(l, 2, y + i * 7, { a: 0.5 }));
+      y += 26;
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'JOG ▸ PICK · PUSH ▸ OPEN');
+    }
+  };
+
+  RX.screens.refentry = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'DRUM ▸ BACK · HOLD MAP'],
+    jog(d, st) { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) + d * 18)); },
+    push(st) { st.scroll = Math.min(st.scrollMax || 0, (st.scroll || 0) + 60); },
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, P = A.top().params;
+      if (!REF.data.aid) { g.header('REFERENCE'); refReady(g, A); return; }
+      const aid = P.kind === 'aid', list = aid ? REF.data.aid.items : REF.data.knots.items;
+      const it = list.find(x => x.id === P.id) || list[0];
+      const idx = list.indexOf(it) + 1;
+      let y = g.header(it.title, (aid ? 'FIRST AID ' : 'KNOT ') + idx + '/' + list.length);
+      y = g.scrollBegin(y, footTop(g));
+      if (aid) {
+        // the call box: amber, framed, first thing you read
+        const lines = [];
+        it.call.forEach(c => U.wrap(c, Math.floor((W - 16) / 6)).forEach((l, i) => lines.push({ l, first: i === 0 })));
+        const bh = 13 + lines.length * 9 + 2;
+        mx.frame(1, y, W - 4, bh, C.amber, 0.95);
+        g.text('CALL 911 IF', 5, y + 3, { c: C.amber });
+        let yy = y + 13;
+        lines.forEach(o => { if (o.first) mx.rect(5, yy + 3, 2, 2, C.amber, 1); g.text(o.l, 10, yy, { c: C.amber, a: 0.95 }); yy += 9; });
+        y += bh + 5;
+      } else {
+        g.mini('USE', 2, y + 1, { a: 0.55 });
+        y = para(g, it.use, 18, y, W - 22, { c: C.hot });
+        y += 4;
+      }
+      y = g.section(aid ? 'DO THIS' : 'TIE IT', y);
+      it.steps.forEach((s, i) => {
+        g.textR(String(i + 1), 10, y, { c: C.hot });
+        y = para(g, s, 15, y, W - 19, {});
+        y += 4;
+      });
+      if (it.dont && it.dont.length) {
+        y = g.section('DON\'T', y + 1);
+        it.dont.forEach(s => { mx.hline(4, y + 3, 5, C.red, 1); y = para(g, s, 15, y, W - 19, { c: C.red, a: 0.95 }); y += 3; });
+      }
+      if (it.tip) { y = g.section('NOTE', y + 1); y = para(g, it.tip, 4, y, W - 8, { a: 0.75 }); }
+      y += 4;
+      U.wrap(aid ? REF.data.aid.source : REF.data.knots.note, Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      y += 6;
+      // next / prev without going back to the index
+      const prev = list[(idx - 2 + list.length) % list.length], next = list[idx % list.length];
+      const bw = Math.floor((W - 8) / 2);
+      g.btn(1, y, bw, 13, '◂ ' + g.fit(prev.title, bw - 16, 'mini'), () => A.replace('refentry', { kind: P.kind, id: prev.id }), { face: 'mini' });
+      g.btn(W - 3 - bw, y, bw, 13, g.fit(next.title, bw - 16, 'mini') + ' ▸', () => A.replace('refentry', { kind: P.kind, id: next.id }), { face: 'mini' });
+      y += 17;
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'JOG ▸ SCROLL · DRUM ▸ BACK');
+    }
+  };
+
+  // ---- converter
+  function convFmt(x) {
+    if (!isFinite(x)) return '—';
+    const a = Math.abs(x);
+    if (a !== 0 && (a >= 1e9 || a < 1e-4)) return x.toExponential(3).replace('e', 'E').replace('+', '');
+    let s = a >= 1000 ? x.toFixed(a >= 1e5 ? 0 : 2) : x.toPrecision(6);
+    if (s.indexOf('.') >= 0 && s.indexOf('E') < 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    const parts = s.split('.'); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  }
+  const toBase = (u, v) => u[1] === 'F' ? (v - 32) * 5 / 9 : u[1] === 'C' ? v : u[1] === 'K' ? v - 273.15 : v * u[1];
+  const fromBase = (u, b) => u[1] === 'F' ? b * 9 / 5 + 32 : u[1] === 'C' ? b : u[1] === 'K' ? b + 273.15 : b / u[1];
+  function convStep(v) { const a = Math.abs(v); return a < 1 ? 0.01 : a < 10 ? 0.1 : a < 1000 ? 1 : a < 10000 ? 10 : 100; }
+  function convFieldOpts(st, A) {
+    return { kind: 'number', value: String(st.value), placeholder: 'VALUE', maxLen: 16, label: st.from,
+      onInput: v => { const n = parseFloat(String(v).replace(/,/g, '')); if (isFinite(n)) { st.value = n; A.dirty = true; } },
+      onCommit: v => { const n = parseFloat(String(v).replace(/,/g, '')); if (isFinite(n)) st.value = n; } };
+  }
+  RX.screens.refconv = {
+    jogLabels: () => ['◂ LESS', 'MORE ▸', 'PUSH ▸ NEXT UNIT'],
+    enter(st, params, A) {
+      REF.load(A);
+      st.cat = params.cat || 'length';
+      const saved = (S.v2.conv || {})[st.cat];
+      st.from = saved ? saved.from : null; st.value = saved ? saved.value : null;
+    },
+    leave(st) {
+      if (!st.from) return;
+      const conv = Object.assign({}, S.v2.conv || {}); conv[st.cat] = { from: st.from, value: st.value }; S.saveV2({ conv });
+    },
+    jog(d, st, A) {
+      if (st.value == null) return;
+      const step = convStep(st.value);
+      st.value = Math.round((st.value + d * step) / step) * step;
+      st.value = parseFloat(st.value.toPrecision(10));
+      if (U.activeField && U.activeField.key === 'conv-v') U.openField('conv-v', convFieldOpts(st, A));
+    },
+    push(st, A) {
+      const cat = REF.data.conv && REF.data.conv.cats.find(c => c.id === st.cat); if (!cat) return;
+      const i = cat.units.findIndex(u => u[0] === st.from), u0 = cat.units[i], u1 = cat.units[(i + 1) % cat.units.length];
+      st.value = parseFloat(fromBase(u1, toBase(u0, st.value)).toPrecision(8)); st.from = u1[0];
+      A.beep('key');
+    },
+    render(g, st, A) {
+      const W = g.W, mx = g.mx;
+      if (!REF.data.conv) { g.header('CONVERT'); refReady(g, A); return; }
+      const cats = REF.data.conv.cats, cat = cats.find(c => c.id === st.cat) || cats[0];
+      if (!st.from || !cat.units.some(u => u[0] === st.from)) { st.from = cat.default; st.value = cat.value; }
+      const ci = cats.indexOf(cat);
+      let y = g.header('CONVERT · ' + cat.label, (ci + 1) + '/' + cats.length);
+      // category strip: two rows of small keys
+      const per = 4, cw = Math.floor((W - 2) / per);
+      cats.forEach((c, i) => {
+        const bx = (i % per) * cw, by = y + Math.floor(i / per) * 13;
+        g.btn(bx, by, cw - 2, 12, c.label, () => { if (c.id !== st.cat) A.replace('refconv', { cat: c.id }); }, { face: 'mini', on: c.id === cat.id });
+      });
+      y += Math.ceil(cats.length / per) * 13 + 3;
+      g.field('conv-v', 0, y, W - 2, 15, convFieldOpts(st, A));
+      y += 19;
+      const from = cat.units.find(u => u[0] === st.from), base = toBase(from, st.value);
+      y = g.scrollBegin(y, footTop(g));
+      g.section('EQUALS · TAP A UNIT TO CONVERT FROM IT', y); y += 9;
+      cat.units.forEach(u => {
+        const me = u[0] === st.from;
+        const v = me ? st.value : fromBase(u, base);
+        const sel = g.row(0, y, W - 2, 13, () => { st.value = parseFloat(v.toPrecision(8)); st.from = u[0]; U.closeField(false); A.beep('key'); });
+        if (me) mx.rect(2, y + 2, 2, 9, C.hot, 1);
+        g.text(u[0], 7, y + 3, { c: me ? C.hot : C.ink, a: me ? 1 : 0.75 });
+        g.textR(convFmt(v), W - 5, y + 3, { c: me || sel ? C.hot : C.ink });
+        mx.hline(2, y + 12, W - 6, C.ink, 0.08, 2);
+        y += 13;
+      });
+      y += 4;
+      U.wrap(REF.data.conv.note, Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      g.scrollEnd(y + 4);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TYPE OR TURN THE JOG · PUSH ▸ NEXT UNIT');
+    }
+  };
+
 })();
