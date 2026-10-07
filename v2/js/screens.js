@@ -481,6 +481,17 @@ window.RX = window.RX || {};
   // ======================================================================
   // MARK DETAIL
   // ======================================================================
+  function markLot(st, A, p) {
+    if (st.lotBusy) return;
+    st.lotBusy = true; st.lotErr = null; A.dirty = true;
+    RX.parcel.at(p.lat, p.lng).then(r => {
+      if (!r) { st.lotErr = 'NO PARCEL ON RECORD HERE'; return; }
+      const before = JSON.stringify(p) === st.orig;
+      p.parcel = r; S.savePOIs();
+      if (before) st.orig = JSON.stringify(p);   // a lookup is not an edit
+      A.beep('ok');
+    }).catch(() => { st.lotErr = 'NO SIGNAL'; }).then(() => { st.lotBusy = false; A.dirty = true; });
+  }
   RX.screens.mark = {
     enter(st, params) {
       const p = S.poi(params.id);
@@ -611,6 +622,23 @@ window.RX = window.RX || {};
         A.go('objective', { draft: mm });
       }, { face: 'mini' });
       y += 14;
+
+      // lot: the county record for the ground the mark sits on
+      y = g.section('LOT', y, p.parcel ? (p.parcel.county || '') + ' CO' : 'COUNTY RECORDS');
+      if (p.parcel) {
+        const r = p.parcel;
+        g.text(g.fit(r.situs || 'NO SITE ADDRESS', W - 4), 1, y + 1, { c: C.hot });
+        g.mini(g.fit('OWNER ' + (r.owner || '—'), W - 4, 'mini'), 1, y + 11, { a: 0.85 });
+        g.mini(g.fit([RX.parcel.fmtAcres(r.acres), r.mkt ? RX.parcel.fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 19, { a: 0.7 });
+        y += 27;
+        const lw = Math.floor((W - 6) / 2);
+        g.btn(0, y, lw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r, markId: p.id }), { face: 'mini' });
+        g.btn(lw + 4, y, W - 6 - lw, 12, st.lotBusy ? 'READING...' : 'REFRESH', () => markLot(st, A, p), { face: 'mini' });
+        y += 15;
+      } else {
+        g.btn(0, y, W - 2, 13, st.lotBusy ? 'READING COUNTY RECORDS...' : (st.lotErr ? st.lotErr + ' · TRY AGAIN' : '▸ LOOK UP THIS LOT'), () => markLot(st, A, p), { face: 'mini', c: st.lotErr ? C.amber : undefined });
+        y += 16;
+      }
 
       // actions
       y = g.section('ACTIONS', y);
@@ -1452,6 +1480,117 @@ window.RX = window.RX || {};
       U.wrap(REF.data.conv.note, Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
       g.scrollEnd(y + 4);
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'TYPE OR TURN THE JOG · PUSH ▸ NEXT UNIT');
+    }
+  };
+
+
+  // ======================================================================
+  // LOT · parcel lookup. Crosshair on the map; when it settles, the county
+  // record for the lot under it is read and the lot lights up.
+  // ======================================================================
+  const P = () => RX.parcel;
+  function lotOutline(g, A, lot, o) {
+    if (!lot || !lot.ring || lot.ring.length < 3) return;
+    const v = A.view(), mx = g.mx, pts = lot.ring.map(q => M.latLngToDot(q[0], q[1], v));
+    const a = o && o.dim ? 0.55 : (Math.floor(g.t / 600) % 2 ? 1 : 0.8);
+    for (let i = 0; i < pts.length - 1; i++) mx.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, C.hot, a);
+    // corner posts
+    pts.slice(0, -1).forEach(q => { if (q.x > -2 && q.y > -2 && q.x < g.W + 2 && q.y < g.H + 2) mx.disc(Math.round(q.x), Math.round(q.y), 1.2, C.hot, 1); });
+  }
+  function lotLookup(st, A, lat, lng) {
+    if (st.busy) { st.again = true; return; }
+    st.busy = true; st.err = null; A.dirty = true;
+    P().at(lat, lng).then(r => { st.res = r; st.err = r ? null : 'NONE'; if (r) A.beep('ok'); })
+      .catch(() => { st.err = 'NET'; })
+      .then(() => { st.busy = false; A.dirty = true; if (st.again) { st.again = false; st.settleAt = Date.now(); } });
+  }
+  function lotToMark(A, lot, lat, lng) {
+    const id = 'POI-' + Date.now();
+    S.pois.push({ id, lat, lng, category: null, name: lot.situs ? lot.situs.split(',')[0] : (lot.owner || 'LOT'), notes: P().summary(lot), photo: null, hva: false, tier: 2, regionId: null, sector: null, created: Date.now(), parcel: lot });
+    S.savePOIs(); S.log('drop', id, 'Pin dropped', 'FROM LOT LOOKUP');
+    A.updateLamps(); A.beep('mark'); A.go('mark', { id });
+  }
+  RX.screens.lot = {
+    map: true,
+    animating: () => true,
+    jogLabels: () => ['◂ OUT', 'IN ▸', 'PUSH · LOOK UP'],
+    enter(st, params, A) {
+      st.wasFollow = M.follow; M.follow = false;
+      if (params.lat != null) M.setView(params.lat, params.lng, Math.max(M.zoom, 18));
+      else if (M.zoom < 17) M.setView(M.lat, M.lng, 18);
+    },
+    jog(d, st, A) { const v = A.view(); M.zoomBy(d * 0.5, v.cx, v.cy, v); },
+    push(st, A) { lotLookup(st, A, M.lat, M.lng); },
+    render(g, st, A) {
+      const W = g.W, H = g.H, mx = g.mx;
+      const key = M.lat.toFixed(6) + ',' + M.lng.toFixed(6);
+      if (key !== st.centerKey) { st.centerKey = key; st.settleAt = Date.now() + 650; }
+      else if (st.settleAt && Date.now() > st.settleAt) {
+        st.settleAt = 0;
+        if (!(st.res && P().contains(st.res.ring, M.lat, M.lng))) { if (M.zoom >= 15) lotLookup(st, A, M.lat, M.lng); else { st.res = null; st.err = 'ZOOM'; } }
+      }
+      drawMap(g, A, { reticle: true, noHits: true });
+      lotOutline(g, A, st.res);
+      hud(g, A, 'LOT · COUNTY RECORDS');
+      // the card
+      const ch = 44, cy = footTop(g) - ch - 1;
+      mx.clearRect(0, cy - 1, W, ch + 2); mx.frame(0, cy, W - 1, ch, C.ink, 0.5);
+      const r = st.res;
+      if (st.err === 'ZOOM') { g.textC('ZOOM IN TO READ LOTS', W / 2, cy + 18, { a: 0.7 }); }
+      else if (!r && st.busy) { g.textC('READING COUNTY RECORDS' + '...'.slice(0, 1 + Math.floor(g.t / 300) % 3), W / 2, cy + 18, { a: 0.8 }); }
+      else if (!r && st.err === 'NET') { g.textC('NO SIGNAL · LOTS NEED A CONNECTION', W / 2, cy + 14, { c: C.amber }); g.textC('PUSH THE JOG TO RETRY', W / 2, cy + 25, { a: 0.6 }); }
+      else if (!r && st.err === 'NONE') { g.textC('NO PARCEL HERE', W / 2, cy + 14, { a: 0.8 }); g.textC('ROAD, WATER OR NOT ON RECORD', W / 2, cy + 25, { a: 0.5, face: 'mini' }); }
+      else if (!r) { g.textC('PARK THE CROSSHAIR ON A LOT', W / 2, cy + 18, { a: 0.7 }); }
+      else {
+        g.text(g.fit(r.situs || 'NO SITE ADDRESS', W - 8), 4, cy + 3, { c: C.hot });
+        g.mini(g.fit('OWNER ' + (r.owner || '—'), W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
+        const line = [P().fmtAcres(r.acres), r.mkt ? P().fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null, (r.county || '') + ' CO'].filter(Boolean).join(' · ');
+        g.mini(g.fit(line, W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
+        const bw = Math.floor((W - 10) / 2);
+        g.btn(3, cy + 29, bw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r }), { face: 'mini' });
+        g.btn(7 + bw, cy + 29, bw, 12, '+ MARK THIS LOT', () => lotToMark(A, r, r.at[0], r.at[1]), { face: 'mini' });
+        if (st.busy) mx.disc(W - 6, cy + 5, 1.5, C.amber, Math.floor(g.t / 200) % 2 ? 1 : 0.3);
+      }
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'DRAG TO A LOT · IT READS ITSELF');
+    }
+  };
+
+  RX.screens.lotinfo = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, prm = A.top().params, r = prm.lot;
+      let y = g.header('LOT RECORD', (r.county || '') + ' CO · ' + (r.taxYear || ''));
+      y = g.scrollBegin(y, footTop(g));
+      g.text(g.fit(r.situs || 'NO SITE ADDRESS', W - 4), 1, y + 1, { c: C.hot });
+      y += 12;
+      const kv = (k, v, o) => {
+        if (v == null || v === '') return;
+        g.mini(k, 2, y + 1, { a: 0.55 });
+        const lines = U.wrap(String(v), Math.floor((W - 50) / 6));
+        lines.forEach((l, i) => g.text(l, 46, y + i * 9, o || {}));
+        y += Math.max(1, lines.length) * 9 + 3;
+        mx.hline(2, y - 2, W - 6, C.ink, 0.08, 2);
+      };
+      y = g.section('OWNER', y);
+      kv('NAME', r.owner); kv('C/O', r.care); kv('MAILING', r.mail);
+      y = g.section('LAND', y + 2);
+      kv('AREA', P().fmtAcres(r.acres) + ' (MAPPED)');
+      if (r.legalArea) kv('DEED', r.legalArea + ' ' + (r.legalUnit || ''));
+      kv('USE', r.use); kv('BUILT', r.built); kv('LEGAL', r.legal);
+      y = g.section('APPRAISAL', y + 2, r.taxYear ? 'TAX YEAR ' + r.taxYear : '');
+      if (r.mkt || r.land || r.imp) { kv('MARKET', P().fmtMoney(r.mkt), { c: C.hot }); kv('LAND', P().fmtMoney(r.land)); kv('BUILDINGS', P().fmtMoney(r.imp)); }
+      else { g.mini('NOT PUBLISHED IN THE STATE FEED FOR THIS COUNTY', 2, y + 1, { a: 0.6 }); y += 9; g.mini('THE COUNTY RECORD HAS IT · LINK BELOW', 2, y + 1, { a: 0.6 }); y += 11; }
+      kv('ACCOUNT', r.id); kv('SOURCE', r.source);
+      y += 3;
+      const bw = Math.floor((W - 6) / 2);
+      g.btn(0, y, bw, 13, 'COUNTY RECORD ▸', () => window.open(P().recordUrl(r), '_blank'), { face: 'mini' });
+      g.btn(bw + 4, y, W - 6 - bw, 13, 'SHOW ON MAP ▸', () => { A.home(); A.go('lot', { lat: r.at[0], lng: r.at[1] }); }, { face: 'mini' });
+      y += 16;
+      if (!prm.markId) { g.btn(0, y, W - 2, 13, '+ SAVE AS A MARK', () => lotToMark(A, r, r.at[0], r.at[1]), { face: 'mini' }); y += 16; }
+      y += 3;
+      U.wrap('TEXAS STATEWIDE PARCELS (TXGIO) FROM COUNTY APPRAISAL DISTRICTS. UPDATED ABOUT YEARLY · A RECENT SALE MAY STILL SHOW THE OLD OWNER. READ ' + new Date(r.ts).toLocaleDateString('en-US'), Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      g.scrollEnd(y + 4);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'PUBLIC RECORD · STORED ON THIS RP ONLY');
     }
   };
 
