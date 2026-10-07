@@ -484,9 +484,10 @@ window.RX = window.RX || {};
   function markLot(st, A, p) {
     if (st.lotBusy) return;
     st.lotBusy = true; st.lotErr = null; A.dirty = true;
-    RX.parcel.at(p.lat, p.lng).then(r => {
+    RX.parcel.at(p.lat, p.lng).then(async r => {
       if (!r) { st.lotErr = 'NO PARCEL ON RECORD HERE'; return; }
       const before = JSON.stringify(p) === st.orig;
+      try { const t = RX.traffic.main(await RX.traffic.near(p.lat, p.lng, 1200)); r.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) {}
       p.parcel = r; S.savePOIs();
       if (before) st.orig = JSON.stringify(p);   // a lookup is not an edit
       A.beep('ok');
@@ -631,6 +632,7 @@ window.RX = window.RX || {};
         g.mini(g.fit('OWNER ' + (r.owner || '—'), W - 4, 'mini'), 1, y + 11, { a: 0.85 });
         g.mini(g.fit([RX.parcel.fmtAcres(r.acres), r.mkt ? RX.parcel.fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 19, { a: 0.7 });
         y += 27;
+        if (r.traffic) { g.mini(g.fit('TRAFFIC ' + RX.traffic.full(r.traffic.aadt) + '/DAY · ' + r.traffic.road + ' · ' + Geo.fmtDist(r.traffic.dist) + (r.traffic.trend5 != null ? ' · ' + RX.traffic.pct(r.traffic.trend5) + ' 5 YR' : ''), W - 4, 'mini'), 1, y, { c: C.amber, a: 0.95 }); y += 9; }
         const lw = Math.floor((W - 6) / 2);
         g.btn(0, y, lw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r, markId: p.id }), { face: 'mini' });
         g.btn(lw + 4, y, W - 6 - lw, 12, st.lotBusy ? 'READING...' : 'REFRESH', () => markLot(st, A, p), { face: 'mini' });
@@ -1504,11 +1506,33 @@ window.RX = window.RX || {};
       .catch(() => { st.err = 'NET'; })
       .then(() => { st.busy = false; A.dirty = true; if (st.again) { st.again = false; st.settleAt = Date.now(); } });
   }
-  function lotToMark(A, lot, lat, lng) {
+  async function lotToMark(A, lot, lat, lng) {
     const id = 'POI-' + Date.now();
+    if (lot.traffic === undefined) { try { const t = RX.traffic.main(await RX.traffic.near(lat, lng, 1200)); lot.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) { lot.traffic = null; } }
     S.pois.push({ id, lat, lng, category: null, name: lot.situs ? lot.situs.split(',')[0] : (lot.owner || 'LOT'), notes: P().summary(lot), photo: null, hva: false, tier: 2, regionId: null, sector: null, created: Date.now(), parcel: lot });
     S.savePOIs(); S.log('drop', id, 'Pin dropped', 'FROM LOT LOOKUP');
     A.updateLamps(); A.beep('mark'); A.go('mark', { id });
+  }
+  // TxDOT count stations around the view: a diamond and the daily count
+  function trafficLayer(g, A, st) {
+    if (M.zoom < 13) return;
+    const v = A.view(), mpd = Geo.metersPerPx(M.lat, M.zoom) * A.mx.pitch, radius = Math.min(6000, Math.max(400, Math.hypot(g.W, g.H) * mpd * 0.6));
+    const key = M.lat.toFixed(3) + ',' + M.lng.toFixed(3) + ',' + Math.round(radius / 200);
+    if (key !== st.tKey && !st.tBusy && (!st.tAt || Date.now() - st.tAt > 900)) {
+      st.tKey = key; st.tBusy = true; st.tAt = Date.now();
+      RX.traffic.near(M.lat, M.lng, radius).then(l => { st.tList = l; }).catch(() => {}).then(() => { st.tBusy = false; A.dirty = true; });
+    }
+    const mx = g.mx, seen = [];
+    (st.tList || []).slice().sort((a, b) => b.aadt - a.aadt).forEach(s => {
+      const d = M.latLngToDot(s.lat, s.lng, v), x = Math.round(d.x), y = Math.round(d.y);
+      if (x < 2 || y < 14 || x > g.W - 2 || y > g.H - 60) return;
+      const c = s.sub ? C.ink : C.amber;
+      mx.set(x, y - 2, c, 1); mx.set(x - 1, y - 1, c, 1); mx.set(x + 1, y - 1, c, 1); mx.set(x - 2, y, c, 1); mx.set(x + 2, y, c, 1); mx.set(x - 1, y + 1, c, 1); mx.set(x + 1, y + 1, c, 1); mx.set(x, y + 2, c, 1); mx.set(x, y, c, 1);
+      if (s.sub || seen.some(q => Math.abs(q[0] - x) < 22 && Math.abs(q[1] - y) < 8)) return;
+      const t = RX.traffic.k(s.aadt), w = RX.font.measure(t, 'mini');
+      mx.clearRect(x + 3, y - 3, w + 2, 7); g.mini(t, x + 4, y - 2, { c: C.amber, a: 1 });
+      seen.push([x, y]);
+    });
   }
   RX.screens.lot = {
     map: true,
@@ -1531,6 +1555,7 @@ window.RX = window.RX || {};
       }
       drawMap(g, A, { reticle: true, noHits: true });
       lotOutline(g, A, st.res);
+      trafficLayer(g, A, st);
       hud(g, A, 'LOT · COUNTY RECORDS');
       // the card
       const ch = 44, cy = footTop(g) - ch - 1;
@@ -1581,6 +1606,33 @@ window.RX = window.RX || {};
       if (r.mkt || r.land || r.imp) { kv('MARKET', P().fmtMoney(r.mkt), { c: C.hot }); kv('LAND', P().fmtMoney(r.land)); kv('BUILDINGS', P().fmtMoney(r.imp)); }
       else { g.mini('NOT PUBLISHED IN THE STATE FEED FOR THIS COUNTY', 2, y + 1, { a: 0.6 }); y += 9; g.mini('THE COUNTY RECORD HAS IT · LINK BELOW', 2, y + 1, { a: 0.6 }); y += 11; }
       kv('ACCOUNT', r.id); kv('SOURCE', r.source);
+      // traffic: TxDOT annual daily counts near the lot
+      if (!st.tReq) { st.tReq = true; RX.traffic.near(r.at[0], r.at[1], 1200).then(l => { st.tList = l; }).catch(() => { st.tErr = true; }).then(() => { A.dirty = true; }); }
+      y = g.section('TRAFFIC · VEHICLES PER DAY', y + 2, 'TXDOT AADT');
+      if (!st.tList) { g.mini(st.tErr ? 'NO SIGNAL · TRAFFIC NEEDS A CONNECTION' : 'READING TXDOT COUNTS...', 2, y + 1, { a: 0.6, c: st.tErr ? C.amber : C.ink }); y += 10; }
+      else if (!st.tList.length) { g.mini('NO COUNT STATIONS WITHIN 3/4 MILE', 2, y + 1, { a: 0.6 }); y += 10; }
+      else {
+        const top = RX.traffic.main(st.tList);
+        if (top) {
+          g.text(top.road, 2, y + 1, { c: C.hot });
+          g.textR(RX.traffic.full(top.aadt), W - 4, y + 1, { c: C.hot });
+          g.mini(Geo.fmtDist(top.dist) + ' AWAY · ' + top.year + (top.trend5 != null ? ' · ' + RX.traffic.pct(top.trend5) + ' IN 5 YRS' : ''), 2, y + 10, { a: 0.65 });
+          y += 18;
+          // the station's history, oldest → newest
+          const ser = top.series.slice().reverse(), mxv = Math.max(...ser.map(o => o.v)), bw = Math.max(2, Math.floor((W - 8) / Math.max(ser.length, 1)) - 1), bh = 18;
+          ser.forEach((o, i) => { const h = Math.max(1, Math.round(bh * o.v / mxv)); mx.rect(3 + i * (bw + 1), y + bh - h, bw, h, i === ser.length - 1 ? C.hot : C.ink, i === ser.length - 1 ? 1 : 0.55); });
+          g.mini(String(ser[0].year), 2, y + bh + 2, { a: 0.5 }); g.miniR(String(ser[ser.length - 1].year), W - 4, y + bh + 2, { a: 0.5 });
+          y += bh + 11;
+        }
+        const seen = new Set([top && top.id]);
+        st.tList.filter(s => !seen.has(s.id)).slice(0, 5).forEach(s => {
+          g.text(g.fit(s.road + (s.sub ? ' · RAMP/DIR' : ''), W - 90), 2, y + 1, { a: s.sub ? 0.55 : 0.9 });
+          g.miniR(Geo.fmtDist(s.dist), W - 52, y + 2, { a: 0.55 });
+          g.textR(RX.traffic.k(s.aadt), W - 4, y + 1, { a: s.sub ? 0.55 : 1 });
+          y += 10;
+        });
+        y += 2;
+      }
       y += 3;
       const bw = Math.floor((W - 6) / 2);
       g.btn(0, y, bw, 13, 'COUNTY RECORD ▸', () => window.open(P().recordUrl(r), '_blank'), { face: 'mini' });
