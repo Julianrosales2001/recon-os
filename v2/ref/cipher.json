@@ -1,0 +1,237 @@
+{
+"title": "CIPHER",
+"note": "PUBLIC CODES, NOT SECURITY. ANYONE WITH THIS PAGE CAN READ THEM. THE KEYWORD CIPHER SLOWS A GLANCE, NOT A CODEBREAKER.",
+"morse": {
+"A": ".-",
+"B": "-...",
+"C": "-.-.",
+"D": "-..",
+"E": ".",
+"F": "..-.",
+"G": "--.",
+"H": "....",
+"I": "..",
+"J": ".---",
+"K": "-.-",
+"L": ".-..",
+"M": "--",
+"N": "-.",
+"O": "---",
+"P": ".--.",
+"Q": "--.-",
+"R": ".-.",
+"S": "...",
+"T": "-",
+"U": "..-",
+"V": "...-",
+"W": ".--",
+"X": "-..-",
+"Y": "-.--",
+"Z": "--..",
+"0": "-----",
+"1": ".----",
+"2": "..---",
+"3": "...--",
+"4": "....-",
+"5": ".....",
+"6": "-....",
+"7": "--...",
+"8": "---..",
+"9": "----.",
+".": ".-.-.-",
+",": "--..--",
+"?": "..--..",
+"/": "-..-.",
+"-": "-....-",
+"(": "-.--.",
+")": "-.--.-",
+"@": ".--.-.",
+"=": "-...-",
+"+": ".-.-.",
+"!": "-.-.--",
+":": "---...",
+"'": ".----.",
+"\"": ".-..-.",
+"&": ".-..."
+},
+"nato": {
+"A": "ALFA",
+"B": "BRAVO",
+"C": "CHARLIE",
+"D": "DELTA",
+"E": "ECHO",
+"F": "FOXTROT",
+"G": "GOLF",
+"H": "HOTEL",
+"I": "INDIA",
+"J": "JULIETT",
+"K": "KILO",
+"L": "LIMA",
+"M": "MIKE",
+"N": "NOVEMBER",
+"O": "OSCAR",
+"P": "PAPA",
+"Q": "QUEBEC",
+"R": "ROMEO",
+"S": "SIERRA",
+"T": "TANGO",
+"U": "UNIFORM",
+"V": "VICTOR",
+"W": "WHISKEY",
+"X": "XRAY",
+"Y": "YANKEE",
+"Z": "ZULU"
+},
+"num": {
+"0": "ZERO",
+"1": "WUN",
+"2": "TOO",
+"3": "TREE",
+"4": "FOW-ER",
+"5": "FIFE",
+"6": "SIX",
+"7": "SEV-EN",
+"8": "AIT",
+"9": "NIN-ER"
+},
+"items": [
+{
+"id": "morse",
+"title": "MORSE",
+"use": "LETTERS, NUMBERS, SIGNALS · LIGHT, SOUND OR TAPS",
+"prosigns": [
+[
+"SOS",
+"...---...",
+"DISTRESS · SENT AS ONE RUN, NO GAPS"
+],
+[
+"AR",
+".-.-.",
+"END OF MESSAGE"
+],
+[
+"SK",
+"...-.-",
+"END OF CONTACT · OUT"
+],
+[
+"K",
+"-.-",
+"GO AHEAD · YOUR TURN"
+],
+[
+"AS",
+".-...",
+"WAIT"
+],
+[
+"BT",
+"-...-",
+"BREAK · NEW SECTION"
+],
+[
+"R",
+".-.",
+"RECEIVED"
+],
+[
+"HH",
+"........",
+"ERROR · I'LL RESEND THE WORD"
+]
+],
+"timing": [
+"DOT = 1 UNIT · DASH = 3 UNITS",
+"GAP INSIDE A LETTER = 1 · BETWEEN LETTERS = 3 · BETWEEN WORDS = 7",
+"BY LIGHT: COUNT IN YOUR HEAD, KEEP THE DASH CLEARLY LONGER THAN THE DOT. SLOW AND EVEN BEATS FAST."
+]
+},
+{
+"id": "nato",
+"title": "PHONETIC",
+"use": "ALFA TO ZULU · SPELLING OVER A RADIO OR PHONE",
+"timing": [
+"SAY NUMBERS DIGIT BY DIGIT: 1250 = WUN TOO FIFE ZERO.",
+"PLATES AND ADDRESSES: SPELL EVERY LETTER, EVEN THE OBVIOUS ONES.",
+"ROGER = RECEIVED · WILCO = WILL COMPLY · SAY AGAIN = REPEAT (NEVER 'REPEAT')."
+]
+},
+{
+"id": "tap",
+"title": "TAP CODE",
+"use": "KNOCKING THROUGH A WALL OR PIPE · 5×5 GRID",
+"grid": [
+"ABCDE",
+"FGHIJ",
+"LMNOP",
+"QRSTU",
+"VWXYZ"
+],
+"timing": [
+"TAP THE ROW, PAUSE, TAP THE COLUMN.",
+"C AND K SHARE A SQUARE · USE C FOR K.",
+"B = 1 TAP, PAUSE, 2 TAPS.",
+"X = PAUSE BETWEEN SENTENCES · A FAST RUN OF TAPS = DIDN'T GET IT, SEND AGAIN."
+]
+},
+{
+"id": "hand",
+"title": "HAND SIGNALS",
+"use": "SILENT SIGNALS AT A DISTANCE",
+"rows": [
+[
+"STOP / FREEZE",
+"FIST RAISED TO SHOULDER HEIGHT"
+],
+[
+"HALT",
+"OPEN HAND RAISED, PALM OUT"
+],
+[
+"COME HERE",
+"ARM UP, SWEEP THE HAND DOWN AND TOWARD YOU"
+],
+[
+"GET DOWN",
+"PALM DOWN, PUSH TOWARD THE GROUND"
+],
+[
+"LOOK / I SEE",
+"TWO FINGERS TO YOUR EYES, THEN POINT"
+],
+[
+"DANGER AHEAD",
+"FLAT HAND ACROSS THE THROAT, POINT TO IT"
+],
+[
+"RALLY HERE",
+"ARM UP, CIRCLE THE HAND OVER YOUR HEAD"
+],
+[
+"SLOW DOWN",
+"ARM OUT, PALM DOWN, PUSH UP AND DOWN"
+],
+[
+"HURRY",
+"FIST PUMPED UP AND DOWN AT THE SHOULDER"
+],
+[
+"I'M OK / ARE YOU",
+"HAND ON TOP OF THE HEAD · ANSWER THE SAME"
+],
+[
+"DON'T UNDERSTAND",
+"HAND CUPPED BEHIND THE EAR, OR PALMS UP"
+],
+[
+"QUIET",
+"FINGER TO THE LIPS"
+]
+],
+"timing": [
+"CONFIRM SIGNALS WITH YOUR PARTNER BEFORE YOU NEED THEM. THESE VARY BY GROUP."
+]
+}
+]
+}

@@ -67,6 +67,7 @@ window.RX = window.RX || {};
       else if (kind === 'file') { tone(880, 0.04, 0.045); tone(1320, 0.04, 0.045, 0.045); tone(1760, 0.06, 0.04, 0.09); }
       else if (kind === 'err') tone(220, 0.14, 0.05, 0, 'sawtooth');
       else if (kind === 'ok') tone(1480, 0.05, 0.04);
+      else if (kind === 'morse') { const d = arguments[1] || 0.08, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = 680; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.004); g.gain.setValueAtTime(0.06, t + d - 0.004); g.gain.linearRampToValueAtTime(0, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.01); }
       else if (kind === 'thunk') {
         // low, heavy thud: a falling sine plus a muffled knock — no tick
         const v = 0.2 * (arguments[1] || 1);

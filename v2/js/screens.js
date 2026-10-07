@@ -1299,11 +1299,11 @@ window.RX = window.RX || {};
   // ======================================================================
   const REF = RX.ref = { data: {}, busy: false, err: false, V: '1' };
   REF.load = function (A) {
-    if (REF.busy || (REF.data.aid && REF.data.knots && REF.data.conv)) return;
+    if (REF.busy || (REF.data.aid && REF.data.knots && REF.data.conv && REF.data.cipher)) return;
     REF.busy = true; REF.err = false;
     const get = n => fetch('ref/' + n + '.json?v=' + REF.V).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-    Promise.all([get('firstaid'), get('knots'), get('convert')])
-      .then(([aid, knots, conv]) => { REF.data = { aid, knots, conv }; })
+    Promise.all([get('firstaid'), get('knots'), get('convert'), get('cipher')])
+      .then(([aid, knots, conv, cipher]) => { REF.data = { aid, knots, conv, cipher }; })
       .catch(() => { REF.err = true; })
       .then(() => { REF.busy = false; if (A) A.dirty = true; });
   };
@@ -1346,6 +1346,16 @@ window.RX = window.RX || {};
         const sel = g.row(0, y, W - 2, 18, () => A.go('refconv', { cat: c.id }));
         g.text(c.label, 4, y + 2, { c: sel ? C.hot : C.ink });
         g.mini(g.fit(c.units.map(u => u[0]).join(' · '), W - 10, 'mini'), 4, y + 11, { a: 0.6 });
+        y += 19;
+      });
+      y = g.section('CIPHER · ' + (D.cipher.items.length + 1), y + 3, 'CODES & SIGNALS');
+      { const sel = g.row(0, y, W - 2, 18, () => A.go('refcode', {}));
+        g.text('CODE ▸ ENCODE / DECODE', 4, y + 2, { c: C.hot });
+        g.mini(g.fit('MORSE · PHONETIC · ROT13 · KEYWORD · SEND BY LIGHT', W - 10, 'mini'), 4, y + 11, { a: sel ? 0.9 : 0.6 }); y += 19; }
+      D.cipher.items.forEach(it => {
+        const sel = g.row(0, y, W - 2, 18, () => A.go('reftable', { id: it.id }));
+        g.text(it.title, 4, y + 2, { c: sel ? C.hot : C.ink });
+        g.mini(g.fit(it.use, W - 10, 'mini'), 4, y + 11, { a: 0.6 });
         y += 19;
       });
       y += 4;
@@ -1484,6 +1494,196 @@ window.RX = window.RX || {};
       U.wrap(REF.data.conv.note, Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
       g.scrollEnd(y + 4);
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'TYPE OR TURN THE JOG · PUSH ▸ NEXT UNIT');
+    }
+  };
+
+  // ---------- CIPHER: reference tables + a live encoder ----------
+  // a Morse string drawn as marks: dot 2×2, dash 6×2
+  function morseMarks(mx, code, x, y, c, a) {
+    for (const ch of code) { if (ch === '.') { mx.rect(x, y, 2, 2, c, a); x += 4; } else if (ch === '-') { mx.rect(x, y, 6, 2, c, a); x += 8; } }
+    return x;
+  }
+  const cleanMorse = s => String(s).replace(/[•·∙]/g, '.').replace(/[—–_−]/g, '-');
+  const CODEC = {
+    morseEnc(s) { const M = REF.data.cipher.morse; return s.toUpperCase().trim().split(/\s+/).map(w => [...w].map(c => M[c] || '').filter(Boolean).join(' ')).filter(Boolean).join(' / '); },
+    morseDec(s) {
+      const M = REF.data.cipher.morse, R = {}; Object.keys(M).forEach(k => { R[M[k]] = k; });
+      return cleanMorse(s).trim().split(/\s*[\/|]\s*|\s{3,}/).map(w => w.trim().split(/\s+/).filter(Boolean).map(k => R[k] || '?').join('')).join(' ');
+    },
+    natoEnc(s) { const N = REF.data.cipher.nato, D = REF.data.cipher.num; return s.toUpperCase().trim().split(/\s+/).map(w => [...w].map(c => N[c] || D[c] || '').filter(Boolean).join(' ')).filter(Boolean).join(' / '); },
+    natoDec(s) {
+      const N = REF.data.cipher.nato, D = REF.data.cipher.num, R = { ALPHA: 'A', JULIET: 'J', 'X-RAY': 'X', WHISKY: 'W', ONE: '1', TWO: '2', THREE: '3', FOUR: '4', FIVE: '5', SEVEN: '7', EIGHT: '8', NINE: '9', NINER: '9', FOWER: '4' };
+      Object.keys(N).forEach(k => { R[N[k]] = k; }); Object.keys(D).forEach(k => { R[D[k]] = k; R[D[k].replace(/-/g, '')] = k; });
+      return s.toUpperCase().trim().split(/\s*[\/|]\s*/).map(w => w.split(/[\s,·]+/).filter(Boolean).map(t => R[t] || (t.length === 1 ? t : '?')).join('')).join(' ');
+    },
+    rot13: s => s.toUpperCase().replace(/[A-Z]/g, c => String.fromCharCode((c.charCodeAt(0) - 52) % 26 + 65)),
+    vig(s, key, dir) {
+      const k = String(key || '').toUpperCase().replace(/[^A-Z]/g, ''); if (!k) return s.toUpperCase();
+      let i = 0;
+      return s.toUpperCase().replace(/[A-Z]/g, c => { const sh = (k.charCodeAt(i++ % k.length) - 65) * dir; return String.fromCharCode(((c.charCodeAt(0) - 65 + sh) % 26 + 26) % 26 + 65); });
+    }
+  };
+  const CODE_MODES = ['MORSE', 'PHONETIC', 'ROT13', 'KEYWORD'];
+  function codeRun(mode, text, key, dec) {
+    if (!text) return '';
+    if (mode === 'MORSE') return dec ? CODEC.morseDec(text) : CODEC.morseEnc(text);
+    if (mode === 'PHONETIC') return dec ? CODEC.natoDec(text) : CODEC.natoEnc(text);
+    if (mode === 'ROT13') return CODEC.rot13(text);
+    return CODEC.vig(text, key, dec ? -1 : 1);
+  }
+  // Morse as a timeline of on/off spans (units), each tagged with its letter
+  function morseTimeline(plain) {
+    const M = REF.data.cipher.morse, seq = [];
+    plain.toUpperCase().trim().split(/\s+/).forEach((w, wi) => {
+      if (wi) seq.push({ on: false, u: 4, ch: ' ' });           // 3 already after the letter + 4 = 7
+      [...w].forEach(c => {
+        const code = M[c]; if (!code) return;
+        [...code].forEach((e, k) => { if (k) seq.push({ on: false, u: 1, ch: c, code }); seq.push({ on: true, u: e === '-' ? 3 : 1, ch: c, code }); });
+        seq.push({ on: false, u: 3, ch: c, code });
+      });
+    });
+    let t = 0; seq.forEach(s => { s.at = t; t += s.u; });
+    return { seq, total: t };
+  }
+  function codeSend(st, A, plain) {
+    if (st.tx) { st.tx = null; A.say('SEND STOPPED', 1500); A.lcdDirty = true; return; }
+    const tl = morseTimeline(plain || '');
+    if (!tl.seq.length) { A.say('NOTHING TO SEND', 1800); return; }
+    st.tx = { tl, t0: performance.now() + 600, last: -1 };
+    A.say('SENDING · PUSH OR TAP TO STOP', 2500);
+  }
+  const codeOpts = (st, A) => ({ kind: 'text', value: st.text || '', placeholder: st.dec ? 'PASTE CODE TO READ' : 'TYPE A MESSAGE', maxLen: 160, label: st.dec ? 'IN' : 'MSG',
+    onInput: v => { st.text = v; A.dirty = true; A.lcdDirty = true; }, onCommit: v => { st.text = v; S.saveV2({ code: { text: st.text, key: st.key, mode: st.mode, dec: st.dec } }); } });
+  const keyOpts = (st, A) => ({ kind: 'text', value: st.key || '', placeholder: 'KEYWORD', maxLen: 24, label: 'KEY',
+    onInput: v => { st.key = v; A.dirty = true; }, onCommit: v => { st.key = v; S.saveV2({ code: { text: st.text, key: st.key, mode: st.mode, dec: st.dec } }); } });
+  RX.screens.refcode = {
+    animating: st => !!st.tx,
+    jogLabels: st => st.tx ? ['◂ SLOWER', 'FASTER ▸', 'PUSH ▸ STOP'] : ['◂ MODE', 'MODE ▸', st && st.dec ? 'PUSH ▸ ENCODE' : 'PUSH ▸ DECODE'],
+    enter(st, params, A) {
+      REF.load(A);
+      const c = S.v2.code || {};
+      st.text = c.text || ''; st.key = c.key || 'BAYTOWN'; st.mode = CODE_MODES.includes(c.mode) ? c.mode : 'MORSE'; st.dec = !!c.dec; st.wpm = 8;
+    },
+    leave(st) { st.tx = null; S.saveV2({ code: { text: st.text, key: st.key, mode: st.mode, dec: st.dec } }); },
+    jog(d, st, A) {
+      if (st.tx) { st.wpm = Math.max(4, Math.min(20, st.wpm + d)); A.say(st.wpm + ' WPM', 1200); return; }
+      st.mode = CODE_MODES[(CODE_MODES.indexOf(st.mode) + d + CODE_MODES.length) % CODE_MODES.length]; A.lcdDirty = true; A.refreshChrome && A.refreshChrome();
+    },
+    push(st, A) {
+      if (st.tx) { st.tx = null; A.lcdDirty = true; A.refreshChrome && A.refreshChrome(); return; }
+      // flip: the output becomes the new input
+      const out = codeRun(st.mode, st.text, st.key, st.dec);
+      st.dec = !st.dec; if (out && !/\?/.test(out)) st.text = out;
+      U.closeField(false); A.beep('key'); A.refreshChrome && A.refreshChrome(); A.lcdDirty = true;
+    },
+    lcd(st) {
+      if (st.tx) { const cur = st.tx.cur; return { rows: [['SEND', 'MORSE · ' + st.wpm + ' WPM'], ['CHAR', cur ? (cur.ch === ' ' ? '(SPACE)' : cur.ch) : '--'], ['CODE', cur && cur.code ? cur.code : '']], tag: 'TX' }; }
+      return { rows: [['MODE', st.mode], ['DIR', st.dec ? 'DECODE' : 'ENCODE'], ['LEN', String((st.text || '').length) + ' CHARS']], tag: 'CPH' };
+    },
+    lcdTap(st, A) { const plain = st.dec ? codeRun(st.mode, st.text, st.key, true) : st.text; codeSend(st, A, plain); A.refreshChrome && A.refreshChrome(); },
+    render(g, st, A) {
+      const W = g.W, H = g.H, mx = g.mx;
+      if (!REF.data.cipher) { g.header('CODE'); refReady(g, A); return; }
+      // sending: the whole screen is the lamp
+      if (st.tx) {
+        const unit = 1200 / st.wpm, el = (performance.now() - st.tx.t0) / unit, tl = st.tx.tl;
+        let idx = -1; for (let i = 0; i < tl.seq.length; i++) if (el >= tl.seq[i].at) idx = i; else break;
+        const cur = tl.seq[idx];
+        if (idx !== st.tx.last) { st.tx.last = idx; st.tx.cur = cur; A.lcdDirty = true; if (cur && cur.on) A.beep('morse', cur.u * unit / 1000); }
+        if (el >= tl.total) { st.tx = null; A.say('SENT', 1500); A.refreshChrome && A.refreshChrome(); A.lcdDirty = true; return; }
+        g.hit(0, 0, W, H, () => { st.tx = null; A.lcdDirty = true; A.refreshChrome(); });
+        if (cur && cur.on) mx.rect(0, 0, W, H, C.hot, 1);
+        else { mx.clearRect(0, 0, W, H); if (cur) g.textC(cur.ch === ' ' ? '·' : cur.ch, W / 2, H / 2 - 14, { s: 4, c: C.ink, a: 0.25 }); if (idx < 0) g.textC('READY', W / 2, H / 2 - 4, { a: 0.5 }); }
+        mx.clearRect(0, H - 11, W, 11); g.footer('SENDING · ' + st.wpm + ' WPM', Math.round(el / tl.total * 100) + '%');
+        return;
+      }
+      let y = g.header('CODE · ' + (st.dec ? 'DECODE' : 'ENCODE'), 'JOG ▸ MODE');
+      const mw = Math.floor((W - 2) / CODE_MODES.length);
+      CODE_MODES.forEach((m, i) => g.btn(i * mw, y, mw - 2, 12, m, () => { st.mode = m; A.lcdDirty = true; }, { face: 'mini', on: m === st.mode }));
+      y += 15;
+      g.field('code-msg', 0, y, W - 2, 15, codeOpts(st, A)); y += 18;
+      if (st.mode === 'KEYWORD') { g.field('code-key', 0, y, W - 2, 15, keyOpts(st, A)); y += 18; }
+      const hw = Math.floor((W - 6) / 2);
+      g.btn(0, y, hw, 13, st.dec ? 'ENCODE ◂' : 'DECODE ▸', () => RX.screens.refcode.push(st, A), { face: 'mini' });
+      g.btn(hw + 4, y, W - 6 - hw, 13, 'SEND BY LIGHT ▸', () => RX.screens.refcode.lcdTap(st, A), { face: 'mini', c: C.amber });
+      y += 16;
+      y = g.scrollBegin(y, footTop(g));
+      const text = st.text || '';
+      if (st.dec) {
+        y = g.section('READS AS · ' + st.mode, y);
+        const out = codeRun(st.mode, text, st.key, true);
+        y = para(g, out || '—', 2, y + 1, W - 4, { c: C.hot }) + 2;
+        if (/\?/.test(out)) { g.mini('? = A GROUP THAT ISN\'T VALID ' + st.mode, 2, y, { c: C.amber, a: 0.9 }); y += 9; }
+        if (st.mode === 'MORSE') { g.mini('SPACE BETWEEN LETTERS · / BETWEEN WORDS', 2, y, { a: 0.5 }); y += 9; }
+      } else {
+        CODE_MODES.forEach(m => {
+          const on = m === st.mode, out = codeRun(m, text, st.key, false);
+          y = g.section(m + (m === 'KEYWORD' ? ' · ' + (st.key || '—').toUpperCase() : ''), y + 1, on ? '◂ SELECTED' : '');
+          if (m === 'MORSE' && out) {
+            // drawn marks, a word per line, plus the text form
+            const M = REF.data.cipher.morse;
+            text.toUpperCase().trim().split(/\s+/).slice(0, 8).forEach(w => {
+              let x = 2; [...w].forEach(c => { const cd = M[c]; if (!cd) return; const need = cd.length * 8 + 6; if (x + need > W - 2) { x = 2; y += 6; } x = morseMarks(mx, cd, x, y + 2, on ? C.hot : C.ink, on ? 1 : 0.7) + 5; });
+              y += 8;
+            });
+          }
+          y = para(g, out || '—', 2, y + 1, W - 4, { c: on ? C.hot : C.ink, a: on ? 1 : 0.75 }) + 2;
+        });
+      }
+      y += 2;
+      U.wrap(REF.data.cipher.note, Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      g.scrollEnd(y + 4);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP LCD ▸ SEND · PUSH ▸ ' + (st.dec ? 'ENCODE' : 'DECODE'));
+    }
+  };
+
+  RX.screens.reftable = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'DRUM ▸ BACK · HOLD MAP'],
+    jog(d, st) { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) + d * 18)); },
+    push(st, A) { A.go('refcode', {}); },
+    lcd(st, A) { const it = REF.data.cipher && REF.data.cipher.items.find(x => x.id === A.top().params.id); return it ? { rows: [['REF', it.title], ['', 'PUSH ▸ CODE'], ['', '']], tag: 'CPH' } : null; },
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, D = REF.data.cipher;
+      if (!D) { g.header('CIPHER'); refReady(g, A); return; }
+      const it = D.items.find(x => x.id === A.top().params.id) || D.items[0];
+      let y = g.header(it.title, 'CIPHER ' + (D.items.indexOf(it) + 1) + '/' + D.items.length);
+      y = g.scrollBegin(y, footTop(g));
+      const cw = Math.floor((W - 2) / 2);
+      if (it.id === 'morse') {
+        const all = Object.keys(D.morse), keys = all.filter(k => /[A-Z]/.test(k)).concat(all.filter(k => /[0-9]/.test(k)), all.filter(k => !/[A-Z0-9]/.test(k))), half = Math.ceil(keys.length / 2);
+        keys.forEach((k, i) => {
+          const col = i < half ? 0 : 1, row = i < half ? i : i - half, x = col * cw, yy = y + row * 10;
+          g.text(k, x + 3, yy + 1, { c: C.hot });
+          morseMarks(mx, D.morse[k], x + 14, yy + 4, C.ink, 0.95);
+        });
+        y += half * 10 + 4;
+        y = g.section('SIGNALS', y);
+        it.prosigns.forEach(p => { g.text(p[0], 3, y + 1, { c: C.hot }); morseMarks(mx, p[1], 26, y + 4, C.ink, 0.95); g.mini(g.fit(p[2], W - 100, 'mini'), 96, y + 2, { a: 0.7 }); y += 10; });
+      } else if (it.id === 'nato') {
+        const keys = Object.keys(D.nato);
+        keys.forEach((k, i) => { const col = i < 13 ? 0 : 1, yy = y + (i % 13) * 10, x = col * cw; g.text(k, x + 3, yy + 1, { c: C.hot }); g.text(D.nato[k], x + 14, yy + 1); });
+        y += 13 * 10 + 4;
+        y = g.section('NUMBERS', y);
+        Object.keys(D.num).forEach((k, i) => { const col = i < 5 ? 0 : 1, yy = y + (i % 5) * 10, x = col * cw; g.text(k, x + 3, yy + 1, { c: C.hot }); g.text(D.num[k], x + 14, yy + 1); });
+        y += 5 * 10 + 4;
+      } else if (it.id === 'tap') {
+        const cs = 15, gx = Math.floor((W - cs * 6) / 2);
+        for (let c = 0; c < 5; c++) g.textC(String(c + 1), gx + cs * (c + 1) + cs / 2, y + 2, { a: 0.6 });
+        it.grid.forEach((r, ri) => {
+          const yy = y + 12 + ri * cs;
+          g.textC(String(ri + 1), gx + cs / 2, yy + 4, { a: 0.6 });
+          [...r].forEach((ch, ci) => { mx.frame(gx + cs * (ci + 1), yy, cs - 1, cs - 1, C.ink, 0.35); g.textC(ch === 'C' ? 'C/K' : ch, gx + cs * (ci + 1) + cs / 2, yy + 4, { c: C.hot, face: ch === 'C' ? 'mini' : undefined }); });
+        });
+        y += 12 + 5 * cs + 6;
+      } else if (it.rows) {
+        it.rows.forEach(r => { g.text(r[0], 3, y + 1, { c: C.hot }); y += 9; y = para(g, r[1], 10, y + 1, W - 14, { a: 0.8 }) + 3; });
+      }
+      y = g.section('HOW TO USE', y + 2);
+      (it.timing || []).forEach(t => { y = para(g, '· ' + t, 2, y + 1, W - 4, { a: 0.85 }) + 3; });
+      y += 3;
+      g.btn(0, y, W - 2, 13, 'CODE ▸ ENCODE / DECODE / SEND', () => A.go('refcode', {}), { face: 'mini' }); y += 16;
+      g.scrollEnd(y + 4);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'PUSH ▸ CODE TOOL');
     }
   };
 
