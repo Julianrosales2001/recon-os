@@ -46,12 +46,26 @@ RX.area = (function () {
   let SNAP = null, snapP = null;
   function snap() {
     if (SNAP) return Promise.resolve(SNAP);
-    if (!snapP) snapP = fetch('data/tx-acs.json?v=2024').then(r => r.json()).then(d => {
+    if (!snapP) snapP = fetch('data/tx-acs.json?v=2024b').then(r => r.json()).then(d => {
       const F = d.fields, row = a => { const o = {}; F.forEach((k, i) => { o[k] = a[i]; }); o.growth = o.pop5 ? (o.pop - o.pop5) / o.pop5 : null; return o; };
       SNAP = { year: d.year, prior: d.prior, state: row(d.state), county: new Map(d.counties.map(a => [a[0], row(a)])), place: new Map(d.places.map(a => [a[0], row(a)])) };
       return SNAP;
     }).catch(e => { snapP = null; throw e; });
     return snapP;
+  }
+  // extra census figures for one tract (split by county so only one small file loads)
+  const tractFiles = new Map();
+  function tractMore(geoid) {
+    if (!geoid) return Promise.resolve(null);
+    const c = geoid.slice(0, 5);
+    if (!tractFiles.has(c)) tractFiles.set(c, fetch('data/tracts/' + c + '.json?v=2024').then(r => r.json()).catch(e => { tractFiles.delete(c); throw e; }));
+    return tractFiles.get(c).then(d => { const a = d.tracts[geoid]; if (!a) return null; const o = {}; d.fields.forEach((k, i) => { o[k] = a[i]; }); return o; });
+  }
+  // FBI crime: yearly totals per police department (city) and sheriff (unincorporated county)
+  let CRIME = null;
+  function crime() {
+    if (!CRIME) CRIME = fetch('data/tx-crime.json?v=2025').then(r => r.json()).catch(e => { CRIME = null; throw e; });
+    return CRIME;
   }
   const inRings = (rings, lat, lng) => { let c = 0; rings.forEach(r => { if (RX.parcel.contains(r, lat, lng)) c++; }); return c % 2 === 1; };
   async function placeAt(lat, lng) {
@@ -73,9 +87,10 @@ RX.area = (function () {
   }
   // { place (stats + rings) | false, county, state, countyName, year }
   async function cityAt(lat, lng) {
-    const [S, p, f] = await Promise.all([snap(), placeAt(lat, lng), fcc(lat, lng)]);
+    const [S, p, f, CR] = await Promise.all([snap(), placeAt(lat, lng), fcc(lat, lng), crime().catch(() => null)]);
     const cid = f && f.county_fips;
-    return { place: p ? Object.assign({}, S.place.get(p.geoid) || {}, p, { stats: !!S.place.get(p.geoid) }) : false, county: cid ? S.county.get(cid) : null, countyName: f && f.county_name, state: S.state, year: S.year, prior: S.prior };
+    const tract = f && f.block_fips ? await tractMore(f.block_fips.slice(0, 11)).catch(() => null) : null;
+    return { tractMore: tract, crime: CR ? { year: CR.year, prior: CR.prior, state: CR.state, place: p ? CR.places[p.geoid] || null : null, county: cid ? CR.counties[cid] || null : null } : null, place: p ? Object.assign({}, S.place.get(p.geoid) || {}, p, { stats: !!S.place.get(p.geoid) }) : false, county: cid ? S.county.get(cid) : null, countyName: f && f.county_name, state: S.state, year: S.year, prior: S.prior };
   }
 
   // everything for a spot: { tract, county } with the tract's outline
@@ -102,5 +117,5 @@ RX.area = (function () {
   const brief = (A, C) => A && A.tract ? { city: C && C.place ? C.place.name + (C.place.cdp ? ' (UNINC)' : '') : null, tract: A.tract.name, pop: A.tract.pop, income: A.tract.income, home: A.tract.home, own: A.tract.own, cIncome: A.county && A.county.income, cHome: A.county && A.county.home, county: A.countyName } : null;
 
   const growth = g => g == null ? '' : (g >= 0 ? '+' : '') + Math.round(g * 100) + '%';
-  return { at, cityAt, snap, inRings, money, vs, brief, growth };
+  return { at, cityAt, snap, tractMore, crime, inRings, money, vs, brief, growth };
 })();

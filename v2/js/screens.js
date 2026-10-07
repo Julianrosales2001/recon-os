@@ -1759,6 +1759,7 @@ window.RX = window.RX || {};
   }
   const SCALES = ['tract', 'city', 'county'];
   const kfmt = n => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : n.toLocaleString('en-US');
+  const i2c = i => i === 0 ? C.hot : C.ink;
   const gk = n => n == null ? '—' : n >= 1e7 ? (n / 1e6).toFixed(1) + 'M' : kfmt(n);
   const gm = n => n == null || n < 0 ? '—' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n);
   const vacPct = o => o && o.units ? Math.round(o.vacant / o.units * 100) + '%' : '—';
@@ -1902,7 +1903,8 @@ window.RX = window.RX || {};
           const nm = scl === 'city' ? o.name.toUpperCase() + (o.cdp ? ' · UNINC. COMMUNITY' : ' · CITY') + ' · ' + (cy0.countyName || '').replace(/ County$/i, '').toUpperCase() + ' CO' : o.name.toUpperCase() + ' · TEXAS';
           g.text(g.fit(nm, W - 8), 4, cy + 3, { c: C.hot });
           g.mini(g.fit(kfmt(o.pop) + ' PEOPLE (' + RX.area.growth(o.growth) + ' SINCE ' + cy0.prior + ') · INCOME ' + RX.area.money(o.income) + ' (' + RX.area.vs(o.income, ref && ref.income) + ' VS ' + refN + ')', W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
-          g.mini(g.fit('HOME ' + RX.area.money(o.home) + ' (' + RX.area.vs(o.home, ref && ref.home) + ') · RENT ' + RX.area.money(o.rent) + ' · ' + Math.round(o.own || 0) + '% OWN · ' + vacPct(o) + ' VACANT · AGE ' + o.age, W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
+          const crm = cy0.crime, ca = crm && scl === 'city' ? crm.place : null, crimeTxt = ca && ca[1] ? 'CRIME ' + (ca[2] / ca[1] * 1000).toFixed(1) + ' VIOLENT · ' + Math.round(ca[3] / ca[1] * 1000) + ' PROPERTY /1K (TX ' + crm.state.v.toFixed(1) + ' · ' + Math.round(crm.state.p) + ')' : null;
+          g.mini(g.fit(crimeTxt || ('HOME ' + RX.area.money(o.home) + ' (' + RX.area.vs(o.home, ref && ref.home) + ') · RENT ' + RX.area.money(o.rent) + ' · ' + Math.round(o.own || 0) + '% OWN · ' + vacPct(o) + ' VACANT · AGE ' + o.age), W - 8, 'mini'), 4, cy + 21, { a: 0.7, c: ca && crm.state && ca[2] / ca[1] * 1000 > crm.state.v ? C.amber : C.ink });
           g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => A.go('areainfo', { lat: M.lat, lng: M.lng, area: st.area, city: st.city }), { face: 'mini' });
           nextBtn();
         }
@@ -1941,7 +1943,8 @@ window.RX = window.RX || {};
       g.text(g.fit(p ? p.full.toUpperCase() : (cy0 ? 'UNINCORPORATED' : 'READING...'), W - 4), 1, y + 1, { c: C.hot }); y += 10;
       g.mini(g.fit([t && t.name.toUpperCase(), cy0 && cy0.countyName && cy0.countyName.toUpperCase(), p && p.sqmi ? (p.sqmi < 10 ? p.sqmi.toFixed(1) : Math.round(p.sqmi)) + ' SQ MI' : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 1, { a: 0.6 }); y += 10;
       // the grid: one row per figure, one column per scale
-      const cols = [['TRACT', t], ['CITY', p && p.stats ? p : null], ['COUNTY', co], ['TEXAS', tx]];
+      const tm = cy0 && cy0.tractMore, tcol = t ? Object.assign({}, t, tm || {}) : (tm || null);
+      const cols = [['TRACT', tcol], ['CITY', p && p.stats ? p : null], ['COUNTY', co], ['TEXAS', tx]];
       const lw = 30, cw = Math.floor((W - 2 - lw) / 4);
       cols.forEach((c, i) => g.miniR(c[0], lw + cw * (i + 1) - 2, y + 1, { a: c[1] ? 0.8 : 0.35 }));
       y += 8; mx.hline(0, y, W, C.ink, 0.25, 2); y += 2;
@@ -1953,14 +1956,64 @@ window.RX = window.RX || {};
         ['RENT', o => gm(o.rent)],
         ['OWN', o => o.own != null ? Math.round(o.own) + '%' : '—'],
         ['VACANT', o => vacPct(o)],
-        ['AGE', o => o.age != null ? String(o.age) : '—']
+        ['AGE', o => o.age != null ? String(o.age) : '—'],
+        ['POVERTY', o => o.poverty != null ? Math.round(o.poverty) + '%' : '—'],
+        ['JOBLESS', o => o.unemp != null ? (o.unemp < 10 ? o.unemp.toFixed(1) : Math.round(o.unemp)) + '%' : '—'],
+        ['COLLEGE', o => o.college != null ? Math.round(o.college) + '%' : '—'],
+        ['COMMUTE', o => o.commute != null ? Math.round(o.commute) + 'M' : '—'],
+        ['BUILT', o => o.built ? "'" + String(o.built).slice(2) : '—'],
+        ['HH SIZE', o => o.hhsize != null ? o.hhsize.toFixed(1) : '—']
       ];
       rows.forEach((r, ri) => {
         g.mini(r[0], 1, y + 2, { a: 0.6 });
         cols.forEach((c, i) => { const v = c[1] ? r[1](c[1]) : '—'; g.textR(g.fit(v, cw - 3), lw + cw * (i + 1) - 2, y + 1, { c: i === 1 && c[1] ? C.hot : C.ink, a: c[1] ? 1 : 0.35 }); });
         y += 10; if (ri % 2 === 1) mx.hline(0, y - 1, W, C.ink, 0.08, 2);
       });
-      g.mini('GROWTH = PEOPLE NOW VS ' + (cy0 ? cy0.prior : '5 YRS AGO') + ' · TRACT GROWTH NOT IN THIS FILE', 1, y + 1, { a: 0.45 }); y += 10;
+      g.mini(g.fit('GROWTH = PEOPLE NOW VS ' + (cy0 ? cy0.prior : '5 YRS AGO') + ' · JOBLESS = UNEMPLOYED SHARE OF LABOR FORCE · COLLEGE = BACHELOR+ (25 AND UP) · COMMUTE = AVG MINUTES · BUILT = MEDIAN YEAR', W - 2, 'mini'), 1, y + 1, { a: 0.45 }); y += 10;
+      // PEOPLE: race and ethnicity, one stacked bar per scale, then the shares
+      const RACE = [['HISPANIC', 'hisp', 1], ['WHITE', 'white', 0.72], ['BLACK', 'black', 0.48], ['ASIAN', 'asian', 0.3], ['OTHER', null, 0.15]];
+      const share = (o, k) => { if (!o || o.hisp == null) return null; if (k) return o[k]; return Math.max(0, 100 - o.hisp - o.white - o.black - o.asian); };
+      y = g.section('PEOPLE · RACE & ETHNICITY', y + 2, '% OF RESIDENTS');
+      cols.forEach(c => {
+        g.mini(c[0], 1, y + 2, { a: c[1] && c[1].hisp != null ? 0.7 : 0.35 });
+        const bx = lw, bw = W - lw - 3;
+        if (c[1] && c[1].hisp != null) { let x = bx; RACE.forEach((rc, ri) => { const v = share(c[1], rc[1]) || 0, w = ri === RACE.length - 1 ? bx + bw - x : Math.round(bw * v / 100); if (w > 0) { mx.rect(x, y + 1, Math.max(1, w - 1), 6, i2c(ri), rc[2]); x += w; } }); }
+        else mx.hline(bx, y + 4, bw, C.ink, 0.2, 2);
+        y += 9;
+      });
+      y += 1;
+      RACE.forEach((rc, ri) => {
+        mx.rect(2, y + 2, 4, 4, i2c(ri), rc[2]); g.mini(rc[0], 9, y + 2, { a: 0.7 });
+        cols.forEach((c, i) => { const v = share(c[1], rc[1]); g.textR(v == null ? '—' : Math.round(v) + '%', lw + cw * (i + 1) - 2, y + 1, { c: i === 1 && c[1] ? C.hot : C.ink, a: v == null ? 0.35 : 1 }); });
+        y += 10;
+      });
+      g.mini('HISPANIC OF ANY RACE · OTHER RACES NOT HISPANIC', 1, y + 1, { a: 0.45 }); y += 10;
+      // SAFETY: FBI yearly totals per 1,000 residents
+      const crm = cy0 && cy0.crime;
+      y = g.section('SAFETY · CRIMES PER 1,000', y + 2, crm ? 'FBI · ' + crm.year : 'FBI');
+      if (!crm) { g.mini(cy0 ? 'CRIME FILE NOT LOADED' : 'READING...', 2, y + 1, { a: 0.6 }); y += 10; }
+      else {
+        const rate = (a, n, pi) => a && a[pi] ? a[n] / a[pi] * 1000 : null;
+        const ccols = [['CITY PD', crm.place], ['SHERIFF', crm.county], ['TEXAS', null]];
+        const cw2 = Math.floor((W - 2 - lw) / 3);
+        ccols.forEach((c, i) => g.miniR(c[0], lw + cw2 * (i + 1) - 2, y + 1, { a: (c[1] || i === 2) ? 0.8 : 0.35 }));
+        y += 8; mx.hline(0, y, W, C.ink, 0.25, 2); y += 2;
+        const f1 = v => v == null ? '—' : v < 10 ? v.toFixed(1) : String(Math.round(v));
+        const tr = (a, n0, p0, n1, p1) => { const r1 = rate(a, n0, p0), r0 = rate(a, n1, p1); return r1 != null && r0 ? (r1 >= r0 ? '+' : '') + Math.round((r1 - r0) / r0 * 100) + '%' : '—'; };
+        [['VIOLENT', a => rate(a, 2, 1), crm.state.v], ['PROPERTY', a => rate(a, 3, 1), crm.state.p]].forEach(r => {
+          g.mini(r[0], 1, y + 2, { a: 0.6 });
+          ccols.forEach((c, i) => { const v = i === 2 ? r[2] : (c[1] ? r[1](c[1]) : null); const hot = i === 0 && v != null && crm.state && v > r[2]; g.textR(f1(v), lw + cw2 * (i + 1) - 2, y + 1, { c: hot ? C.amber : (i === 0 && v != null ? C.hot : C.ink), a: v == null ? 0.35 : 1 }); });
+          y += 10;
+        });
+        [['V VS ' + String(crm.prior).slice(2), 2, 1, 5, 4, 'v', 'v20'], ['P VS ' + String(crm.prior).slice(2), 3, 1, 6, 4, 'p', 'p20']].forEach(r => {
+          g.mini(r[0], 1, y + 2, { a: 0.6 });
+          ccols.forEach((c, i) => { const v = i === 2 ? ((crm.state[r[5]] - crm.state[r[6]]) / crm.state[r[6]] >= 0 ? '+' : '') + Math.round((crm.state[r[5]] - crm.state[r[6]]) / crm.state[r[6]] * 100) + '%' : (c[1] ? tr(c[1], r[1], r[2], r[3], r[4]) : '—'); g.textR(v, lw + cw2 * (i + 1) - 2, y + 1, { a: v === '—' ? 0.35 : 0.9 }); });
+          y += 10;
+        });
+        const ag = [crm.place ? crm.place[0] + (crm.place[7] < 12 ? ' (' + crm.place[7] + ' MO REPORTED)' : '') : (p ? (p.cdp ? p.name.toUpperCase() + ' IS UNINCORPORATED · THE SHERIFF POLICES IT' : 'NO POLICE DEPT REPORTS FOR ' + p.name.toUpperCase()) : 'NOT IN A CITY · THE SHERIFF POLICES HERE'), crm.county ? crm.county[0] + ' · UNINCORPORATED AREAS ONLY' : null].filter(Boolean);
+        ag.forEach(l => U.wrap(l.toUpperCase(), Math.floor((W - 6) / 4)).forEach(x => { g.mini(x, 2, y + 1, { a: 0.5 }); y += 7; }));
+        g.mini('AMBER = ABOVE THE TEXAS RATE', 2, y + 1, { c: C.amber, a: 0.8 }); y += 9;
+      }
       // busiest roads inside the city
       if (p && !st.rReq) { st.rReq = true; RX.traffic.busiest(p.box, (la, ln) => RX.area.inRings(p.rings, la, ln), 6).then(l => { st.roads = l; }).catch(() => { st.rErr = true; }).then(() => { A.dirty = true; A.lcdDirty = true; }); }
       if (p) {
