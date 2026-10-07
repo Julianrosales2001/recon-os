@@ -488,6 +488,7 @@ window.RX = window.RX || {};
       if (!r) { st.lotErr = 'NO PARCEL ON RECORD HERE'; return; }
       const before = JSON.stringify(p) === st.orig;
       try { const t = RX.traffic.main(await RX.traffic.near(p.lat, p.lng, 1200)); r.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) {}
+      try { r.area = RX.area.brief(await RX.area.at(p.lat, p.lng)); } catch (e) {}
       p.parcel = r; S.savePOIs();
       if (before) st.orig = JSON.stringify(p);   // a lookup is not an edit
       A.beep('ok');
@@ -633,6 +634,7 @@ window.RX = window.RX || {};
         g.mini(g.fit([RX.parcel.fmtAcres(r.acres), r.mkt ? RX.parcel.fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 19, { a: 0.7 });
         y += 27;
         if (r.traffic) { g.mini(g.fit('TRAFFIC ' + RX.traffic.full(r.traffic.aadt) + '/DAY · ' + r.traffic.road + ' · ' + Geo.fmtDist(r.traffic.dist) + (r.traffic.trend5 != null ? ' · ' + RX.traffic.pct(r.traffic.trend5) + ' 5 YR' : ''), W - 4, 'mini'), 1, y, { c: C.amber, a: 0.95 }); y += 9; }
+        if (r.area) { const a = r.area; g.mini(g.fit('AREA INCOME ' + RX.area.money(a.income) + ' ' + RX.area.vs(a.income, a.cIncome) + ' · HOME ' + RX.area.money(a.home) + ' ' + RX.area.vs(a.home, a.cHome) + ' VS CO', W - 4, 'mini'), 1, y, { a: 0.8 }); y += 9; }
         const lw = Math.floor((W - 6) / 2);
         g.btn(0, y, lw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r, markId: p.id }), { face: 'mini' });
         g.btn(lw + 4, y, W - 6 - lw, 12, st.lotBusy ? 'READING...' : 'REFRESH', () => markLot(st, A, p), { face: 'mini' });
@@ -1509,6 +1511,7 @@ window.RX = window.RX || {};
   async function lotToMark(A, lot, lat, lng) {
     const id = 'POI-' + Date.now();
     if (lot.traffic === undefined) { try { const t = RX.traffic.main(await RX.traffic.near(lat, lng, 1200)); lot.traffic = t ? { road: t.road, aadt: t.aadt, year: t.year, trend5: t.trend5, dist: Math.round(t.dist) } : null; } catch (e) { lot.traffic = null; } }
+    if (lot.area === undefined) { try { lot.area = RX.area.brief(await RX.area.at(lat, lng)); } catch (e) { lot.area = null; } }
     S.pois.push({ id, lat, lng, category: null, name: lot.situs ? lot.situs.split(',')[0] : (lot.owner || 'LOT'), notes: P().summary(lot), photo: null, hva: false, tier: 2, regionId: null, sector: null, created: Date.now(), parcel: lot });
     S.savePOIs(); S.log('drop', id, 'Pin dropped', 'FROM LOT LOOKUP');
     A.updateLamps(); A.beep('mark'); A.go('mark', { id });
@@ -1529,54 +1532,134 @@ window.RX = window.RX || {};
       const c = s.sub ? C.ink : C.amber;
       mx.set(x, y - 2, c, 1); mx.set(x - 1, y - 1, c, 1); mx.set(x + 1, y - 1, c, 1); mx.set(x - 2, y, c, 1); mx.set(x + 2, y, c, 1); mx.set(x - 1, y + 1, c, 1); mx.set(x + 1, y + 1, c, 1); mx.set(x, y + 2, c, 1); mx.set(x, y, c, 1);
       if (s.sub || seen.some(q => Math.abs(q[0] - x) < 22 && Math.abs(q[1] - y) < 8)) return;
-      const t = RX.traffic.k(s.aadt), w = RX.font.measure(t, 'mini');
+      const t = RX.traffic.k(s.aadt) + '/D', w = RX.font.measure(t, 'mini');
       mx.clearRect(x + 3, y - 3, w + 2, 7); g.mini(t, x + 4, y - 2, { c: C.amber, a: 1 });
       seen.push([x, y]);
     });
   }
+  // county tax office: copy the account, open the office's search (no public feed says "this lot owes")
+  function taxCheck(A, r) {
+    if (!r) return;
+    try { if (r.id) navigator.clipboard.writeText(r.id); } catch (e) {}
+    const url = /HARRIS/i.test(r.county || '') ? 'https://www.hctax.net/Property/PropertyTax'
+      : 'https://www.google.com/search?q=' + encodeURIComponent((r.county || '') + ' county tax office property tax account search');
+    A.say((r.id ? 'ACCOUNT ' + r.id + ' COPIED · ' : '') + 'OPENING ' + (r.county || 'COUNTY') + ' TAX OFFICE', 4000);
+    window.open(url, '_blank');
+  }
+  function areaFetch(st, A, lat, lng) {
+    if (st.aBusy) return;
+    const key = lat.toFixed(4) + ',' + lng.toFixed(4);
+    if (st.aKey === key) return;
+    st.aKey = key; st.aBusy = true; st.aErr = null;
+    RX.area.at(lat, lng).then(v => { st.area = v; if (!v) st.aErr = 'NONE'; }).catch(() => { st.aErr = 'NET'; }).then(() => { st.aBusy = false; A.dirty = true; A.lcdDirty = true; });
+  }
+  function areaOutline(g, A, area) {
+    const ring = area && area.tract && area.tract.ring; if (!ring) return;
+    const v = A.view(), pts = ring.map(q => M.latLngToDot(q[0], q[1], v));
+    for (let i = 0; i < pts.length - 1; i++) g.mx.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, C.amber, 0.9, 2);
+  }
+  const PAGES = ['lot', 'traffic', 'area'];
   RX.screens.lot = {
     map: true,
     animating: () => true,
-    jogLabels: () => ['◂ OUT', 'IN ▸', 'PUSH · LOOK UP'],
+    drum: PAGES,
+    jogLabels: () => ['◂ OUT', 'IN ▸', 'PUSH ▸ READ THIS SPOT'],
     enter(st, params, A) {
       st.wasFollow = M.follow; M.follow = false;
+      st.page = 'lot';
       if (params.lat != null) M.setView(params.lat, params.lng, Math.max(M.zoom, 18));
       else if (M.zoom < 17) M.setView(M.lat, M.lng, 18);
     },
+    onPage(pg, st, A) {
+      if (pg === 'traffic' && M.zoom > 16.5) M.setView(M.lat, M.lng, 16);   // counts are along roads: pull back to see them
+      if (pg === 'area') { if (M.zoom > 14.5) M.setView(M.lat, M.lng, 14); areaFetch(st, A, M.lat, M.lng); }
+      if (pg === 'lot' && M.zoom < 17) M.setView(M.lat, M.lng, 18);
+      st.tPick = 0;
+    },
     jog(d, st, A) { const v = A.view(); M.zoomBy(d * 0.5, v.cx, v.cy, v); },
-    push(st, A) { lotLookup(st, A, M.lat, M.lng); },
+    push(st, A) { if (st.page === 'area') { st.aKey = null; areaFetch(st, A, M.lat, M.lng); } else lotLookup(st, A, M.lat, M.lng); },
+    onMark(st, A) { const r = st.res; if (r) lotToMark(A, r, r.at[0], r.at[1]); else A.say('NO LOT READ YET · PARK THE CROSSHAIR ON ONE', 2500); },
+    // the LCD is this mode's readout: one set of rows per page
+    lcd(st, A) {
+      const r = st.res, pg = st.page || 'lot';
+      if (pg === 'lot') {
+        if (!r) return { rows: [['LOT', st.busy ? 'READING...' : 'PARK ON A LOT'], ['SIZE', '--'], ['TAX', '--']], tag: 'LOT' };
+        return { rows: [['OWNR', r.owner || '--'], ['SIZE', P().fmtAcres(r.acres) + (r.mkt ? ' ' + RX.area.money(r.mkt) : ' NO VALUE')], ['TAX', 'TAP LCD ▸ CHECK']], tag: 'LOT' };
+      }
+      if (pg === 'traffic') {
+        const list = (st.tList || []).filter(s => !s.sub), s = list.length ? list[(st.tPick || 0) % list.length] : null;
+        if (!s) return { rows: [['ROAD', st.tBusy ? 'READING...' : 'NO COUNTS HERE'], ['AADT', '--'], ['5YR', '--']], tag: 'TRF' };
+        return { rows: [['ROAD', s.road + (list.length > 1 ? ' ' + ((st.tPick || 0) % list.length + 1) + '/' + list.length : '')], ['/DAY', RX.traffic.full(s.aadt) + ' (' + s.year + ')'], ['5YR', s.trend5 != null ? RX.traffic.pct(s.trend5) + ' · ' + Geo.fmtDist(s.dist) : Geo.fmtDist(s.dist)]], tag: 'TRF' };
+      }
+      const a = st.area, t = a && a.tract, c = a && a.county;
+      if (!t) return { rows: [['TRCT', st.aBusy ? 'READING...' : (st.aErr === 'NET' ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['HOME', '--']], tag: 'TRC' };
+      return { rows: [['INC', RX.area.money(t.income) + ' ' + RX.area.vs(t.income, c && c.income) + ' CO'], ['HOME', RX.area.money(t.home) + ' ' + RX.area.vs(t.home, c && c.home) + ' CO'], ['POP', (t.pop || 0).toLocaleString('en-US') + ' · OWN ' + Math.round(t.own || 0) + '%']], tag: 'TRC' };
+    },
+    lcdTap(st, A) {
+      const pg = st.page || 'lot';
+      if (pg === 'lot') { if (st.res) taxCheck(A, st.res); else A.say('NO LOT READ YET', 2000); }
+      else if (pg === 'traffic') { st.tPick = (st.tPick || 0) + 1; }
+      else if (st.res) A.go('lotinfo', { lot: st.res, area: st.area }); else A.say('NO LOT READ HERE YET', 2000);
+    },
     render(g, st, A) {
-      const W = g.W, H = g.H, mx = g.mx;
+      const W = g.W, H = g.H, mx = g.mx, pg = st.page || 'lot';
       const key = M.lat.toFixed(6) + ',' + M.lng.toFixed(6);
       if (key !== st.centerKey) { st.centerKey = key; st.settleAt = Date.now() + 650; }
       else if (st.settleAt && Date.now() > st.settleAt) {
         st.settleAt = 0;
-        if (!(st.res && P().contains(st.res.ring, M.lat, M.lng))) { if (M.zoom >= 15) lotLookup(st, A, M.lat, M.lng); else { st.res = null; st.err = 'ZOOM'; } }
+        if (pg === 'area') areaFetch(st, A, M.lat, M.lng);
+        else if (!(st.res && P().contains(st.res.ring, M.lat, M.lng))) { if (M.zoom >= 15 || pg !== 'lot') lotLookup(st, A, M.lat, M.lng); else { st.res = null; st.err = 'ZOOM'; } }
+        A.lcdDirty = true;
       }
       drawMap(g, A, { reticle: true, noHits: true });
-      lotOutline(g, A, st.res);
-      trafficLayer(g, A, st);
-      hud(g, A, 'LOT · COUNTY RECORDS');
+      if (pg === 'area') areaOutline(g, A, st.area);
+      lotOutline(g, A, st.res, { dim: pg !== 'lot' });
+      if (pg === 'traffic') trafficLayer(g, A, st);
+      hud(g, A, ({ lot: 'LOT · COUNTY RECORDS', traffic: 'TRAFFIC · CARS PER DAY', area: 'AREA · CENSUS TRACT' })[pg]);
+      // page tabs: which drum face is up
+      const tw = Math.floor((W - 2) / 3);
+      mx.clearRect(0, 12, W, 9);
+      PAGES.forEach((p, i) => { const on = p === pg; if (on) mx.rect(i * tw + 1, 12, tw - 2, 8, C.ink, 0.22); g.miniR(p.toUpperCase(), i * tw + tw / 2 + RX.font.measure(p.toUpperCase(), 'mini') / 2, 14, { a: on ? 1 : 0.4, c: on ? C.hot : C.ink }); });
+      if (pg === 'traffic') { mx.clearRect(0, 21, 11 + RX.font.measure('/D = VEHICLES PER DAY', 'mini'), 9); [[2, 0], [1, 1], [3, 1], [0, 2], [2, 2], [4, 2], [1, 3], [3, 3], [2, 4]].forEach(q => mx.set(2 + q[0], 23 + q[1], C.amber, 1)); g.mini('/D = VEHICLES PER DAY', 9, 23, { c: C.amber, a: 0.95 }); }
       // the card
       const ch = 44, cy = footTop(g) - ch - 1;
       mx.clearRect(0, cy - 1, W, ch + 2); mx.frame(0, cy, W - 1, ch, C.ink, 0.5);
-      const r = st.res;
-      if (st.err === 'ZOOM') { g.textC('ZOOM IN TO READ LOTS', W / 2, cy + 18, { a: 0.7 }); }
-      else if (!r && st.busy) { g.textC('READING COUNTY RECORDS' + '...'.slice(0, 1 + Math.floor(g.t / 300) % 3), W / 2, cy + 18, { a: 0.8 }); }
-      else if (!r && st.err === 'NET') { g.textC('NO SIGNAL · LOTS NEED A CONNECTION', W / 2, cy + 14, { c: C.amber }); g.textC('PUSH THE JOG TO RETRY', W / 2, cy + 25, { a: 0.6 }); }
-      else if (!r && st.err === 'NONE') { g.textC('NO PARCEL HERE', W / 2, cy + 14, { a: 0.8 }); g.textC('ROAD, WATER OR NOT ON RECORD', W / 2, cy + 25, { a: 0.5, face: 'mini' }); }
-      else if (!r) { g.textC('PARK THE CROSSHAIR ON A LOT', W / 2, cy + 18, { a: 0.7 }); }
-      else {
-        g.text(g.fit(r.situs || 'NO SITE ADDRESS', W - 8), 4, cy + 3, { c: C.hot });
-        g.mini(g.fit('OWNER ' + (r.owner || '—'), W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
-        const line = [P().fmtAcres(r.acres), r.mkt ? P().fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null, (r.county || '') + ' CO'].filter(Boolean).join(' · ');
-        g.mini(g.fit(line, W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
-        const bw = Math.floor((W - 10) / 2);
-        g.btn(3, cy + 29, bw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r }), { face: 'mini' });
-        g.btn(7 + bw, cy + 29, bw, 12, '+ MARK THIS LOT', () => lotToMark(A, r, r.at[0], r.at[1]), { face: 'mini' });
-        if (st.busy) mx.disc(W - 6, cy + 5, 1.5, C.amber, Math.floor(g.t / 200) % 2 ? 1 : 0.3);
+      const r = st.res, bw = Math.floor((W - 10) / 2);
+      if (pg === 'lot') {
+        if (st.err === 'ZOOM') { g.textC('ZOOM IN TO READ LOTS', W / 2, cy + 18, { a: 0.7 }); }
+        else if (!r && st.busy) { g.textC('READING COUNTY RECORDS' + '...'.slice(0, 1 + Math.floor(g.t / 300) % 3), W / 2, cy + 18, { a: 0.8 }); }
+        else if (!r && st.err === 'NET') { g.textC('NO SIGNAL · LOTS NEED A CONNECTION', W / 2, cy + 14, { c: C.amber }); g.textC('PUSH THE JOG TO RETRY', W / 2, cy + 25, { a: 0.6 }); }
+        else if (!r && st.err === 'NONE') { g.textC('NO PARCEL HERE', W / 2, cy + 14, { a: 0.8 }); g.textC('ROAD, WATER OR NOT ON RECORD', W / 2, cy + 25, { a: 0.5, face: 'mini' }); }
+        else if (!r) { g.textC('PARK THE CROSSHAIR ON A LOT', W / 2, cy + 18, { a: 0.7 }); }
+        else {
+          g.text(g.fit(r.situs || 'NO SITE ADDRESS', W - 8), 4, cy + 3, { c: C.hot });
+          g.mini(g.fit('OWNER ' + (r.owner || '—'), W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
+          g.mini(g.fit([P().fmtAcres(r.acres), r.mkt ? P().fmtMoney(r.mkt) : null, r.built ? 'BUILT ' + r.built : null, (r.county || '') + ' CO'].filter(Boolean).join(' · '), W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
+          g.btn(3, cy + 29, bw, 12, 'DETAILS ▸', () => A.go('lotinfo', { lot: r }), { face: 'mini' });
+          g.btn(7 + bw, cy + 29, bw, 12, 'TAX CHECK ▸', () => taxCheck(A, r), { face: 'mini' });
+        }
+      } else if (pg === 'traffic') {
+        const list = (st.tList || []).filter(s => !s.sub), main = RX.traffic.main(st.tList);
+        if (!main) g.textC(st.tBusy ? 'READING TXDOT COUNTS...' : (M.zoom < 13 ? 'ZOOM IN TO SEE COUNTS' : 'NO COUNT STATIONS IN VIEW'), W / 2, cy + 18, { a: 0.7 });
+        else {
+          g.text(main.road, 4, cy + 3, { c: C.hot }); g.textR(RX.traffic.full(main.aadt) + '/DAY', W - 5, cy + 3, { c: C.hot });
+          g.mini(g.fit(main.year + ' AVERAGE DAY, BOTH DIRECTIONS' + (main.trend5 != null ? ' · ' + RX.traffic.pct(main.trend5) + ' IN 5 YRS' : ''), W - 8, 'mini'), 4, cy + 13, { a: 0.8 });
+          g.mini(g.fit(list.filter(s => s.id !== main.id).slice(0, 3).map(s => s.road + ' ' + RX.traffic.k(s.aadt)).join(' · ') || 'NO OTHER STATIONS IN VIEW', W - 8, 'mini'), 4, cy + 21, { a: 0.6 });
+          g.btn(3, cy + 29, bw, 12, 'HISTORY ▸', () => { if (r) A.go('lotinfo', { lot: r }); else A.say('NO LOT READ HERE YET', 2000); }, { face: 'mini', dim: !r });
+          g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ NEXT ROAD', () => { st.tPick = (st.tPick || 0) + 1; A.lcdDirty = true; }, { face: 'mini' });
+        }
+      } else {
+        const a = st.area, t = a && a.tract, c = a && a.county;
+        if (!t) g.textC(st.aBusy ? 'READING CENSUS TRACT...' : (st.aErr === 'NET' ? 'NO SIGNAL · AREA NEEDS A CONNECTION' : 'PUSH THE JOG TO READ THIS AREA'), W / 2, cy + 18, { a: 0.7, c: st.aErr === 'NET' ? C.amber : C.ink });
+        else {
+          g.text(g.fit(t.name.toUpperCase() + ' · ' + (a.countyName || '').toUpperCase(), W - 8), 4, cy + 3, { c: C.hot });
+          g.mini(g.fit('INCOME ' + RX.area.money(t.income) + ' (' + RX.area.vs(t.income, c && c.income) + ' VS COUNTY) · HOME ' + RX.area.money(t.home) + ' (' + RX.area.vs(t.home, c && c.home) + ')', W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
+          g.mini(g.fit((t.pop || 0).toLocaleString('en-US') + ' PEOPLE · ' + Math.round(t.own || 0) + '% OWN · MEDIAN AGE ' + t.age + ' · RENT ' + RX.area.money(t.rent), W - 8, 'mini'), 4, cy + 21, { a: 0.7 });
+          g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => { if (r) A.go('lotinfo', { lot: r, area: a }); else A.say('NO LOT READ HERE YET', 2000); }, { face: 'mini', dim: !r });
+          g.btn(7 + bw, cy + 29, bw, 12, '+ MARK THIS SPOT', () => { if (r) lotToMark(A, r, r.at[0], r.at[1]); else A.say('NO LOT HERE TO SAVE', 2000); }, { face: 'mini', dim: !r });
+        }
       }
-      g.footer(A.sayActive() ? A.statusShown(g.t) : 'DRAG TO A LOT · IT READS ITSELF');
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'DRUM ▸ PAGE', 'PRESS ▸ BACK');
     }
   };
 
@@ -1633,10 +1716,26 @@ window.RX = window.RX || {};
         });
         y += 2;
       }
+      // area: the census tract around the lot, against its county
+      if (!st.aReq) { st.aReq = true; st.area = prm.area || null; if (!st.area) RX.area.at(r.at[0], r.at[1]).then(v => { st.area = v || false; }).catch(() => { st.aErr = true; }).then(() => { A.dirty = true; }); }
+      y = g.section('AREA · CENSUS TRACT', y + 2, 'ACS 5-YR');
+      if (!st.area) { g.mini(st.aErr ? 'NO SIGNAL · AREA NEEDS A CONNECTION' : st.area === false ? 'NO TRACT ON RECORD HERE' : 'READING CENSUS...', 2, y + 1, { a: 0.6, c: st.aErr ? C.amber : C.ink }); y += 10; }
+      else {
+        const t = st.area.tract, c = st.area.county || {}, vs = (a, b) => RX.area.vs(a, b) ? RX.area.vs(a, b) + ' VS CO' : '';
+        g.text(g.fit(t.name.toUpperCase(), W - 4), 2, y + 1, { c: C.hot }); y += 11;
+        kv('INCOME', RX.area.money(t.income) + '  ' + vs(t.income, c.income), { c: C.hot });
+        kv('HOME', RX.area.money(t.home) + '  ' + vs(t.home, c.home));
+        kv('RENT', RX.area.money(t.rent) + '/MO  ' + vs(t.rent, c.rent));
+        kv('PEOPLE', (t.pop || 0).toLocaleString('en-US') + (t.sqmi ? ' · ' + Math.round(t.pop / t.sqmi).toLocaleString('en-US') + '/SQ MI' : '') + ' · AGE ' + t.age);
+        kv('HOUSING', (t.units || 0).toLocaleString('en-US') + ' UNITS · ' + Math.round(t.own || 0) + '% OWNED · ' + (t.units ? Math.round(t.vacant / t.units * 100) : 0) + '% VACANT');
+        kv('COUNTY', (st.area.countyName || '').toUpperCase() + ' · INC ' + RX.area.money(c.income) + ' · HOME ' + RX.area.money(c.home));
+      }
       y += 3;
       const bw = Math.floor((W - 6) / 2);
       g.btn(0, y, bw, 13, 'COUNTY RECORD ▸', () => window.open(P().recordUrl(r), '_blank'), { face: 'mini' });
-      g.btn(bw + 4, y, W - 6 - bw, 13, 'SHOW ON MAP ▸', () => { A.home(); A.go('lot', { lat: r.at[0], lng: r.at[1] }); }, { face: 'mini' });
+      g.btn(bw + 4, y, W - 6 - bw, 13, 'TAX CHECK ▸', () => taxCheck(A, r), { face: 'mini' });
+      y += 16;
+      g.btn(0, y, W - 2, 13, 'SHOW ON MAP ▸', () => { A.home(); A.go('lot', { lat: r.at[0], lng: r.at[1] }); }, { face: 'mini' });
       y += 16;
       if (!prm.markId) { g.btn(0, y, W - 2, 13, '+ SAVE AS A MARK', () => lotToMark(A, r, r.at[0], r.at[1]), { face: 'mini' }); y += 16; }
       y += 3;
@@ -1646,4 +1745,33 @@ window.RX = window.RX || {};
     }
   };
 
+
+  // ---------- the LCD per mode: each screen says what its glance strip shows ----------
+  const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  RX.screens.fast.lcd = () => {
+    const f = S.activeFast(), fs = S.fastStreak();
+    if (!f) return { rows: [['FAST', 'NONE RUNNING'], ['STRK', fs.current + ' · BEST ' + fs.best], ['LAST', fs.daysSinceLast != null ? fs.daysSinceLast.toFixed(1) + ' DAYS AGO' : '--']], tag: 'FST' };
+    const el = Date.now() - f.startTs;
+    return { rows: [['TIME', F.dur(el)], ['DAY', String(f.dayNum) + ' · STREAK ' + fs.current], ['FROM', F.hm(f.startTs)]], tag: 'FST' };
+  };
+  RX.screens.log.lcd = () => {
+    const t0 = dayStart(), today = S.journal.filter(j => j.ts >= t0).length;
+    return { rows: [['MRKS', String(S.pois.length)], ['PEND', String(S.pending().length)], ['TODY', today + ' ENTRIES']], tag: 'LOG' };
+  };
+  RX.screens.mark.lcd = (st, A) => {
+    const p = S.poi(st.id); if (!p) return null;
+    const from = A.gps || { lat: M.lat, lng: M.lng }, m = Geo.meters(from.lat, from.lng, p.lat, p.lng), b = Geo.bearing(from.lat, from.lng, p.lat, p.lng);
+    const r = p.parcel, third = r && r.traffic ? ['TRAF', RX.traffic.k(r.traffic.aadt) + '/DAY ' + r.traffic.road] : r && r.area ? ['INC', RX.area.money(r.area.income) + ' ' + RX.area.vs(r.area.income, r.area.cIncome) + ' CO'] : ['VSTS', '×' + F.pad2(p.visits || 0)];
+    return { rows: [['DST', Geo.fmtDist(m) + ' ' + Geo.cardinal(b) + ' ' + String(Math.round(b) % 360).padStart(3, '0') + '°'], r ? ['OWNR', r.owner || '--'] : ['NAME', S.markLabel(p)], third], tag: 'MRK' };
+  };
+  RX.screens.refentry.lcd = (st, A) => {
+    const P = A.top().params; if (!REF.data.aid) return null;
+    const aid = P.kind === 'aid', list = aid ? REF.data.aid.items : REF.data.knots.items, it = list.find(x => x.id === P.id) || list[0];
+    return { rows: [[aid ? 'AID' : 'KNOT', (list.indexOf(it) + 1) + '/' + list.length], ['', it.title], aid && it.call ? ['', it.call] : ['', '']], tag: 'REF' };
+  };
+  RX.screens.menu.lcd = (st, A) => {
+    const g = A.gps;
+    let kb = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); kb += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch (e) {}
+    return { rows: [['GPS', g && g.acc != null ? '±' + Math.round(g.acc * 3.28084) + ' FT' : 'NO FIX'], ['MEM', Math.round(kb / 1024) + ' KB · ' + S.pois.length + ' MRK'], ['VER', 'R.OS ' + RX.VERSION]], tag: 'SYS' };
+  };
 })();

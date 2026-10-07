@@ -179,6 +179,7 @@ window.RX = window.RX || {};
     const j = sc.jogLabels ? sc.jogLabels(A.top().st, A) : (mapMode ? ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP']);
     if (!mapMode) $('jogVal').textContent = 'Z' + (Math.round(M.zoom * 2) / 2);
     $('jogL').textContent = j[0]; $('jogR').textContent = j[1]; $('jogFoot').textContent = j[2];
+    A.lcdDirty = true;
     setTray(false);
   }
   A.refreshChrome = applyMode;
@@ -343,6 +344,8 @@ window.RX = window.RX || {};
   }));
   $('lcdBtn').addEventListener('click', () => {
     A.wake(); A.beep('key');
+    const sc = A.screen();
+    if (sc.lcdTap) { sc.lcdTap(A.top().st, A); A.lcdMsg = null; A.lcdDirty = true; A.dirty = true; return; }
     const order = ['region', 'nav', 'target'];
     A.disp = order[(order.indexOf(A.disp) + 1) % order.length];
     A.dispBeforeRecall = null;
@@ -426,19 +429,24 @@ window.RX = window.RX || {};
   // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   const DRUM_ART = (id, lit) => 'url(keys/drum-' + id + (lit ? '-lit' : '') + '.jpg?v=1)';
-  ['menu', 'scan', 'filter', 'back', 'undo'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
+  ['menu', 'scan', 'filter', 'back', 'undo', 'lot', 'traffic', 'area'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
+  // a screen can claim the drum: sc.drum = three page ids. Rolling picks the page (st.page); pressing still goes BACK.
+  const modeDrum = () => { const sc = A.screen(); return !A.assign && A.stack.length > 1 && sc.drum ? sc.drum : null; };
+  A.drumPage = () => { const md = modeDrum(); return md ? md[mod(A.drumRot, 3)] : null; };
   function updateDrum() {
     const face = mod(A.drumRot, 3);
     const atHome = A.stack.length <= 1;
-    paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE));
+    const md = modeDrum();
+    if (md) md.forEach((id, k) => { faceArt[k] = id; });
+    else { faceArt[1] = 'scan'; faceArt[2] = 'filter'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
-    const id = face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
+    const id = md ? md[face].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
   A.updateDrum = updateDrum;
   function setDrumAngle(extra) { rotor.style.transform = 'rotateX(' + (-A.drumRot * 120 + (extra || 0)) + 'deg)'; }
-  const canRoll = () => A.booted && A.stack.length <= 1 && !A.assign && !A.pick;
+  const canRoll = () => A.booted && !A.assign && !A.pick && (A.stack.length <= 1 || !!modeDrum());
   function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => A.beep('thunk', level), 190); }
   A.drumRoll = function (dir, quiet) {
     A.wake();
@@ -457,6 +465,15 @@ window.RX = window.RX || {};
     onFace(true);
   };
   function onFace(silent) {
+    const md = modeDrum();
+    if (md) {
+      const top = A.top(), sc = A.screen(), pg = md[mod(A.drumRot, 3)];
+      top.st.page = pg;
+      if (sc.onPage) sc.onPage(pg, top.st, A);
+      if (!silent) A.say('DRUM ▸ ' + pg.toUpperCase(), 1600);
+      updateDrum(); applyMode(); A.lcdDirty = true; A.dirty = true;
+      return;
+    }
     const id = A.drumFace();
     if (id === 'SCAN') { buildScan(); if (!silent) sayScan('SCAN'); }
     else { A.scan = null; }
@@ -469,9 +486,13 @@ window.RX = window.RX || {};
   // leaving the map parks the drum on MENU (it reads BACK there); coming home restores it
   function drumOnModeChange() {
     const atHome = A.stack.length <= 1;
-    if (!atHome && mod(A.drumRot, 3) !== 0) {
-      A.drumSaved = { rot: A.drumRot, scan: A.scan };
-      A.drumRot += mod(A.drumRot, 3) === 1 ? -1 : 1; setDrumAngle(0);
+    if (!atHome) {
+      if (!A.drumSaved) A.drumSaved = { rot: A.drumRot, scan: A.scan };
+      const md = modeDrum(), st = A.top().st;
+      const want = md ? Math.max(0, md.indexOf(st.page || md[0])) : 0;
+      const cur = mod(A.drumRot, 3);
+      if (cur !== want) { A.drumRot += mod(want - cur, 3) === 1 ? 1 : -1; setDrumAngle(0); }
+      if (md && !st.page) st.page = md[0];
     } else if (atHome && A.drumSaved) {
       const sv = A.drumSaved; A.drumSaved = null;
       A.drumRot = sv.rot; A.scan = sv.scan; setDrumAngle(0); landThunk(0.6);
@@ -535,7 +556,7 @@ window.RX = window.RX || {};
   })();
   // drift home after a minute untouched
   setInterval(() => {
-    if (!canRoll() || A.drumFace() === 'MENU') return;
+    if (!canRoll() || A.stack.length > 1 || A.drumFace() === 'MENU') return;
     if (Date.now() - A.drumTouched > 60000) { A.drumTo('MENU', true); landThunk(0.6); A.say('DRUM ▸ MENU', 1800); }
   }, 2000);
 
@@ -1000,12 +1021,14 @@ window.RX = window.RX || {};
 
   // ---------- LCD readout (STN) ----------
   function renderLcd() {
+    let scLcd = null;
     const m = A.lcd;
     m.clear();
     const ink = '#1B281F';
     let rows;
     if (A.lcdMsg && Date.now() < A.lcdMsg.until) rows = A.lcdMsg.rows;
     else if (!A.booted) rows = [['SYS', 'SELF TEST'], ['MEM', S.pois.length + ' MARKS'], ['FOG', U.F.num(S.fog.size) + ' CELLS']];
+    else if (A.screen().lcd && (scLcd = A.screen().lcd(A.top().st, A))) { rows = scLcd.rows; }
     else if (A.stack.length <= 1 && A.drumFace() === 'SCAN' && A.scanItem()) {
       const it = A.scanItem(), from = A.gps || { lat: M.lat, lng: M.lng };
       const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
@@ -1041,7 +1064,7 @@ window.RX = window.RX || {};
       m.text(RX.font.fit(r[1], m.cols - vx - 2), vx, y, { c: ink });
     });
     const df = A.stack.length <= 1 ? A.drumFace() : 'MENU';
-    const tag = df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'FILTER' ? 'FLT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
+    const tag = scLcd ? (scLcd.tag || '') : df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'FILTER' ? 'FLT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
     if (A.booted) m.text(tag, m.cols - 13, m.rows - 6, { face: 'mini', c: ink, a: 0.4 });
     m.present();
   }
