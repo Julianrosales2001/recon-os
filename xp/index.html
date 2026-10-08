@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XP-1000 · R.OS</title>
+<meta name="theme-color" content="#0B1112">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/xp-icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/xp-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="xp.css?v=1.0.0">
+</head>
+<body>
+<div id="stage">
+ <div class="shell">
+
+  <div class="band">
+    <span class="screw"></span>
+    <div class="brand">
+      <div class="brand-row">
+        <svg viewBox="-12 0 350 100" class="logo" role="img" aria-label="XP"><defs><clipPath id="xpC"><rect x="-60" y="-10" width="460" height="56"/><rect x="-60" y="51" width="460" height="60"/></clipPath></defs><g transform="skewX(-14) translate(14 0)" fill="#DCEBDD"><path clip-path="url(#xpC)" d="M0 0H34L152 100H118ZM118 0H152L34 100H0Z"/><path clip-path="url(#xpC)" fill-rule="evenodd" d="M170 0H298A22 22 0 0 1 320 22V42A22 22 0 0 1 298 64H198V100H170ZM198 25H287A7 7 0 0 1 287 39H198Z"/></g></svg>
+        <span class="model">XP-1000</span>
+      </div>
+      <div class="tagline">FIELD CARTOGRAPHY CONSOLE <span class="jp">偵察端末</span></div>
+    </div>
+    <span class="vents"></span>
+    <div class="win lcdwin"><div class="lcd" id="lcdHost" role="status" aria-live="polite"><span class="sr" id="lcdText"></span><span class="glare"></span></div></div>
+    <div class="win vfdwin"><div class="vfd" id="clockHost" role="img" aria-label="Clock"></div></div>
+    <div class="lamps" id="lamps"></div>
+    <span class="screw"></span>
+  </div>
+
+  <div class="face">
+    <div class="bezel"><div id="screenHost" class="screen" role="img" aria-label="R.OS screen"></div></div>
+    <div class="softrow" id="softRow"></div>
+  </div>
+
+  <div class="gutter"></div>
+
+  <div class="deck">
+    <div class="well">
+      <div class="wl"><span>1–6</span><span class="jp">類別</span></div>
+      <div class="grid3" id="presets"></div>
+    </div>
+    <div class="well">
+      <div class="wl"><span>Q–I</span><span class="jp">道具</span></div>
+      <div class="grid4" id="tools"></div>
+    </div>
+    <div class="well toggles">
+      <div class="tog"><span class="glyph" id="hiGlyph">◐</span><button class="key t" id="togHi" type="button" aria-label="High-contrast switch" aria-pressed="false"><span class="stk"><img src="keys/tog-hicon.png" alt="" class="off"><img src="keys/tog-hicon-on.png" alt="" class="on"></span></button><span class="tl">HI-CON</span></div>
+      <div class="tog"><span class="glyph" id="scGlyph">◎</span><button class="key t" id="togScout" type="button" aria-label="Scout switch" aria-pressed="false"><span class="stk"><img src="keys/tog-scout.png" alt="" class="off"><img src="keys/tog-scout-on.png" alt="" class="on"></span></button><span class="tl">SCOUT</span></div>
+    </div>
+    <div class="knobwrap">
+      <button class="kl" id="kDrive" type="button">DRIVE</button>
+      <button class="kl" id="kRecon" type="button">RECON</button>
+      <button class="kl" id="kDesk" type="button">DESK</button>
+      <span class="tick t-drive"></span><span class="tick t-recon"></span><span class="tick t-desk"></span>
+      <button class="key knob" id="knob" type="button" aria-label="Layout knob: turn to the next layout (Tab)"><span class="stk"><img src="keys/knob-drive.png" alt="" data-m="drive"><img src="keys/knob-recon.png" alt="" data-m="recon"><img src="keys/knob-desk.png" alt="" data-m="desk"></span></button>
+    </div>
+    <div class="markwrap">
+      <button class="key mk" id="mark" type="button" aria-label="Mark this spot (Space)"><span class="stk"><img src="keys/mark-base.png" alt=""><img src="keys/mark-cap.png" alt="" class="cap m"><img src="keys/mark-cap-lit.png" alt="" class="cap m l"><img src="keys/mark-ring.png" alt=""><img src="keys/mark-ring-lit.png" alt="" class="l"></span></button>
+      <span class="jp mkl">記録</span>
+    </div>
+  </div>
+
+  <div class="foot"><span>XP-1000 · R.OS <span id="ver"></span> · PROPERTY OF JAR · <span class="jp">測地班</span></span><span>KEYS 1–6 · Q–I · A–K · TAB · SPACE · ARROWS · +/− · 0 LOCATE · ` FULL SCREEN</span></div>
+ </div>
+</div>
+<input type="file" id="fileImport" accept="application/json,.json" hidden>
+
+<script>
+  // XP reads the RP's data files from the phone app's folder
+  (function () { const f = window.fetch.bind(window); window.fetch = (u, o) => f(typeof u === 'string' && /^(data|ref)\//.test(u) ? '../v2/' + u : u, o); })();
+  window.RX = window.RX || {}; window.XP = { VERSION: '1.0.0' };
+</script>
+<script src="../v2/js/font.js?v=2.13.0"></script>
+<script src="../v2/js/geo.js?v=2.13.0"></script>
+<script src="../v2/js/store.js?v=2.13.0"></script>
+<script src="../v2/js/map.js?v=2.13.0"></script>
+<script src="../v2/js/parcel.js?v=2.13.0"></script>
+<script src="../v2/js/traffic.js?v=2.13.0"></script>
+<script src="../v2/js/area.js?v=2.13.0"></script>
+<script src="../v2/js/ui.js?v=2.13.0"></script>
+<script>window.XP.VERSION = '1.0.0';</script>
+<script src="js/xpgfx.js?v=1.0.0"></script>
+<script src="js/xp.js?v=1.0.0"></script>
+<script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
+</body>
+</html>

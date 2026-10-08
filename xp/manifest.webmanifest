@@ -1,0 +1,16 @@
+{
+  "name": "XP-1000 · R.OS",
+  "short_name": "XP-1000",
+  "description": "R.OS field console for the laptop: DRIVE, RECON and DESK on one dot-matrix screen.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0B1112",
+  "theme_color": "#0B1112",
+  "icons": [
+    { "src": "icons/xp-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/xp-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/xp-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
