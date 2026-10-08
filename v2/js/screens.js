@@ -1757,10 +1757,17 @@ window.RX = window.RX || {};
       RX.area.cityAt(lat, lng).then(v => { st.city = v; }).catch(() => { st.cErr = 'NET'; })
     ]).then(() => { st.aBusy = false; A.dirty = true; A.lcdDirty = true; });
   }
-  const SCALES = ['tract', 'city', 'county'];
+  const SCALES = ['tract', 'city', 'county', 'state'];
+  // what each scale compares itself against, and the short name for it
+  function scaleRef(cy, sc) {
+    const st = cy.stateCode || 'ST';
+    if (sc === 'city') return cy.inTX ? { o: cy.place, ref: cy.county, n: 'CO', long: 'COUNTY' } : { o: cy.place, ref: cy.state, n: st, long: st };
+    if (sc === 'county') return { o: cy.county, ref: cy.state, n: st, long: st };
+    return { o: cy.state, ref: cy.us, n: 'US', long: 'US' };
+  }
   const kfmt = n => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : n.toLocaleString('en-US');
   const i2c = i => i === 0 ? C.hot : C.ink;
-  const gk = n => n == null ? '—' : n >= 1e7 ? (n / 1e6).toFixed(1) + 'M' : kfmt(n);
+  const gk = n => n == null ? '—' : n >= 1e8 ? Math.round(n / 1e6) + 'M' : n >= 1e7 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e5 && n < 1e6 ? Math.round(n / 1e3) + 'K' : kfmt(n);
   const gm = n => n == null || n < 0 ? '—' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n);
   const vacPct = o => o && o.units ? Math.round(o.vacant / o.units * 100) + '%' : '—';
   function cityOutline(g, A, p) {
@@ -1773,7 +1780,8 @@ window.RX = window.RX || {};
     const p = st.city && st.city.place;
     if (sc === 'tract') { if (M.zoom < 13 || M.zoom > 15) M.setView(M.lat, M.lng, 14); }
     else if (sc === 'city') M.setView(M.lat, M.lng, p ? (p.sqmi < 15 ? 13 : p.sqmi < 60 ? 12 : p.sqmi < 250 ? 11 : 10) : 12);
-    else M.setView(M.lat, M.lng, 10);
+    else if (sc === 'county') M.setView(M.lat, M.lng, 10);
+    else M.setView(M.lat, M.lng, 7);
     A.say('AREA ▸ ' + sc.toUpperCase(), 1500); A.lcdDirty = true; A.dirty = true;
   }
   function areaOutline(g, A, area) {
@@ -1816,12 +1824,14 @@ window.RX = window.RX || {};
       }
       const sc = st.scale || 'tract', cy = st.city;
       if (sc !== 'tract') {
-        const tag = sc === 'city' ? 'CTY' : 'CNT';
-        if (!cy) return { rows: [[sc === 'city' ? 'CITY' : 'CNTY', st.aBusy ? 'READING...' : (st.cErr ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['POP', '--']], tag };
-        const o = sc === 'city' ? cy.place : cy.county, ref = sc === 'city' ? cy.county : cy.state, refN = sc === 'city' ? ' CO' : ' TX';
+        const tag = { city: 'CTY', county: 'CNT', state: 'STA' }[sc], lab = { city: 'CITY', county: 'CNTY', state: 'STAT' }[sc];
+        if (!cy) return { rows: [[lab, st.aBusy ? 'READING...' : (st.cErr ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['POP', '--']], tag };
+        const R = scaleRef(cy, sc), o = R.o, ref = R.ref, refN = ' ' + R.n;
+        if (!o && sc === 'county') return { rows: [['CNTY', (cy.countyName || '--').replace(/ County$/i, '').toUpperCase()], ['', cy.inTX ? 'NO FIGURES' : 'TEXAS ONLY FOR NOW'], ['', 'TAP LCD ▸ STATE']], tag };
+        if (!o && sc === 'state') return { rows: [['STAT', (cy.stateName || '--').toUpperCase()], ['', 'NO FIGURES'], ['', '']], tag };
         if (!o) return { rows: [['CITY', 'UNINCORPORATED'], ['CNTY', (cy.countyName || '--').replace(/ County$/i, '').toUpperCase()], ['', 'TAP LCD ▸ COUNTY']], tag };
-        if (sc === 'city' && !o.stats) return { rows: [['CITY', o.name.toUpperCase()], ['', 'NO CENSUS FIGURES'], ['', '']], tag };
-        return { rows: [[sc === 'city' ? 'CITY' : 'CNTY', o.name.replace(/ County$/i, '').toUpperCase() + (o.cdp ? ' (UNINC)' : '')], ['INC', RX.area.money(o.income) + ' ' + RX.area.vs(o.income, ref && ref.income) + refN], ['POP', kfmt(o.pop) + ' ' + RX.area.growth(o.growth) + ' 5Y']], tag };
+        if (sc === 'city' && !o.stats) return { rows: [['CITY', o.name.toUpperCase()], ['', cy.inTX ? 'NO CENSUS FIGURES' : 'FIGURES: 100K+ CITIES'], ['', '']], tag };
+        return { rows: [[lab, o.name.replace(/ County$/i, '').replace(/, .*$/, '').toUpperCase() + (o.cdp ? ' (UNINC)' : '')], ['INC', RX.area.money(o.income) + ' ' + RX.area.vs(o.income, ref && ref.income) + refN], ['POP', kfmt(o.pop) + ' ' + RX.area.growth(o.growth) + ' 5Y']], tag };
       }
       const a = st.area, t = a && a.tract, c = a && a.county;
       if (!t) return { rows: [['TRCT', st.aBusy ? 'READING...' : (st.aErr === 'NET' ? 'NO SIGNAL' : 'PUSH TO READ')], ['INC', '--'], ['HOME', '--']], tag: 'TRC' };
@@ -1848,7 +1858,7 @@ window.RX = window.RX || {};
       if (pg === 'area') { if (scl === 'tract') areaOutline(g, A, st.area); else if (scl === 'city') cityOutline(g, A, st.city && st.city.place); }
       lotOutline(g, A, st.res, { dim: pg !== 'lot' });
       if (pg === 'traffic') trafficLayer(g, A, st);
-      hud(g, A, ({ lot: 'LOT · COUNTY RECORDS', traffic: 'TRAFFIC · CARS PER DAY', area: 'AREA · ' + ({ tract: 'CENSUS TRACT', city: 'CITY', county: 'COUNTY' })[scl] })[pg]);
+      hud(g, A, ({ lot: 'LOT · COUNTY RECORDS', traffic: 'TRAFFIC · CARS PER DAY', area: 'AREA · ' + ({ tract: 'CENSUS TRACT', city: 'CITY', county: 'COUNTY', state: 'STATE' })[scl] })[pg]);
       // page tabs: which drum face is up
       const tw = Math.floor((W - 2) / 3);
       mx.clearRect(0, 12, W, 9);
@@ -1887,24 +1897,34 @@ window.RX = window.RX || {};
           g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ NEXT ROAD', () => { st.tPick = (st.tPick || 0) + 1; A.lcdDirty = true; }, { face: 'mini' });
         }
       } else if (scl !== 'tract') {
-        const cy0 = st.city, o = cy0 && (scl === 'city' ? cy0.place : cy0.county), ref = cy0 && (scl === 'city' ? cy0.county : cy0.state), refN = scl === 'city' ? 'COUNTY' : 'TEXAS';
-        const nextBtn = () => g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ ' + SCALES[(SCALES.indexOf(scl) + 1) % 3].toUpperCase(), () => { setScale(st, A, SCALES[(SCALES.indexOf(scl) + 1) % 3]); }, { face: 'mini' });
+        const cy0 = st.city, R = cy0 ? scaleRef(cy0, scl) : {}, o = R.o, ref = R.ref, refN = R.long;
+        const nxt = SCALES[(SCALES.indexOf(scl) + 1) % SCALES.length];
+        const nextBtn = () => g.btn(7 + bw, cy + 29, bw, 12, 'LCD ▸ ' + nxt.toUpperCase(), () => { setScale(st, A, nxt); }, { face: 'mini' });
         if (!cy0) g.textC(st.aBusy ? 'READING CENSUS...' : (st.cErr ? 'NO SIGNAL · AREA NEEDS A CONNECTION' : 'PUSH THE JOG TO READ THIS AREA'), W / 2, cy + 18, { a: 0.7, c: st.cErr ? C.amber : C.ink });
-        else if (!o) {
+        else if (!o && scl !== 'city') {
+          g.text(g.fit((scl === 'county' ? (cy0.countyName || 'COUNTY') : (cy0.stateName || 'STATE')).toUpperCase(), W - 8), 4, cy + 3, { c: C.hot });
+          g.mini(scl === 'county' && !cy0.inTX ? 'COUNTY FIGURES COVER TEXAS ONLY FOR NOW' : 'NO FIGURES ON FILE FOR THIS ' + scl.toUpperCase(), 4, cy + 13, { a: 0.75 });
+          g.mini('STATE AND 100K+ CITY FIGURES COVER THE WHOLE US', 4, cy + 21, { a: 0.55 });
+          nextBtn();
+        } else if (!o) {
           g.text('UNINCORPORATED', 4, cy + 3, { c: C.hot });
           g.mini(g.fit('NOT INSIDE ANY CITY OR CENSUS COMMUNITY · ' + (cy0.countyName || '').toUpperCase() + ' RULES HERE', W - 8, 'mini'), 4, cy + 13, { a: 0.8 });
           g.mini('NO CITY ZONING OR CITY TAX · CHECK COUNTY RULES', 4, cy + 21, { a: 0.6 });
           nextBtn();
         } else if (scl === 'city' && !o.stats) {
           g.text(g.fit(o.full.toUpperCase(), W - 8), 4, cy + 3, { c: C.hot });
-          g.mini('NO CENSUS FIGURES FOR THIS PLACE IN THE ' + cy0.year + ' FILE', 4, cy + 13, { a: 0.7 });
+          g.mini(cy0.inTX ? 'NO CENSUS FIGURES FOR THIS PLACE IN THE ' + cy0.year + ' FILE' : 'OUTSIDE TEXAS, CITY FIGURES COVER 100K+ CITIES', 4, cy + 13, { a: 0.7 });
+          g.mini('TAP LCD ▸ COUNTY · STATE', 4, cy + 21, { a: 0.55 });
           nextBtn();
         } else {
-          const nm = scl === 'city' ? o.name.toUpperCase() + (o.cdp ? ' · UNINC. COMMUNITY' : ' · CITY') + ' · ' + (cy0.countyName || '').replace(/ County$/i, '').toUpperCase() + ' CO' : o.name.toUpperCase() + ' · TEXAS';
+          const nm = scl === 'city' ? o.name.toUpperCase() + (o.cdp ? ' · UNINC. COMMUNITY' : ' · CITY') + ' · ' + (cy0.countyName || '').replace(/ County$/i, '').toUpperCase() + ' CO' : scl === 'county' ? o.name.toUpperCase() + ' · ' + (cy0.stateName || '').toUpperCase() : o.name.toUpperCase() + ' · STATE';
           g.text(g.fit(nm, W - 8), 4, cy + 3, { c: C.hot });
           g.mini(g.fit(kfmt(o.pop) + ' PEOPLE (' + RX.area.growth(o.growth) + ' SINCE ' + cy0.prior + ') · INCOME ' + RX.area.money(o.income) + ' (' + RX.area.vs(o.income, ref && ref.income) + ' VS ' + refN + ')', W - 8, 'mini'), 4, cy + 13, { a: 0.85 });
-          const crm = cy0.crime, ca = crm && scl === 'city' ? crm.place : null, crimeTxt = ca && ca[1] ? 'CRIME ' + (ca[2] / ca[1] * 1000).toFixed(1) + ' VIOLENT · ' + Math.round(ca[3] / ca[1] * 1000) + ' PROPERTY /1K (TX ' + crm.state.v.toFixed(1) + ' · ' + Math.round(crm.state.p) + ')' : null;
-          g.mini(g.fit(crimeTxt || ('HOME ' + RX.area.money(o.home) + ' (' + RX.area.vs(o.home, ref && ref.home) + ') · RENT ' + RX.area.money(o.rent) + ' · ' + Math.round(o.own || 0) + '% OWN · ' + vacPct(o) + ' VACANT · AGE ' + o.age), W - 8, 'mini'), 4, cy + 21, { a: 0.7, c: ca && crm.state && ca[2] / ca[1] * 1000 > crm.state.v ? C.amber : C.ink });
+          // crime: the city's police department vs its state; the state vs the US
+          const crm = cy0.crime, ca = crm && scl === 'city' && crm.place && crm.place[1] ? { v: crm.place[2] / crm.place[1] * 1000, p: crm.place[3] / crm.place[1] * 1000 } : (crm && scl === 'state' ? crm.state : null);
+          const cref = crm && (scl === 'city' ? crm.state : crm.us), cn = scl === 'city' ? (cy0.stateCode || 'ST') : 'US';
+          const crimeTxt = ca ? 'CRIME ' + ca.v.toFixed(1) + ' VIOLENT · ' + Math.round(ca.p) + ' PROPERTY /1K' + (cref ? ' (' + cn + ' ' + cref.v.toFixed(1) + ' · ' + Math.round(cref.p) + ')' : '') : null;
+          g.mini(g.fit(crimeTxt || ('HOME ' + RX.area.money(o.home) + ' (' + RX.area.vs(o.home, ref && ref.home) + ') · RENT ' + RX.area.money(o.rent) + ' · ' + Math.round(o.own || 0) + '% OWN · ' + vacPct(o) + ' VACANT · AGE ' + o.age), W - 8, 'mini'), 4, cy + 21, { a: 0.7, c: ca && cref && ca.v > cref.v ? C.amber : C.ink });
           g.btn(3, cy + 29, bw, 12, 'FULL PROFILE ▸', () => A.go('areainfo', { lat: M.lat, lng: M.lng, area: st.area, city: st.city }), { face: 'mini' });
           nextBtn();
         }
@@ -1944,7 +1964,7 @@ window.RX = window.RX || {};
       g.mini(g.fit([t && t.name.toUpperCase(), cy0 && cy0.countyName && cy0.countyName.toUpperCase(), p && p.sqmi ? (p.sqmi < 10 ? p.sqmi.toFixed(1) : Math.round(p.sqmi)) + ' SQ MI' : null].filter(Boolean).join(' · '), W - 4, 'mini'), 1, y + 1, { a: 0.6 }); y += 10;
       // the grid: one row per figure, one column per scale
       const tm = cy0 && cy0.tractMore, tcol = t ? Object.assign({}, t, tm || {}) : (tm || null);
-      const cols = [['TRACT', tcol], ['CITY', p && p.stats ? p : null], ['COUNTY', co], ['TEXAS', tx]];
+      const cols = cy0 && !cy0.inTX ? [['TRACT', tcol], ['CITY', p && p.stats ? p : null], [cy0.stateCode || 'STATE', tx], ['US', cy0.us]] : [['TRACT', tcol], ['CITY', p && p.stats ? p : null], ['COUNTY', co], ['TEXAS', tx]];
       const lw = 30, cw = Math.floor((W - 2 - lw) / 4);
       cols.forEach((c, i) => g.miniR(c[0], lw + cw * (i + 1) - 2, y + 1, { a: c[1] ? 0.8 : 0.35 }));
       y += 8; mx.hline(0, y, W, C.ink, 0.25, 2); y += 2;
@@ -1993,26 +2013,29 @@ window.RX = window.RX || {};
       y = g.section('SAFETY · CRIMES PER 1,000', y + 2, crm ? 'FBI · ' + crm.year : 'FBI');
       if (!crm) { g.mini(cy0 ? 'CRIME FILE NOT LOADED' : 'READING...', 2, y + 1, { a: 0.6 }); y += 10; }
       else {
-        const rate = (a, n, pi) => a && a[pi] ? a[n] / a[pi] * 1000 : null;
-        const ccols = [['CITY PD', crm.place], ['SHERIFF', crm.county], ['TEXAS', null]];
+        // columns: a police department (an agency's yearly counts) or a published rate (state, US)
+        const ag2 = a => a && a[1] ? { v: a[2] / a[1] * 1000, p: a[3] / a[1] * 1000, v20: a[4] ? a[5] / a[4] * 1000 : null, p20: a[4] ? a[6] / a[4] * 1000 : null } : null;
+        const stc = cy0.stateCode || 'STATE';
+        const ccols = cy0.inTX ? [['CITY PD', ag2(crm.place)], ['SHERIFF', ag2(crm.county)], ['TEXAS', crm.state]] : [['CITY PD', ag2(crm.place)], [stc, crm.state], ['US', crm.us]];
+        const benchmark = cy0.inTX ? crm.state : crm.state;
         const cw2 = Math.floor((W - 2 - lw) / 3);
-        ccols.forEach((c, i) => g.miniR(c[0], lw + cw2 * (i + 1) - 2, y + 1, { a: (c[1] || i === 2) ? 0.8 : 0.35 }));
+        ccols.forEach((c, i) => g.miniR(c[0], lw + cw2 * (i + 1) - 2, y + 1, { a: c[1] ? 0.8 : 0.35 }));
         y += 8; mx.hline(0, y, W, C.ink, 0.25, 2); y += 2;
         const f1 = v => v == null ? '—' : v < 10 ? v.toFixed(1) : String(Math.round(v));
-        const tr = (a, n0, p0, n1, p1) => { const r1 = rate(a, n0, p0), r0 = rate(a, n1, p1); return r1 != null && r0 ? (r1 >= r0 ? '+' : '') + Math.round((r1 - r0) / r0 * 100) + '%' : '—'; };
-        [['VIOLENT', a => rate(a, 2, 1), crm.state.v], ['PROPERTY', a => rate(a, 3, 1), crm.state.p]].forEach(r => {
+        const chg = (a, b) => a != null && b ? (a >= b ? '+' : '') + Math.round((a - b) / b * 100) + '%' : '—';
+        [['VIOLENT', 'v'], ['PROPERTY', 'p']].forEach(r => {
           g.mini(r[0], 1, y + 2, { a: 0.6 });
-          ccols.forEach((c, i) => { const v = i === 2 ? r[2] : (c[1] ? r[1](c[1]) : null); const hot = i === 0 && v != null && crm.state && v > r[2]; g.textR(f1(v), lw + cw2 * (i + 1) - 2, y + 1, { c: hot ? C.amber : (i === 0 && v != null ? C.hot : C.ink), a: v == null ? 0.35 : 1 }); });
+          ccols.forEach((c, i) => { const v = c[1] ? c[1][r[1]] : null; const hot = i === 0 && v != null && benchmark && v > benchmark[r[1]]; g.textR(f1(v), lw + cw2 * (i + 1) - 2, y + 1, { c: hot ? C.amber : (i === 0 && v != null ? C.hot : C.ink), a: v == null ? 0.35 : 1 }); });
           y += 10;
         });
-        [['V VS ' + String(crm.prior).slice(2), 2, 1, 5, 4, 'v', 'v20'], ['P VS ' + String(crm.prior).slice(2), 3, 1, 6, 4, 'p', 'p20']].forEach(r => {
+        [['V VS ' + String(crm.prior).slice(2), 'v'], ['P VS ' + String(crm.prior).slice(2), 'p']].forEach(r => {
           g.mini(r[0], 1, y + 2, { a: 0.6 });
-          ccols.forEach((c, i) => { const v = i === 2 ? ((crm.state[r[5]] - crm.state[r[6]]) / crm.state[r[6]] >= 0 ? '+' : '') + Math.round((crm.state[r[5]] - crm.state[r[6]]) / crm.state[r[6]] * 100) + '%' : (c[1] ? tr(c[1], r[1], r[2], r[3], r[4]) : '—'); g.textR(v, lw + cw2 * (i + 1) - 2, y + 1, { a: v === '—' ? 0.35 : 0.9 }); });
+          ccols.forEach((c, i) => { const v = c[1] ? chg(c[1][r[1]], c[1][r[1] + '20']) : '—'; g.textR(v, lw + cw2 * (i + 1) - 2, y + 1, { a: v === '—' ? 0.35 : 0.9 }); });
           y += 10;
         });
-        const ag = [crm.place ? crm.place[0] + (crm.place[7] < 12 ? ' (' + crm.place[7] + ' MO REPORTED)' : '') : (p ? (p.cdp ? p.name.toUpperCase() + ' IS UNINCORPORATED · THE SHERIFF POLICES IT' : 'NO POLICE DEPT REPORTS FOR ' + p.name.toUpperCase()) : 'NOT IN A CITY · THE SHERIFF POLICES HERE'), crm.county ? crm.county[0] + ' · UNINCORPORATED AREAS ONLY' : null].filter(Boolean);
+        const ag = [crm.place ? crm.place[0] + (crm.place[7] < 12 ? ' (' + crm.place[7] + ' MO REPORTED)' : '') : (p ? (p.cdp ? p.name.toUpperCase() + ' IS UNINCORPORATED · THE COUNTY POLICES IT' : (cy0.inTX ? 'NO POLICE DEPT REPORTS FOR ' : 'CITY CRIME COVERS 100K+ CITIES · NOT ') + p.name.toUpperCase()) : 'NOT IN A CITY · THE COUNTY POLICES HERE'), crm.county ? crm.county[0] + ' · UNINCORPORATED AREAS ONLY' : null].filter(Boolean);
         ag.forEach(l => U.wrap(l.toUpperCase(), Math.floor((W - 6) / 4)).forEach(x => { g.mini(x, 2, y + 1, { a: 0.5 }); y += 7; }));
-        g.mini('AMBER = ABOVE THE TEXAS RATE', 2, y + 1, { c: C.amber, a: 0.8 }); y += 9;
+        g.mini('AMBER = ABOVE THE ' + (cy0.inTX ? 'TEXAS' : 'STATE') + ' RATE', 2, y + 1, { c: C.amber, a: 0.8 }); y += 9;
       }
       // busiest roads inside the city
       if (p && !st.rReq) { st.rReq = true; RX.traffic.busiest(p.box, (la, ln) => RX.area.inRings(p.rings, la, ln), 6).then(l => { st.roads = l; }).catch(() => { st.rErr = true; }).then(() => { A.dirty = true; A.lcdDirty = true; }); }
@@ -2029,7 +2052,7 @@ window.RX = window.RX || {};
         });
       }
       y += 4;
-      U.wrap('U.S. CENSUS BUREAU, AMERICAN COMMUNITY SURVEY 5-YEAR ESTIMATES. CITY, COUNTY AND TEXAS FROM THE ' + (cy0 ? cy0.year : '') + ' FILE STORED ON THIS RP; TRACT LIVE FROM THE CENSUS MAP SERVICE. MEDIANS ARE ESTIMATES WITH A MARGIN OF ERROR, WIDEST FOR SMALL PLACES.', Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
+      U.wrap('U.S. CENSUS BUREAU, AMERICAN COMMUNITY SURVEY 5-YEAR ESTIMATES (' + (cy0 ? cy0.year : '') + '), STORED ON THIS RP: EVERY TEXAS CITY AND COUNTY, EVERY STATE, AND US CITIES OF 100K+; TRACT LIVE FROM THE CENSUS MAP SERVICE. MEDIANS ARE ESTIMATES WITH A MARGIN OF ERROR, WIDEST FOR SMALL PLACES.', Math.floor((W - 6) / 4)).forEach(l => { g.mini(l, 2, y, { a: 0.45 }); y += 7; });
       g.scrollEnd(y + 4);
       g.footer(A.sayActive() ? A.statusShown(g.t) : 'CENSUS · STORED ON THIS RP');
     }
@@ -2102,7 +2125,7 @@ window.RX = window.RX || {};
         kv('HOUSING', (t.units || 0).toLocaleString('en-US') + ' UNITS · ' + Math.round(t.own || 0) + '% OWNED · ' + (t.units ? Math.round(t.vacant / t.units * 100) : 0) + '% VACANT');
         kv('COUNTY', (st.area.countyName || '').toUpperCase() + ' · INC ' + RX.area.money(c.income) + ' · HOME ' + RX.area.money(c.home));
       }
-      g.btn(0, y + 2, W - 2, 13, 'CITY · COUNTY · TEXAS ▸ FULL PROFILE', () => A.go('areainfo', { lat: r.at[0], lng: r.at[1], area: st.area || null }), { face: 'mini' }); y += 17;
+      g.btn(0, y + 2, W - 2, 13, 'CITY · COUNTY · STATE ▸ FULL PROFILE', () => A.go('areainfo', { lat: r.at[0], lng: r.at[1], area: st.area || null }), { face: 'mini' }); y += 17;
       y += 3;
       const bw = Math.floor((W - 6) / 2);
       g.btn(0, y, bw, 13, 'COUNTY RECORD ▸', () => window.open(P().recordUrl(r), '_blank'), { face: 'mini' });

@@ -67,6 +67,15 @@ RX.area = (function () {
     if (!CRIME) CRIME = fetch('data/tx-crime.json?v=2025').then(r => r.json()).catch(e => { CRIME = null; throw e; });
     return CRIME;
   }
+  // the rest of the country: every state and every city of 100k+ (Census + FBI), one small file
+  let US = null;
+  function usSnap() {
+    if (!US) US = fetch('data/us-major.json?v=2024').then(r => r.json()).then(d => {
+      const F = d.fields, row = a => { const o = {}; F.forEach((k, i) => { o[k] = a[i]; }); o.growth = o.pop5 ? (o.pop - o.pop5) / o.pop5 : null; return o; };
+      return { year: d.year, prior: d.prior, us: row(d.us), state: new Map(d.states.map(a => [a[0], row(a)])), place: new Map(d.places.map(a => [a[0], row(a)])), crime: d.crime };
+    }).catch(e => { US = null; throw e; });
+    return US;
+  }
   const inRings = (rings, lat, lng) => { let c = 0; rings.forEach(r => { if (RX.parcel.contains(r, lat, lng)) c++; }); return c % 2 === 1; };
   async function placeAt(lat, lng) {
     for (const p of places) if (inRings(p.rings, lat, lng)) return p;
@@ -87,10 +96,18 @@ RX.area = (function () {
   }
   // { place (stats + rings) | false, county, state, countyName, year }
   async function cityAt(lat, lng) {
-    const [S, p, f, CR] = await Promise.all([snap(), placeAt(lat, lng), fcc(lat, lng), crime().catch(() => null)]);
-    const cid = f && f.county_fips;
-    const tract = f && f.block_fips ? await tractMore(f.block_fips.slice(0, 11)).catch(() => null) : null;
-    return { tractMore: tract, crime: CR ? { year: CR.year, prior: CR.prior, state: CR.state, place: p ? CR.places[p.geoid] || null : null, county: cid ? CR.counties[cid] || null : null } : null, place: p ? Object.assign({}, S.place.get(p.geoid) || {}, p, { stats: !!S.place.get(p.geoid) }) : false, county: cid ? S.county.get(cid) : null, countyName: f && f.county_name, state: S.state, year: S.year, prior: S.prior };
+    const [S, p, f, CR, U] = await Promise.all([snap(), placeAt(lat, lng), fcc(lat, lng), crime().catch(() => null), usSnap().catch(() => null)]);
+    const cid = f && f.county_fips, sid = f && f.block_fips ? f.block_fips.slice(0, 2) : (cid ? cid.slice(0, 2) : null), inTX = sid === '48';
+    const tract = inTX && f.block_fips ? await tractMore(f.block_fips.slice(0, 11)).catch(() => null) : null;
+    // figures: the Texas file covers every Texas place and county; the US file covers states and cities of 100k+
+    const pstats = p ? (S.place.get(p.geoid) || (U && U.place.get(p.geoid)) || null) : null;
+    const state = U && sid ? U.state.get(sid) : (inTX ? S.state : null);
+    const UC = U && U.crime, rate = c => c ? { v: c.v, p: c.p, v20: c.v20, p20: c.p20 } : null;
+    let crimeOut = null;
+    if (inTX && CR) crimeOut = { year: CR.year, prior: CR.prior, state: CR.state, us: UC ? rate(UC.us) : null, place: p ? CR.places[p.geoid] || null : null, county: cid ? CR.counties[cid] || null : null };
+    else if (UC) crimeOut = { year: UC.year, prior: UC.prior, state: sid && UC.states[sid] ? rate(UC.states[sid]) : null, us: rate(UC.us), place: p ? UC.places[p.geoid] || null : null, county: null };
+    return { inTX, stateFips: sid, tractMore: tract, crime: crimeOut, place: p ? Object.assign({}, pstats || {}, p, { stats: !!pstats }) : false,
+      county: inTX && cid ? S.county.get(cid) : null, countyName: f && f.county_name, state, stateName: f && f.state_name, stateCode: f && f.state_code, us: U ? U.us : null, year: S.year, prior: S.prior };
   }
 
   // everything for a spot: { tract, county } with the tract's outline
@@ -117,5 +134,5 @@ RX.area = (function () {
   const brief = (A, C) => A && A.tract ? { city: C && C.place ? C.place.name + (C.place.cdp ? ' (UNINC)' : '') : null, tract: A.tract.name, pop: A.tract.pop, income: A.tract.income, home: A.tract.home, own: A.tract.own, cIncome: A.county && A.county.income, cHome: A.county && A.county.home, county: A.countyName } : null;
 
   const growth = g => g == null ? '' : (g >= 0 ? '+' : '') + Math.round(g * 100) + '%';
-  return { at, cityAt, snap, tractMore, crime, inRings, money, vs, brief, growth };
+  return { at, cityAt, snap, usSnap, tractMore, crime, inRings, money, vs, brief, growth };
 })();
