@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="xp.css?v=1.0.0">
+<link rel="stylesheet" href="xp.css?v=1.0.1">
 </head>
 <body>
 <div id="stage">
@@ -74,19 +74,19 @@
 <script>
   // XP reads the RP's data files from the phone app's folder
   (function () { const f = window.fetch.bind(window); window.fetch = (u, o) => f(typeof u === 'string' && /^(data|ref)\//.test(u) ? '../v2/' + u : u, o); })();
-  window.RX = window.RX || {}; window.XP = { VERSION: '1.0.0' };
+  window.RX = window.RX || {}; window.XP = { VERSION: '1.0.1' };
 </script>
-<script src="../v2/js/font.js?v=2.13.0"></script>
-<script src="../v2/js/geo.js?v=2.13.0"></script>
-<script src="../v2/js/store.js?v=2.13.0"></script>
-<script src="../v2/js/map.js?v=2.13.0"></script>
-<script src="../v2/js/parcel.js?v=2.13.0"></script>
-<script src="../v2/js/traffic.js?v=2.13.0"></script>
-<script src="../v2/js/area.js?v=2.13.0"></script>
-<script src="../v2/js/ui.js?v=2.13.0"></script>
-<script>window.XP.VERSION = '1.0.0';</script>
-<script src="js/xpgfx.js?v=1.0.0"></script>
-<script src="js/xp.js?v=1.0.0"></script>
+<script src="../v2/js/font.js?v=2.13.1"></script>
+<script src="../v2/js/geo.js?v=2.13.1"></script>
+<script src="../v2/js/store.js?v=2.13.1"></script>
+<script src="../v2/js/map.js?v=2.13.1"></script>
+<script src="../v2/js/parcel.js?v=2.13.1"></script>
+<script src="../v2/js/traffic.js?v=2.13.1"></script>
+<script src="../v2/js/area.js?v=2.13.1"></script>
+<script src="../v2/js/ui.js?v=2.13.1"></script>
+<script>window.XP.VERSION = '1.0.1';</script>
+<script src="js/xpgfx.js?v=1.0.1"></script>
+<script src="js/xp.js?v=1.0.1"></script>
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
 </html>

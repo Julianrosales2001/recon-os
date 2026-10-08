@@ -25,7 +25,8 @@ G legend · D cycle LCD readout
     js/matrix.js   dot-matrix display engine (VFD main, STN LCD, amber clock)
     js/store.js    localStorage layer, v1-compatible
     js/geo.js      distances, place names (OpenStreetMap), search
-    js/map.js      tile sampler → dots, fog, self-calibrating
+    js/map.js      tile sampler → dots, fog, self-calibrating, state lines when zoomed far out
+    data/us-states.json  state lines + US national border (Natural Earth 1:10m)
     js/ui.js       immediate-mode UI kit drawn into the matrix
     js/screens.js  all screens
     js/main.js     boot, navigation, keys, jog, touch, GPS, lamps

@@ -4,7 +4,8 @@
    off-screen, then pooled down to one value per display cell,
    so roads and water become lit dots on the same grid as text.
    Fog of war, today's trail, objectives, marks and your own
-   position are drawn on top, cell by cell.
+   position are drawn on top, cell by cell. Zoomed far out, state
+   lines come from our own data file (the tiles' are too faint).
    ============================================================= */
 window.RX = window.RX || {};
 
@@ -331,10 +332,67 @@ window.RX = window.RX || {};
 
   const FOG_FACTOR = { CLEAR: 0.85, LIGHT: 0.55, MEDIUM: 0.32, HEAVY: 0.16 };
 
+  // ---------- state lines (wide zoom) ----------
+  // Zoomed far out, the basemap's own state lines are too faint to survive the
+  // dot sampling, so they are drawn from data/us-states.json (Natural Earth
+  // 1:10m, public domain): every state line plus the US border with Canada and
+  // Mexico. Points are kept as world pixels at zoom 0, so a frame only scales them.
+  const BORDER_Z = 10;                       // gone by here; full strength at 9 and wider
+  let BORD = null, bordBusy = false, bordFail = 0;
+  function loadBorders() {
+    if (BORD || bordBusy || Date.now() - bordFail < 30000) return;
+    bordBusy = true;
+    fetch('data/us-states.json?v=1').then(r => r.json()).then(d => {
+      const conv = list => list.map(l => {
+        const xy = new Float64Array(l.length); let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < l.length; i += 2) {
+          const p = RX.geo.project(l[i + 1], l[i], 0); xy[i] = p.x; xy[i + 1] = p.y;
+          if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+        }
+        return { xy, box: [x0, y0, x1, y1] };
+      });
+      BORD = { states: conv(d.states || []), nation: conv(d.nation || []) };
+      M.dirty = true;
+    }).catch(() => { bordFail = Date.now(); }).then(() => { bordBusy = false; });
+  }
+  function drawBorders(mx, v, rgbCol, hi) {
+    if (M.zoom >= BORDER_Z) return;
+    loadBorders();
+    if (!BORD) return;
+    const k = Math.min(1, BORDER_Z - M.zoom), s = Math.pow(2, M.zoom), c = RX.geo.project(M.lat, M.lng, M.zoom);
+    const buf = mx.buf, cols = mx.cols, rows = mx.rows, pitch = v.pitch;
+    const vx0 = (c.x - v.cx * pitch) / s, vx1 = (c.x + (cols - v.cx) * pitch) / s, vy0 = (c.y - v.cy * pitch) / s, vy1 = (c.y + (rows - v.cy) * pitch) / s;
+    const plot = (x, y, a) => {
+      x = Math.round(x); y = Math.round(y);
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return;
+      const p = (y * cols + x) * 4;
+      buf[p] = rgbCol[0]; buf[p + 1] = rgbCol[1]; buf[p + 2] = rgbCol[2];
+      if (hi) buf[p + 3] = a * 255; else buf[p + 3] = Math.max(buf[p + 3], a * 255);
+    };
+    const stroke = (lines, a, dash) => {
+      for (const L of lines) {
+        const bx = L.box; if (bx[2] < vx0 || bx[0] > vx1 || bx[3] < vy0 || bx[1] > vy1) continue;
+        const xy = L.xy; let px = v.cx + (xy[0] * s - c.x) / pitch, py = v.cy + (xy[1] * s - c.y) / pitch, step = 0;
+        for (let i = 2; i < xy.length; i += 2) {
+          const qx = v.cx + (xy[i] * s - c.x) / pitch, qy = v.cy + (xy[i + 1] * s - c.y) / pitch;
+          const n = Math.ceil(Math.max(Math.abs(qx - px), Math.abs(qy - py)));
+          if (n > 0 && n < 20000 && !((px < -2 && qx < -2) || (py < -2 && qy < -2) || (px > cols + 2 && qx > cols + 2) || (py > rows + 2 && qy > rows + 2))) {
+            for (let j = 0; j < n; j++, step++) if (!dash || step % 5 < 3) plot(px + (qx - px) * j / n, py + (qy - py) * j / n, a);
+          } else step += n;
+          px = qx; py = qy;
+        }
+        plot(px, py, a);
+      }
+    };
+    stroke(BORD.states, (hi ? 0.62 : 0.72) * k, true);    // state lines: dashed
+    stroke(BORD.nation, (hi ? 0.75 : 0.9) * k, false);    // the national border: solid
+  }
+
   // Draw the map base into matrix mx.
   M.drawBase = function (mx, v, colors) {
     const b = M.ensureBase(v);
-    if (!b || b.cols !== mx.cols || b.rows !== mx.rows) return;
+    const HI = !!(RX.store.v2 && RX.store.v2.hicon);
+    if (!b || b.cols !== mx.cols || b.rows !== mx.rows) { drawBorders(mx, v, HI ? [150, 150, 150] : RX.rgb(colors.ink), HI); return; }
     const fogF = FOG_FACTOR[RX.store.prefsV1.fogOpacity] != null ? FOG_FACTOR[RX.store.prefsV1.fogOpacity] : 0.32;
     const ink = RX.rgb(colors.ink), wat = RX.rgb(colors.water), hatch = RX.rgb(colors.fog);
     const buf = mx.buf, cols = mx.cols;
@@ -349,6 +407,7 @@ window.RX = window.RX || {};
         else if (L > 0.06) a = 0.07 + 0.12 * Math.min(1, L);
         if (a > 0) { buf[p] = col[0]; buf[p + 1] = col[1]; buf[p + 2] = col[2]; buf[p + 3] = a * 255; }
       }
+      drawBorders(mx, v, GR, true);   // grey over the white so a line still shows on explored ground
       return;
     }
     for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
@@ -369,6 +428,7 @@ window.RX = window.RX || {};
         buf[p] = col[0]; buf[p + 1] = col[1]; buf[p + 2] = col[2]; buf[p + 3] = a * 255;
       }
     }
+    drawBorders(mx, v, ink, false);
   };
 
   M.status = function () { return { source: P().id, loading: M.loading, failed: M.failed, loaded: M.loaded, missing: M.missing || 0, tainted: !!M.tainted, why: M.why, land: CAL.land, span: CAL.span }; };

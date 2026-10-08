@@ -7,14 +7,14 @@
    - map tiles, lookups, search: never touched (they need the network anyway)
    Cache names start with 'xp-' because the RP's worker clears every 'ros-' cache.
    Bump VERSION with every release. */
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const CACHE = 'xp-' + VERSION;
-const V2 = '2.13.0';
+const V2 = '2.13.1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'xp.css?v=' + VERSION, 'js/xpgfx.js?v=' + VERSION, 'js/xp.js?v=' + VERSION,
   'icons/xp-icon-180.png', 'icons/xp-icon-192.png', 'icons/xp-icon-512.png',
   ...['font', 'geo', 'store', 'map', 'parcel', 'traffic', 'area', 'ui'].map(n => '../v2/js/' + n + '.js?v=' + V2),
-  '../v2/data/tx-acs.json?v=2024b', '../v2/data/tx-crime.json?v=2025', '../v2/data/us-major.json?v=2024',
+  '../v2/data/tx-acs.json?v=2024b', '../v2/data/tx-crime.json?v=2025', '../v2/data/us-major.json?v=2024', '../v2/data/us-states.json?v=1',
   '../v2/ref/firstaid.json?v=1', '../v2/ref/knots.json?v=1',
   'keys/face.jpg',
   'keys/ghost-amber.svg',
