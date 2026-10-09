@@ -847,7 +847,7 @@ window.RX = window.RX || {};
   RX.screens.menu = {
     render(g, st, A) {
       const W = g.W, mx = g.mx;
-      let y = g.header('SYSTEM', 'R.OS 2.0 · RP-1000');
+      let y = g.header('SYSTEM', 'R.OS ' + RX.VERSION + ' · RP-1000');
       y = g.scrollBegin(y, footTop(g));
       const row = (label, desc, ctrl, fn, o) => {
         o = o || {};
@@ -913,8 +913,8 @@ window.RX = window.RX || {};
       row('FULL RESET', 'WIPE EVERYTHING ON THIS DEVICE', arrow, () => A.go('confirm', { title: 'FULL RESET', danger: true, confirm: 'WIPE ALL', lines: ['WIPE MARKS, FOG, TRAIL,', 'OBJECTIVES, FASTS, SETTINGS?', 'THIS CANNOT BE UNDONE.'], onConfirm: () => { S.wipe('all'); A.updateLamps(); M.dirty = true; A.say('DEVICE RESET', 3000); } }), { red: true });
 
       y += 6;
-      g.textC('R.OS 2.0 · RP-1000', W / 2, y, { c: C.hot });
-      g.textC('V2.0 · PWA · DATA STAYS ON THIS DEVICE', W / 2, y + 10, { face: 'mini', a: 0.5 });
+      g.textC('R.OS ' + RX.VERSION + ' · RP-1000', W / 2, y, { c: C.hot });
+      g.textC('V' + RX.VERSION + ' · PWA · DATA STAYS ON THIS DEVICE', W / 2, y + 10, { face: 'mini', a: 0.5 });
       g.textC('MAP ' + M.credit(), W / 2, y + 18, { face: 'mini', a: 0.4 });
       y += 30;
       g.scrollEnd(y);
