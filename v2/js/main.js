@@ -371,12 +371,13 @@ window.RX = window.RX || {};
     A.wake(); A.beep('key');
     const sc = A.screen();
     if (sc.lcdTap) { sc.lcdTap(A.top().st, A); A.lcdMsg = null; A.lcdDirty = true; A.dirty = true; return; }
-    const order = ['region', 'nav', 'target'];
+    const order = RX.wx.ORDER;
     A.disp = order[(order.indexOf(A.disp) + 1) % order.length];
     A.dispBeforeRecall = null;
     S.saveV2({ disp: A.disp });
     A.lcdMsg = null; A.lcdDirty = true;
-    A.say('DISP ▸ ' + { region: 'AREA · CITY · METRO', nav: 'SPEED · HEADING · ELEVATION', target: 'NEAREST MARK' }[A.disp], 2500);
+    if (A.disp !== 'next') RX.wx.refresh(A);
+    A.say('LCD ▸ ' + RX.wx.NAMES[A.disp], 2000);
   });
   function setTray(open) {
     A.trayOpen = open;
@@ -1065,11 +1066,6 @@ window.RX = window.RX || {};
       const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
       const mins = Math.max(1, Math.round(m / 1609.344 / 3 * 60));
       rows = [['TGT', S.markLabel(it)], ['DST', Geo.fmtDist(m) + ' ' + Geo.cardinal(b) + ' ' + String(Math.round(b) % 360).padStart(3, '0') + '°'], ['ETA', mins > 90 ? (mins / 60).toFixed(1) + ' H WALK' : mins + ' MIN WALK']];
-    } else if (A.disp === 'nav') {
-      const g = A.gps;
-      rows = [['SPD', g ? (g.speed * 2.237).toFixed(1) + ' MPH' : '--'],
-        ['HDG', g && g.heading != null ? U.F.pad2(Math.round(g.heading)).padStart(3, '0') + '° ' + Geo.cardinal(g.heading) : '--'],
-        ['ELV', g && g.alt != null ? Math.round(g.alt * 3.28084) + ' FT' : '--']];
     } else if (A.disp === 'target') {
       const nb = A.nearest(A.recall);
       if (nb) {
@@ -1077,20 +1073,20 @@ window.RX = window.RX || {};
         rows = [['TGT', S.markLabel(nb.p)], ['DST', Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.brg) + ' ' + U.F.pad2(Math.round(nb.brg)).padStart(3, '0') + '°'], ['ETA', mins > 90 ? (mins / 60).toFixed(1) + ' H WALK' : mins + ' MIN WALK']];
       } else rows = [['TGT', 'NONE'], ['DST', '--'], ['ETA', '--']];
     } else {
-      const p = A.place;
-      rows = p ? [['AREA', p.area], ['CITY', p.city], ['METRO', p.metro]]
-        : [['AREA', A.gps ? 'LOOKING UP' : '--'], ['CITY', '--'], ['METRO', '--']];
+      scLcd = RX.wx.lcd(A, RX.wx.ORDER.includes(A.disp) ? A.disp : 'wx');
+      rows = scLcd.rows;
     }
     const lh = Math.floor((m.rows - 2) / 3);
     const top = Math.max(1, Math.floor((m.rows - lh * 3) / 2) + 1);
     const vx = 25;
+    if (scLcd && scLcd.icon) RX.wx.icon(m, scLcd.icon, 6, top + Math.floor((lh * 2 - 13) / 2), ink);
     rows.forEach((r, i) => {
       const y = top + i * lh;
       m.text(r[0], 2, y + 1, { face: 'mini', c: ink, a: 0.55 });
-      m.text(RX.font.fit(r[1], m.cols - vx - 2), vx, y, { c: ink });
+      m.text(RX.font.fit(r[1], m.cols - vx - (i === 2 ? 14 : 2)), vx, y, { c: ink });
     });
     const df = A.stack.length <= 1 ? A.drumFace() : 'MENU';
-    const tag = scLcd ? (scLcd.tag || '') : df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'LOT' ? 'LOT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
+    const tag = scLcd ? (scLcd.tag || '') : df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'LOT' ? 'LOT' : ({ target: 'TGT' }[A.disp] || '');
     if (A.booted) m.text(tag, m.cols - 13, m.rows - 6, { face: 'mini', c: ink, a: 0.4 });
     m.present();
   }
@@ -1274,7 +1270,7 @@ window.RX = window.RX || {};
     A.emptyAtBoot = S.isEmpty();
     M.setSource(S.v2.mapSrc || 'AUTO');
     S.onWriteFail = () => { A.say('STORAGE FULL · WRITE FAILED · EXPORT A BACKUP', 8000); A.beep('err'); };
-    A.disp = S.v2.disp || 'region';
+    A.disp = ['wx', 'air', 'next'].includes(S.v2.disp) ? S.v2.disp : 'wx';
     centerOnData();
     U.wireInputs(() => { A.dirty = true; });
     RX.applyBrightness();
