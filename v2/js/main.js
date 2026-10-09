@@ -454,8 +454,9 @@ window.RX = window.RX || {};
   })();
   // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
   const faceArt = DRUM.map(F => F.id.toLowerCase());
-  const DRUM_ART = (id, lit) => 'url(keys/drum-' + id + (lit ? '-lit' : '') + '.jpg?v=1)';
-  ['menu', 'scan', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
+  // the lit face glows mint on the map, amber one level in, red deeper
+  const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=1)';
+  ['menu', 'scan', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
   // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
@@ -468,7 +469,8 @@ window.RX = window.RX || {};
     const md = modeDrum();
     if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face - 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face + 1, 3)] = md[mod(i - 1, n)]; }
     else { faceArt[1] = 'scan'; faceArt[2] = 'lot'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
-    rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
+    const depth = A.assign ? 0 : Math.min(2, A.stack.length - 1);
+    rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face, depth); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
     const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
