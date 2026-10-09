@@ -341,7 +341,7 @@ window.RX = window.RX || {};
   // ---------- keys ----------
   // rubber physics: whichever key was squashed springs back when the finger lifts
   (function () {
-    const SEL = '.preset-key, .mark-key, .tool, .tray-tab';
+    const SEL = '.preset-key, .mark-key, .tool';
     let held = null;
     const boing = el => { el.classList.remove('boing'); void el.offsetWidth; el.classList.add('boing'); };
     document.addEventListener('pointerdown', e => { const el = e.target.closest && e.target.closest(SEL); if (el) { held = el; el.classList.remove('boing'); } }, true);
@@ -379,12 +379,66 @@ window.RX = window.RX || {};
     if (A.disp !== 'next') RX.wx.refresh(A);
     A.say('LCD ▸ ' + RX.wx.NAMES[A.disp], 2000);
   });
-  function setTray(open) {
-    A.trayOpen = open;
-    $('tray').classList.toggle('open', open);
-    $('fnKey').setAttribute('aria-expanded', open ? 'true' : 'false');
-    $('fnLed').classList.toggle('on', open);
+  // ---------- FN cartridge ----------
+  // Stowed spine-out in its pocket. Press: it dips, springs proud of the housing, then swings 90°
+  // on its inner edge so the key face lands over the map with a bounce. Close: swings back, sinks in.
+  const cartEl = $('cart'), trayEl = $('tray'), coverEl = cartEl.querySelector('.cover'), tShadow = $('trayShadow'), sShadow = $('spineShadow');
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const outBack = (t, s) => { t -= 1; return t * t * ((s + 1) * t + s) + 1; };
+  function poseTray(lift, ang) {
+    cartEl.style.transform = 'translateZ(' + lift.toFixed(2) + 'px) rotateY(' + ang.toFixed(2) + 'deg)';
+    coverEl.style.visibility = ang > -86 ? 'visible' : 'hidden';
+    const open = clamp01((ang + 90) / 90), up = clamp01(lift / 8);
+    tShadow.style.opacity = (open * up).toFixed(3);
+    tShadow.style.transform = 'translateX(' + (-4 - lift * 0.6).toFixed(1) + 'px) scaleX(' + Math.max(0, Math.cos(ang * Math.PI / 180)).toFixed(3) + ')';
+    sShadow.style.opacity = (Math.max(0, 1 - open * 1.5) * clamp01(lift / 10)).toFixed(3);
+    sShadow.style.transform = 'translate(' + (-lift * 0.35).toFixed(1) + 'px,' + (lift * 0.25).toFixed(1) + 'px)';
   }
+  function openPose(ms) {
+    const lift = ms < 90 ? -2 * ms / 90 : ms < 300 ? -2 + 24 * outBack(clamp01((ms - 90) / 210), 2.2) : 22 - 16 * clamp01((ms - 300) / 380);
+    const ang = ms > 250 ? -90 + 90 * outBack(clamp01((ms - 250) / 420), 1.6) : -90;
+    return [lift, ang];
+  }
+  function closePose(ms) {
+    const e = t => t * t * t;
+    const ang = ms < 260 ? -90 * e(clamp01(ms / 260)) : -90;
+    const lift = ms < 260 ? 6 + 14 * clamp01(ms / 260) : ms < 420 ? 20 - 23 * e(clamp01((ms - 260) / 160)) : -3 + 3 * outBack(clamp01((ms - 420) / 160), 2.5);
+    return [lift, ang];
+  }
+  let trayRaf = 0;
+  function runTray(open) {
+    cancelAnimationFrame(trayRaf);
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const dur = open ? 800 : 600, t0 = performance.now(), fn = open ? openPose : closePose;
+    let landed = false;
+    const step = now => {
+      const ms = now - t0;
+      if (reduce || ms >= dur) { if (open) poseTray(6, 0); else poseTray(0, -90); return; }
+      const p = fn(ms); poseTray(p[0], p[1]);
+      if (!landed && ms > (open ? 560 : 420)) { landed = true; A.beep('thunk', open ? 0.45 : 0.8); }
+      trayRaf = requestAnimationFrame(step);
+    };
+    trayRaf = requestAnimationFrame(step);
+  }
+  poseTray(0, -90);
+  // fit the pocket to short bezels (iPhone SE and friends)
+  const fitCart = () => { const h = $('bezel').clientHeight - 14; $('bezel').style.setProperty('--cs', Math.min(1, (h - 6) / 374).toFixed(3)); };
+  fitCart(); new ResizeObserver(fitCart).observe($('bezel'));
+  function setTray(open) {
+    if (open === A.trayOpen) return;
+    A.trayOpen = open;
+    trayEl.classList.toggle('open', open);
+    $('bay').classList.toggle('live', open);
+    $('fnKey').setAttribute('aria-expanded', open ? 'true' : 'false');
+    fnLed();
+    runTray(open);
+  }
+  // the spine's dot: mint while open; amber when LOG or OBJ have something waiting
+  function fnLed() {
+    const alert = $('logLed').classList.contains('on') || $('objLed').classList.contains('on');
+    const l = $('fnLed'); l.classList.toggle('on', A.trayOpen || alert); l.classList.toggle('amber', !A.trayOpen && alert);
+  }
+  $('bay').addEventListener('click', () => { if (A.trayOpen) { A.beep('key'); setTray(false); } });
 
   // presets row (built once)
   function presetSvg(cat) {
@@ -743,6 +797,7 @@ window.RX = window.RX || {};
     };
     el.addEventListener('pointerdown', e => {
       A.wake();
+      if (A.trayOpen) setTray(false);
       if (U.activeField) {
         // keep the keyboard up when the tap lands on the field being edited
         const d = toDot(e.clientX, e.clientY), r = U.fieldRects[U.activeField.key];
@@ -1045,6 +1100,7 @@ window.RX = window.RX || {};
     $('fastLed').classList.toggle('on', !!S.activeFast());
     const urgent = S.missions.some(m => m.status === 'active' && (m.priority === 'urgent' || (m.deadline && m.deadline < Date.now())));
     $('objLed').classList.toggle('on', urgent);
+    fnLed();
     $('markLed').classList.toggle('on', true);
     $('markLed').classList.toggle('amber', !!A.assign);
     $('markLed').classList.toggle('blink', !!A.assign);
