@@ -225,6 +225,13 @@ window.RX = window.RX || {};
     mx.frame(x - 2, y - 2, w + 4, h + 4, C.ink, 0.5);
     [[x - 2, y - 2], [x + w + 1, y - 2], [x - 2, y + h + 1], [x + w + 1, y + h + 1]].forEach(([a, b]) => mx.rect(a - 1, b - 1, 3, 3, HOT, 1));
   }
+  // any photo as dots (ROLO cards use it): centred crop at the box's shape
+  RX.dotPhoto = function (g, src, x, y, w, h) {
+    const im = photoImg(src); if (!im) return false;
+    const cw = Math.min(im.width, im.height * w / h) * 0.92, ch = cw * h / w;
+    blit(g.mx, x, y, w, h, cells(im, [(im.width - cw) / 2, Math.max(0, (im.height - ch) * 0.3), cw, ch], w, h, {}), C.ink);
+    return true;
+  };
   function drawPortrait(g, x, y) {
     const P = S.profile, im = photoImg(P.photo), mx = g.mx;
     if (im) blit(mx, x, y, PW, PH, cells(im, P.crop || defaultCrop(im), PW, PH, P), C.ink);

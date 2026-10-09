@@ -102,7 +102,7 @@ window.RX = window.RX || {};
     const nb = A.nearest(null);
     if (nb) frames.push('NEAREST ▸ ' + S.markLabel(nb.p) + ' ' + Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.brg));
     const pend = S.pending().length;
-    if (pend) frames.push('PEND ' + U.F.pad2(pend) + ' · FN ▸ LOG ▸ PEND');
+    if (pend) frames.push('PEND ' + U.F.pad2(pend) + ' · FN ▸ LOG ▸ ASSETS');
     frames.push('TRAIL ' + S.trailMiles().toFixed(1) + ' MI TODAY' + (S.v2.recordTrail ? ' · REC' : ' · OFF'));
     const urgent = S.missions.filter(m => m.status === 'active' && (m.priority === 'urgent' || (m.deadline && m.deadline < Date.now() + 864e5)));
     if (urgent.length) frames.push('OBJ ▸ ' + urgent[0].title + (urgent[0].deadline ? ' · DUE ' + U.F.date(urgent[0].deadline) : ''));

@@ -379,9 +379,35 @@ window.RX = window.RX || {};
     return y;
   }
 
+  // unfiled marks: tap a colour to file, NAME ▸ to open
+  function pendRows(g, A, list, yy) {
+    const W = g.W;
+    list.forEach(p => {
+      const h = 33;
+      g.pin(7, yy + 8, p);
+      g.text(g.fit(p.name || ('MARK ' + p.id.slice(-4) + ' · UNNAMED'), W - 18), 15, yy + 1, { c: C.hot });
+      g.mini(g.fit('DROPPED ' + F.day(p.created || Date.now()) + ' ' + F.hm(p.created || Date.now()) + ' · ' + Geo.fmtDist(distTo(A, p)) + ' ' + Geo.cardinal(brgTo(A, p)), W - 18, 'mini'), 15, yy + 11, { a: 0.6 });
+      U.CATS.forEach((cat, i) => {
+        const x = 15 + i * 18;
+        const sel = g.focusable(x, yy + 19, 17, 11, () => {
+          p.category = cat.id; p.type = p.type || 'NONE'; p.shape = 'ICON'; S.savePOIs();
+          S.log('classify', p.id, 'Classified: ' + S.markLabel(p), cat.id);
+          A.say(S.markLabel(p) + ' ▸ ' + cat.id, 3000); A.beep('file'); A.updateLamps();
+        });
+        g.mx.frame(x, yy + 19, 17, 11, sel ? C.hot : C.ink, sel ? 1 : 0.3);
+        g.mx.disc(x + 8, yy + 24, 3, cat.color, 1);
+      });
+      g.btn(W - 36, yy + 19, 33, 11, 'NAME ▸', () => A.openMark(p.id), { face: 'mini' });
+      g.mx.hline(0, yy + h - 1, W - 2, C.ink, 0.12, 2);
+      yy += h;
+    });
+    return yy;
+  }
+
   RX.screens.log = {
     enter(st, params) {
       st.tab = params.tab || st.tab || 'assets';
+      if (st.tab === 'pend') st.tab = 'assets';
       st.sort = S.v2.logSort || 'NEAR';
       st.range = S.v2.journalRange || 'today';
     },
@@ -395,8 +421,8 @@ window.RX = window.RX || {};
       let y = g.header('LOG', S.pois.length + ' MARKS · ' + S.regions.length + ' PLACES');
       const setTab = tb => () => { st.tab = tb; st.scroll = 0; st.sel = 0; st.jog = false; };
       g.seg(0, y, W, 13, [
-        { label: 'ASSETS', on: st.tab === 'assets', fn: setTab('assets') },
-        { label: 'PEND ' + F.pad2(pend.length), on: st.tab === 'pend', fn: setTab('pend'), c: pend.length ? C.amber : null },
+        { label: pend.length ? 'ASSETS ' + pend.length : 'ASSETS', on: st.tab === 'assets', fn: setTab('assets'), c: pend.length ? C.amber : null },
+        { label: S.rolo.length ? 'ROLO ' + S.rolo.length : 'ROLO', on: st.tab === 'rolo', fn: setTab('rolo') },
         { label: 'JOURNAL', on: st.tab === 'journal', fn: setTab('journal') }
       ]);
       y += 16;
@@ -406,39 +432,22 @@ window.RX = window.RX || {};
         y = assetFilters(g, st, y, A);
         g.field('log-find', 0, y, W, 13, { label: 'FIND', value: st.q || '', placeholder: 'NAME, NOTES, SYMBOL', onInput: v => { st.q = v; st.scroll = 0; }, onCommit: v => { st.q = v; } });
         y += 15;
-        const items = assetItems(A, st, false);
+        // unfiled marks ride on top until they're filed: knock them out first
+        const showPend = pend.length && !st.cat && !(st.q || '').trim();
+        const items = assetItems(A, st, !!showPend);
         let yy = g.scrollBegin(y, bottom);
+        if (showPend) {
+          yy = g.section('PENDING · FILE THESE FIRST', yy, String(pend.length));
+          const list = pend.slice().sort((a, b) => (b.created || 0) - (a.created || 0));
+          yy = pendRows(g, A, list, yy);
+          yy = g.section('FILED', yy + 2, String(items.length));
+        }
         yy = assetRows(g, st, A, items, yy, p => A.openMark(p.id));
         if (!items.length) { g.textC('NO MATCHES', W / 2, yy + 10, { a: 0.5 }); yy += 24; }
         g.scrollEnd(yy);
-        foot = items.length + ' SHOWN · TAP TO OPEN';
-      } else if (st.tab === 'pend') {
-        g.mini('UNFILED MARKS · TAP A COLOR TO FILE, NAME ▸ TO OPEN', 1, y, { a: 0.6 });
-        y += 9;
-        let yy = g.scrollBegin(y, bottom);
-        const list = pend.slice().sort((a, b) => (b.created || 0) - (a.created || 0));
-        list.forEach(p => {
-          const h = 33;
-          g.pin(7, yy + 8, p);
-          g.text(g.fit(p.name || ('MARK ' + p.id.slice(-4) + ' · UNNAMED'), W - 18), 15, yy + 1, { c: C.hot });
-          g.mini(g.fit('DROPPED ' + F.day(p.created || Date.now()) + ' ' + F.hm(p.created || Date.now()) + ' · ' + Geo.fmtDist(distTo(A, p)) + ' ' + Geo.cardinal(brgTo(A, p)), W - 18, 'mini'), 15, yy + 11, { a: 0.6 });
-          U.CATS.forEach((cat, i) => {
-            const x = 15 + i * 18;
-            const sel = g.focusable(x, yy + 19, 17, 11, () => {
-              p.category = cat.id; p.type = p.type || 'NONE'; p.shape = 'ICON'; S.savePOIs();
-              S.log('classify', p.id, 'Classified: ' + S.markLabel(p), cat.id);
-              A.say(S.markLabel(p) + ' ▸ ' + cat.id, 3000); A.beep('file'); A.updateLamps();
-            });
-            g.mx.frame(x, yy + 19, 17, 11, sel ? C.hot : C.ink, sel ? 1 : 0.3);
-            g.mx.disc(x + 8, yy + 24, 3, cat.color, 1);
-          });
-          g.btn(W - 36, yy + 19, 33, 11, 'NAME ▸', () => A.openMark(p.id), { face: 'mini' });
-          g.mx.hline(0, yy + h - 1, W - 2, C.ink, 0.12, 2);
-          yy += h;
-        });
-        if (!list.length) { g.textC('QUEUE CLEAR', W / 2, yy + 14, { c: C.hot }); g.textC('ALL MARKS FILED', W / 2, yy + 26, { face: 'mini', a: 0.6 }); yy += 40; }
-        g.scrollEnd(yy);
-        foot = list.length + ' WAITING';
+        foot = (showPend ? pend.length + ' PENDING · ' : '') + items.length + ' SHOWN · TAP TO OPEN';
+      } else if (st.tab === 'rolo') {
+        foot = RX.roloTab(g, st, A, y, bottom);
       } else {
         const ranges = [['today', 'TODAY'], ['week', '7 DAYS'], ['month', '30 DAYS'], ['all', 'ALL']];
         g.seg(0, y, W, 11, ranges.map(r => ({ label: r[1], on: st.range === r[0], fn: () => { st.range = r[0]; st.scroll = 0; S.saveV2({ journalRange: r[0] }); } })), { face: 'mini' });
@@ -579,6 +588,15 @@ window.RX = window.RX || {};
         if (lines.length > 3) g.miniR('+' + (lines.length - 3) + ' LINES', W - 4, y + 23, { a: 0.6 });
       }
       y += 33;
+
+      // ROLO cards that live here
+      if (RX.roloFor) {
+        const here2 = RX.roloFor(p.id);
+        y = g.section('ROLO', y, here2.length ? String(here2.length) : '');
+        here2.forEach(c => { const sel = g.row(0, y, W - 2, 11, () => A.go('contact', { id: c.id })); g.text(g.fit(c.name || 'NO NAME', W - 70), 3, y + 2, { c: sel ? C.hot : C.ink }); g.miniR(g.fit(c.trade || '', 64, 'mini'), W - 4, y + 3, { a: 0.6 }); y += 12; });
+        g.btn(0, y, W - 2, 12, '+ ROLO CARD HERE', () => RX.roloNew(A, { poiId: p.id, name: p.name ? RX.font.norm(p.name) : '' }), { face: 'mini' });
+        y += 16;
+      }
 
       // tier
       y = g.section('MAP TIER', y, ({ 1: 'CLOSE ZOOM ONLY', 2: 'CITY ZOOM + CLOSER', 3: 'ALWAYS VISIBLE' })[p.tier || 2]);
@@ -1066,6 +1084,7 @@ window.RX = window.RX || {};
     rec.unshift(q);
     S.saveV2({ recent: rec.slice(0, 6) });
   }
+  RX.goTarget = (A, lat, lng, name) => goTarget(A, lat, lng, name);
   function goTarget(A, lat, lng, name) {
     A.target = { lat, lng, name: RX.font.norm(name).slice(0, 28) };
     A.home();

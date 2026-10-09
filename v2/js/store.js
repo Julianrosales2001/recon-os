@@ -108,6 +108,7 @@ window.RX = window.RX || {};
     try { S.healthTab = localStorage.getItem(K.healthTab) || 'fast'; } catch (e) {}
     S.v2 = Object.assign({}, V2_DEFAULTS, readJSON(K.v2, {}) || {});
     if (S.loadProfile) S.loadProfile();
+    if (S.loadRolo) S.loadRolo();
   };
 
   S.isEmpty = function () {
@@ -232,7 +233,8 @@ window.RX = window.RX || {};
       supplyPOIsSeeded: flag(K.supplySeeded),
       prefs: S.prefsV1,
       v2prefs: S.v2,
-      profile: S.profile || null
+      profile: S.profile || null,
+      rolo: S.rolo || []
     };
   };
   S.summarize = function (d) {
@@ -262,6 +264,7 @@ window.RX = window.RX || {};
     if (d.healthSeeded) setFlag(K.healthSeeded);
     if (d.supplyPOIsSeeded) setFlag(K.supplySeeded);
     if (d.prefs && typeof d.prefs === 'object') { S.prefsV1 = Object.assign({}, S.prefsV1, d.prefs); safeSet(K.prefs, JSON.stringify(S.prefsV1)); }
+    if (Array.isArray(d.rolo)) { S.rolo = d.rolo; if (S.saveRolo) S.saveRolo(); }
     if (d.profile && typeof d.profile === 'object') { safeSet('recon.os.profile', JSON.stringify(d.profile)); if (S.loadProfile) S.loadProfile(); }
     const exportedTs = d.exported ? Date.parse(d.exported) : null;
     const keep = d.v2prefs && typeof d.v2prefs === 'object' ? d.v2prefs : {};
