@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RECON.OS" />
+<meta name="theme-color" content="#1a1614" />
+
+<!-- App icon for iOS home screen and other platforms -->
+<link rel="apple-touch-icon" sizes="180x180" href="recon-os-icon-180.png" />
+<link rel="apple-touch-icon" sizes="192x192" href="recon-os-icon-192.png" />
+<link rel="apple-touch-icon" sizes="512x512" href="recon-os-icon-512.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="recon-os-icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="recon-os-icon-512.png" />
+
+<title>RECON.OS</title>
+
+<!-- Leaflet (free open-source mapping library) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Saira+Stencil+One&family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;700&family=VT323&family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Y8 BOOT SCREEN -->
+<div id="bootScreen" class="boot-screen">
+  <div class="boot-inner">
+    <div class="boot-logo">RECON<span class="dot">.</span>OS</div>
+    <div class="boot-tag">PERSONAL CARTOGRAPHY TERMINAL</div>
+    <div class="boot-log" id="bootLog"></div>
+    <div class="boot-progress-label" id="bootProgressLabel">INITIALIZING...</div>
+    <div class="boot-progress"><div class="boot-progress-fill" id="bootProgressFill"></div></div>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- LEAFLET MAP -->
+  <div id="map"></div>
+  <div class="paper-overlay"></div>
+
+  <!-- TOP CHROME — aluminum bezel containing the instrument cluster -->
+  <div class="panel-bg-top">
+    <!-- Unified top instrument cluster — sits INSIDE the aluminum bezel -->
+    <div class="top-cluster" id="topCluster">
+      <!-- LED indicators on the left -->
+      <div class="cluster-leds" id="indicatorStrip">
+        <div class="ind-led" data-id="gps" data-color="blue"><span class="dot"></span><span class="lbl">GPS</span></div>
+        <div class="ind-led" data-id="fix" data-color="green"><span class="dot"></span><span class="lbl">FIX</span></div>
+        <div class="ind-led" data-id="obj" data-color="yellow"><span class="dot"></span><span class="lbl">OBJ</span></div>
+        <div class="ind-led" data-id="rec" data-color="red"><span class="dot"></span><span class="lbl">REC</span></div>
+      </div>
+      <!-- Region readout LCD in the middle (was title-strip) -->
+      <div class="cluster-readout"><span class="text" id="regionTitle">▾ INITIALIZING...</span></div>
+      <!-- Clock LCD on the right -->
+      <div class="cluster-clock" id="clusterClock">--:--</div>
+    </div>
+  </div>
+
+  <!-- GPS LOST BANNER -->
+  <div class="gps-banner" id="gpsBanner">
+    <span class="dot"></span>
+    <span>GPS LOST · LAST FIX <span id="gpsAgo">--</span></span>
+  </div>
+
+  <!-- FLOATING SECTOR/STATUS TAG -->
+  <div class="sector-tag" id="sectorTag">
+    <div class="sector-plate">SEC</div>
+    <div class="sector-screen" id="sectorTagText">ACQUIRING POSITION...</div>
+  </div>
+
+  <!-- MAP OVERLAY BUTTONS -->
+  <div class="map-overlay-buttons">
+    <div class="map-overlay-btn" onclick="recenterMap()"><div class="socket"></div><div class="cap">⊙</div></div>
+    <div class="map-overlay-btn" id="legendBtn" onclick="toggleLegend()"><div class="socket"></div><div class="led"></div><div class="cap">⚐</div></div>
+    <div class="map-overlay-btn" onclick="openJournalSheet()"><div class="socket"></div><div class="cap">▤</div></div>
+    <div class="map-overlay-btn" onclick="openSearchSheet()"><div class="socket"></div><div class="cap">⌕</div></div>
+  </div>
+
+  <!-- LEGEND PANEL (hidden by default) -->
+  <div id="legendPanel" class="legend-panel">
+    <div class="legend-tabs">
+      <div class="legend-tab active" data-legend-tab="categories" onclick="switchLegendTab('categories')"><span class="tab-led"></span>CATEGORIES</div>
+      <div class="legend-tab" data-legend-tab="symbols" onclick="switchLegendTab('symbols')"><span class="tab-led"></span>SYMBOLS</div>
+    </div>
+    <div id="legendRows"></div>
+  </div>
+
+  <!-- SIDE BEZELS -->
+  <div class="knurl-l"></div>
+  <div class="knurl"></div>
+
+  <!-- BOTTOM CHROME -->
+  <div class="panel-bg-bot">
+    <!-- P4.2 service labels + corner screws -->
+    <div class="service-label-l">MK-01 · FIELD MARK MODULE</div>
+    <div class="service-label-r">RJ-001 · 2026</div>
+    <span class="bot-screw tl"></span>
+    <span class="bot-screw tr"></span>
+    <span class="bot-screw bl"></span>
+    <span class="bot-screw br"></span>
+  </div>
+
+  <!-- MARK BUTTON + TOGGLES -->
+  <div class="mark-area">
+    <span class="mark-housing-label">MK-01 / FIELD MARK</span>
+    <div class="mark-housing p4-housing">
+      <div class="p4-row">
+        <!-- LEFT: 2x2 toggle grid -->
+        <div class="toggle-grid">
+          <div class="tg-btn" onclick="openHealthSheet()" data-id="health">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M10 4 H14 V10 H20 V14 H14 V20 H10 V14 H4 V10 H10 Z"/></svg>
+            <span class="tg-lbl">HEAL</span>
+          </div>
+          <div class="tg-btn" onclick="openPendingSheet()" data-id="pending" id="pendingTgBtn">
+            <svg class="tg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15 14"/></svg>
+            <span class="tg-lbl" id="pendingLabel">PEND</span>
+          </div>
+          <div class="tg-btn" onclick="openObjectivesSheet()" data-id="objectv" id="objectvTgBtn">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M12 3 L21 8 V16 L12 21 L3 16 V8 Z"/><path d="M12 12 L21 8 M12 12 L3 8 M12 12 V21"/></svg>
+            <span class="tg-lbl" id="objectivesLabel">OBJV</span>
+          </div>
+          <div class="tg-btn" onclick="openSettingsSheet()" data-id="menu">
+            <svg class="tg-icon" viewBox="0 0 24 24"><path d="M4 7 H20 M4 12 H20 M4 17 H20"/></svg>
+            <span class="tg-lbl">MENU</span>
+          </div>
+        </div>
+        <!-- RIGHT: Circular MARK thumb-pad -->
+        <div class="mark-pad-wrap">
+          <div class="mark-btn" id="markBtn" onclick="dropPin()">
+            <div class="mark-pad-bezel">
+              <div class="mark-pad-plastic">
+                <div class="mark-pad-lcd">
+                  <span class="mark-pad-word">MARK</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Status line — full width below the row -->
+      <div class="mark-status" id="markStatus">
+        <span class="led-dot" id="markStatusLed"></span>
+        <span id="markStatusText">ACQUIRING GPS...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MARK FLASH OVERLAY -->
+  <div class="mark-flash" id="markFlash"></div>
+
+  <!-- PULL-TO-REFRESH GPS INDICATOR -->
+  <div id="pullRefresh" class="pull-refresh">
+    <div class="pr-ring">
+      <svg viewBox="0 0 40 40" width="32" height="32">
+        <circle cx="20" cy="20" r="14" fill="none" stroke="rgba(240, 160, 64, 0.3)" stroke-width="1"/>
+        <path id="prArc" d="M 20 6 A 14 14 0 0 1 20 6" fill="none" stroke="#f0a040" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="pr-label" id="prLabel">PULL TO REFRESH GPS</div>
+  </div>
+
+  <!-- DRAG CROSSHAIR — shown above finger while dragging a pin -->
+  <!-- REPOSITION CROSSHAIR (fixed at screen center during reposition mode) -->
+  <div id="repositionCrosshair" class="reposition-crosshair">
+    <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+      <circle cx="40" cy="40" r="32" fill="none" stroke="#f0a040" stroke-width="2" opacity="0.4"/>
+      <circle cx="40" cy="40" r="24" fill="none" stroke="#f0a040" stroke-width="1.5" opacity="0.55"/>
+      <circle cx="40" cy="40" r="14" fill="none" stroke="#f0a040" stroke-width="1.5" opacity="0.7"/>
+      <line x1="40" y1="4" x2="40" y2="28" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="40" y1="52" x2="40" y2="76" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="4" y1="40" x2="28" y2="40" stroke="#f0a040" stroke-width="2.5"/>
+      <line x1="52" y1="40" x2="76" y2="40" stroke="#f0a040" stroke-width="2.5"/>
+      <circle cx="40" cy="40" r="3" fill="#f0a040"/>
+    </svg>
+  </div>
+
+  <!-- REPOSITION CONFIRM BAR -->
+  <div id="repositionBar" class="reposition-bar">
+    <div class="reposition-bar-info">
+      <div class="reposition-bar-label">REPOSITIONING</div>
+      <div class="reposition-bar-name" id="repositionPoiName">—</div>
+    </div>
+    <div class="reposition-bar-buttons">
+      <button type="button" class="reposition-cancel" onclick="cancelReposition()">CANCEL</button>
+      <button type="button" class="reposition-confirm" onclick="confirmReposition()">POSITION HERE</button>
+    </div>
+  </div>
+
+  <!-- UNDO BUTTON -->
+  <div id="undoBtn" class="undo-btn" onclick="doUndo()">
+    <span class="undo-icon">↶</span>
+    <span class="undo-label" id="undoLabel">UNDO</span>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">PIN DROPPED</div>
+
+</div>
+
+<!-- ============ SHEETS (modals) ============ -->
+
+<!-- CLASSIFIER / DETAIL SHEET -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+
+<div class="sheet" id="classifySheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title" id="classifyTitle">CLASSIFY POI</div>
+  <div class="sheet-body">
+    <div class="field-label">CATEGORY <span class="mode-tag">REQ</span></div>
+    <div class="cat-grid" id="catGrid">
+      <!-- Category pads injected by JS -->
+    </div>
+    <div class="field-label">SHAPE <span class="mode-tag">PRIMARY</span></div>
+    <div class="cat-filter-row" id="shapeRow" style="margin-bottom: 8px;">
+      <!-- Shape chips injected by JS -->
+    </div>
+    <div class="field-label">SYMBOL <span class="mode-tag">ICON</span></div>
+    <div class="symbol-grid" id="symbolGrid">
+      <!-- Symbol tiles injected by JS -->
+    </div>
+    <div class="field-label">NAME <span class="mode-tag">FREE FORM</span></div>
+    <input class="field-input" id="poiName" placeholder="UNTITLED" />
+    <div class="field-label">NOTES <span class="mode-tag">OPTIONAL</span></div>
+    <textarea class="field-input notes" id="poiNotes" placeholder="OPTIONAL"></textarea>
+
+    <div class="field-label">PHOTO <span class="mode-tag">JPEG</span></div>
+    <div id="photoArea" class="photo-area" onclick="document.getElementById('photoInput').click()">
+      <span id="photoPlaceholder">▢ TAP TO ADD PHOTO</span>
+      <img id="photoPreview" style="display:none;" />
+      <button type="button" class="photo-remove" id="photoRemoveBtn" onclick="event.stopPropagation(); removePhoto()">×</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)" />
+
+    <div class="field-label">MAP TIER <span class="mode-tag">VISIBILITY</span></div>
+    <div class="tier-control" id="tierControl">
+      <button type="button" class="tier-btn" data-tier="1" onclick="setTier(1)">
+        <div class="tier-name">LOW</div>
+        <div class="tier-desc">Close zoom only</div>
+      </button>
+      <button type="button" class="tier-btn on" data-tier="2" onclick="setTier(2)">
+        <div class="tier-name">MED</div>
+        <div class="tier-desc">City zoom + closer</div>
+      </button>
+      <button type="button" class="tier-btn" data-tier="3" onclick="setTier(3)">
+        <div class="tier-name">HIGH</div>
+        <div class="tier-desc">Always visible</div>
+      </button>
+    </div>
+
+    <div id="visitRow" style="display:none;">
+      <div class="field-label">VISITS <span class="mode-tag">LOG</span></div>
+      <div class="visit-row">
+        <div class="visit-count">
+          <span class="visit-num" id="visitNum">0</span>
+          <span class="visit-last" id="visitLast">—</span>
+        </div>
+        <button type="button" class="visit-log-btn" onclick="manualLogVisit()">+ LOG VISIT</button>
+      </div>
+    </div>
+
+    <div id="poiObjectiveRow" style="display:none;">
+      <div class="field-label">OBJECTIVES <span class="mode-tag">LINKED</span></div>
+      <button type="button" class="visit-log-btn" style="width:100%;" onclick="addObjectiveForCurrentPoi()">+ ADD OBJECTIVE HERE</button>
+      <div id="poiLinkedMissions" style="margin-top: 6px;"></div>
+    </div>
+
+    <div id="navInfoRow" style="display:none;">
+      <div class="field-label">DISTANCE / BEARING <span class="mode-tag">WGS-84</span></div>
+      <div class="nav-info-row">
+        <div class="compass-rose">
+          <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" width="56" height="56">
+            <circle cx="28" cy="28" r="25" fill="none" stroke="rgba(0, 229, 255, 0.35)" stroke-width="1"/>
+            <circle cx="28" cy="28" r="20" fill="none" stroke="rgba(0, 229, 255, 0.22)" stroke-width="0.5"/>
+            <!-- Cardinal markers -->
+            <text x="28" y="9" text-anchor="middle" fill="#6a8098" font-family="Share Tech Mono" font-size="6" font-weight="700">N</text>
+            <text x="28" y="53" text-anchor="middle" fill="#6a8098" font-family="Share Tech Mono" font-size="6" font-weight="700">S</text>
+            <text x="51" y="31" text-anchor="middle" fill="#6a8098" font-family="Share Tech Mono" font-size="6" font-weight="700">E</text>
+            <text x="5" y="31" text-anchor="middle" fill="#6a8098" font-family="Share Tech Mono" font-size="6" font-weight="700">W</text>
+            <!-- Pointer to POI -->
+            <g id="compassPointer" transform="rotate(0 28 28)">
+              <polygon points="28,7 32,28 28,24 24,28" fill="#00e5ff" stroke="#050a14" stroke-width="0.5" filter="drop-shadow(0 0 4px rgba(0, 229, 255, 0.75))"/>
+            </g>
+            <circle cx="28" cy="28" r="2" fill="#050a14"/>
+          </svg>
+        </div>
+        <div class="nav-info-data">
+          <div class="pair">
+            <span class="lbl">DIST</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navDistance">—</span></span>
+          </div>
+          <div class="pair">
+            <span class="lbl">BEARING</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navBearing">—</span></span>
+          </div>
+          <div class="pair" style="display:none;">
+            <span class="lbl">ELEV</span>
+            <span class="lcd-readout"><span class="lcd-readout-inner" id="navElevation">—</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="repositionRow" style="display:none;">
+      <div class="field-label">POSITION <span class="mode-tag">MAP</span></div>
+      <div class="visit-row" style="justify-content: stretch;">
+        <button type="button" class="visit-log-btn" style="flex:1;" onclick="enterRepositionMode(editingId)">⊕ REPOSITION ON MAP</button>
+      </div>
+    </div>
+
+    <div id="navRow" style="display:none;">
+      <div class="field-label">NAVIGATION <span class="mode-tag">EXTERNAL</span></div>
+      <div class="visit-row" style="justify-content: stretch;">
+        <button type="button" class="visit-log-btn" style="flex:1;" onclick="navigateToPOI()">▸ OPEN IN APPLE MAPS</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn quiet danger" onclick="deletePOI()" id="deleteBtn" style="display:none;">
+      <div class="socket"></div>
+      <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
+    </div>
+    <div class="action-btn quiet" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
+    </div>
+    <div class="action-btn" onclick="savePOI()">
+      <div class="socket"></div>
+      <div class="cap amber"><div class="lcd"><span class="lcd-text">SAVE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PENDING SHEET (unclassified) -->
+<div class="sheet" id="pendingSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">PENDING · <span id="pendingCount">0</span></div>
+  <div class="sheet-body" id="pendingBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS SHEET -->
+<div class="sheet" id="settingsSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">SETTINGS</div>
+  <div class="sheet-body" style="padding: 0 4px;">
+
+    <div class="settings-section-head">▸ DISPLAY</div>
+
+    <div class="settings-row" onclick="toggleLandscapeMode()">
+      <div>
+        <div class="settings-name">LANDSCAPE MODE</div>
+        <div class="settings-desc" id="landscapeToggleDesc">Two-handed pro layout</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="landscapeToggleIndicator"></span></div>
+    </div>
+
+    <div class="settings-section-head">▸ REGIONS</div>
+
+    <div class="settings-row" onclick="showRegionsList()">
+      <div>
+        <div class="settings-name">VIEW REGIONS</div>
+        <div class="settings-desc" id="regionCountDesc">0 regions</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-row" onclick="toggleBoundaries()">
+      <div>
+        <div class="settings-name">SHOW REGION BOUNDARIES</div>
+        <div class="settings-desc" id="boundaryToggleDesc">Boundaries hidden</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="boundaryToggleIndicator"></span></div>
+    </div>
+
+    <div class="settings-row" onclick="toggleStates()">
+      <div>
+        <div class="settings-name">SHOW STATE OUTLINES</div>
+        <div class="settings-desc" id="stateToggleDesc">State outlines hidden</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="stateToggleIndicator"></span></div>
+    </div>
+
+    <div class="settings-row" onclick="fetchAllBoundaries()">
+      <div>
+        <div class="settings-name">FETCH ALL BOUNDARIES</div>
+        <div class="settings-desc">Download missing region outlines</div>
+      </div>
+      <div class="settings-action">↓</div>
+    </div>
+
+    <div class="settings-section-head">▸ DATA</div>
+
+    <div class="settings-row" onclick="exportData()">
+      <div>
+        <div class="settings-name">EXPORT FULL BACKUP</div>
+        <div class="settings-desc">POIs, fog, regions, journal, trail, prefs</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-row" onclick="importData()">
+      <div>
+        <div class="settings-name">IMPORT FULL BACKUP</div>
+        <div class="settings-desc">Restore everything from a backup file</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-section-head">▸ FOG OF WAR</div>
+
+    <div class="settings-row">
+      <div>
+        <div class="settings-name">REVEALED CELLS</div>
+        <div class="settings-desc" id="fogCellCount">0 cells revealed</div>
+      </div>
+    </div>
+
+    <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div>
+        <div class="settings-name">FOG DENSITY</div>
+        <div class="settings-desc">How opaque unexplored areas appear</div>
+      </div>
+      <div class="cat-filter-row" id="fogDensityRow" style="margin: 0;">
+        <div class="cat-chip with-led" data-fog="CLEAR"><span class="led-indicator"></span>CLEAR</div>
+        <div class="cat-chip with-led" data-fog="LIGHT"><span class="led-indicator"></span>LIGHT</div>
+        <div class="cat-chip with-led" data-fog="MEDIUM"><span class="led-indicator"></span>MEDIUM</div>
+        <div class="cat-chip with-led" data-fog="HEAVY"><span class="led-indicator"></span>HEAVY</div>
+      </div>
+    </div>
+
+    <div class="settings-row danger" onclick="clearFog()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">CLEAR FOG</div>
+        <div class="settings-desc">Reset all revealed terrain</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div style="font-size: 8px; letter-spacing: 0.3em; color: #d68a3a; font-weight: 700; padding: 14px 0 4px;">▸ TODAY'S TRAIL</div>
+
+    <div class="settings-row" onclick="toggleTrail()">
+      <div>
+        <div class="settings-name">SHOW TRAIL ON MAP</div>
+        <div class="settings-desc" id="trailToggleDesc">Trail visible</div>
+      </div>
+      <div class="led-housing"><span class="led-indicator" id="trailToggleIndicator"></span></div>
+    </div>
+
+    <div class="settings-row" onclick="clearTrail()">
+      <div>
+        <div class="settings-name">CLEAR TODAY'S TRAIL</div>
+        <div class="settings-desc" id="trailPointCount">0 points</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-section-head">▸ STATS</div>
+
+    <div class="settings-row" onclick="showStatsSheet()">
+      <div>
+        <div class="settings-name">VIEW LIFETIME STATS</div>
+        <div class="settings-desc">POIs, visits, sectors, fog coverage</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-section-head">▸ STORAGE</div>
+
+    <div class="settings-row" onclick="showStorageInfo()">
+      <div>
+        <div class="settings-name">STORAGE INFO</div>
+        <div class="settings-desc" id="storageInfoDesc">— · — / 5.0 MB</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-section-head danger">▸ DANGER ZONE</div>
+
+    <div class="settings-row" onclick="diagnoseHealth()">
+      <div>
+        <div class="settings-name">HEALTH DIAGNOSTIC</div>
+        <div class="settings-desc">Inspect raw fast/weighin storage</div>
+      </div>
+      <div class="settings-action">→</div>
+    </div>
+
+    <div class="settings-row danger" onclick="reseedHealth()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">RESEED HEALTH</div>
+        <div class="settings-desc">Re-run one-time import of 32 fasts. Only do if data is gone.</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div class="settings-row danger" onclick="resetAllPOIs()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">DELETE ALL POIs</div>
+        <div class="settings-desc">Permanently remove every pin</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div class="settings-row danger" onclick="hardReset()">
+      <div>
+        <div class="settings-name" style="color: #d96850;">FULL RESET</div>
+        <div class="settings-desc">Wipe POIs, fog, everything</div>
+      </div>
+      <div class="settings-action" style="color: #d96850;">→</div>
+    </div>
+
+    <div style="padding: 18px 0 4px; text-align: center;">
+      <div style="font-family: 'Saira Stencil One'; font-size: 14px; color: #d68a3a; letter-spacing: 0.1em;">RECON.OS</div>
+      <div style="font-size: 8px; color: #6e6354; letter-spacing: 0.2em; margin-top: 4px;">v0.1 · PWA · LOCAL ONLY</div>
+    </div>
+
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG SHEET (dual-tab: JOURNAL + ASSETS) -->
+<div class="sheet" id="logSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">LOG</div>
+  <div class="log-tabs">
+    <div class="log-tab" data-tab="journal" onclick="switchLogTab('journal')">
+      <span class="tab-led"></span>
+      <span class="label">JOURNAL</span>
+      <span class="count" id="logJournalCount">0</span>
+    </div>
+    <div class="log-tab" data-tab="assets" onclick="switchLogTab('assets')">
+      <span class="tab-led"></span>
+      <span class="label">ASSETS</span>
+      <span class="count" id="logAssetsCount">0</span>
+    </div>
+  </div>
+
+  <!-- JOURNAL TAB CONTENT -->
+  <div class="log-tab-content" id="logTabJournal">
+    <div style="padding: 0 0 6px;">
+      <div class="cat-filter-row" id="journalRangeRow">
+        <div class="cat-chip with-led active" data-range="today"><span class="led-indicator on"></span>TODAY</div>
+        <div class="cat-chip with-led" data-range="week"><span class="led-indicator"></span>7 DAYS</div>
+        <div class="cat-chip with-led" data-range="month"><span class="led-indicator"></span>30 DAYS</div>
+        <div class="cat-chip with-led" data-range="all"><span class="led-indicator"></span>ALL</div>
+      </div>
+    </div>
+    <div class="sheet-body" id="journalBody"></div>
+  </div>
+
+  <!-- ASSETS TAB CONTENT -->
+  <div class="log-tab-content" id="logTabAssets">
+    <div style="padding: 0 0 8px;">
+      <select class="list-sort" id="listRegion" onchange="renderListBody()" style="width:100%; margin-bottom:6px;">
+        <option value="ALL">ALL REGIONS</option>
+      </select>
+      <input class="field-input list-search" id="listSearch" placeholder="SEARCH NAME, NOTES, CATEGORY..." oninput="renderListBody()" />
+      <div class="list-controls">
+        <div class="cat-filter-row" id="catFilterRow">
+          <!-- chips injected by JS -->
+        </div>
+        <select class="list-sort" id="listSort" onchange="renderListBody()">
+          <option value="created_desc">NEWEST</option>
+          <option value="created_asc">OLDEST</option>
+          <option value="name_asc">NAME A-Z</option>
+          <option value="distance_asc">NEAREST</option>
+          <option value="visits_desc">MOST VISITED</option>
+          <option value="category_asc">BY CATEGORY</option>
+        </select>
+      </div>
+      <select class="list-sort" id="listTypeFilter" onchange="onTypeFilterChange()" style="width:100%; margin-top:6px;">
+        <option value="ALL">ALL SYMBOLS</option>
+      </select>
+    </div>
+    <div class="sheet-body" id="listBody"></div>
+  </div>
+
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH SHEET (address/coordinate lookup) -->
+<div class="sheet" id="searchSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">SEARCH</div>
+  <div style="padding: 0 0 8px;">
+    <input class="field-input list-search" id="searchInput" placeholder="ADDRESS, PLACE, OR LAT,LNG..." autocomplete="off" autocorrect="off" autocapitalize="off" />
+    <div class="search-hint" id="searchHint">Type to search · "29.74, -94.99" for coordinates</div>
+  </div>
+  <div class="sheet-body" id="searchResults">
+    <div class="empty-state"><div class="big">READY</div>Enter an address or coordinates to find a location.</div>
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH SHEET (fasting / food / movement tracker) -->
+<!-- Self-contained silo: data stored independently from POIs/missions/etc.
+     Three tabs: FAST / FOOD / MOVE. Active tab persists across sessions
+     via recon.os.healthTab in localStorage. -->
+<div class="sheet" id="healthSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">HEALTH</div>
+
+  <!-- Tab strip -->
+  <div class="health-tabs">
+    <div class="health-tab" data-tab="fast" onclick="setHealthTab('fast')">FAST</div>
+    <div class="health-tab" data-tab="food" onclick="setHealthTab('food')">FOOD</div>
+    <div class="health-tab" data-tab="move" onclick="setHealthTab('move')">MOVE</div>
+  </div>
+
+  <!-- Each tab pane has a top quick-action card and a scrollable history below.
+       Only the active pane is visible (display toggled by setHealthTab). -->
+  <div class="sheet-body" id="healthBody">
+
+    <!-- FAST PANE -->
+    <div class="health-pane" data-pane="fast">
+      <div class="health-status-card" id="fastStatusCard">
+        <!-- Filled in by renderFastStatus() -->
+      </div>
+      <div class="health-section-head">HISTORY</div>
+      <div class="health-list" id="fastHistory"></div>
+      <div class="health-section-head" style="margin-top:14px;">WEIGH-INS</div>
+      <div class="health-quickrow">
+        <div class="action-btn small" onclick="promptWeighIn()">
+          <div class="socket"></div>
+          <div class="cap steel"><div class="lcd"><span class="lcd-text">+ WEIGH-IN</span></div></div>
+        </div>
+      </div>
+      <div class="health-list" id="weighinHistory"></div>
+    </div>
+
+    <!-- FOOD PANE -->
+    <div class="health-pane" data-pane="food" style="display:none;">
+      <div class="health-status-card" id="foodStatusCard">
+        <!-- Filled in by renderFoodStatus() -->
+      </div>
+      <div class="health-section-head">TODAY · YESTERDAY · EARLIER</div>
+      <div class="health-list" id="foodHistory"></div>
+    </div>
+
+    <!-- MOVE PANE -->
+    <div class="health-pane" data-pane="move" style="display:none;">
+      <div class="health-status-card" id="moveStatusCard">
+        <!-- Filled in by renderMoveStatus() -->
+      </div>
+      <div class="health-section-head">HISTORY</div>
+      <div class="health-list" id="moveHistory"></div>
+    </div>
+
+  </div>
+
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- HEALTH DETAIL DRAWER — a secondary sheet for editing a single fast / meal /
+     workout / weigh-in. Reuses the same .sheet structure but content is
+     filled in dynamically per record. -->
+<div class="sheet" id="healthDetailSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title" id="healthDetailTitle">DETAIL</div>
+  <div class="sheet-body" id="healthDetailBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeHealthDetail()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">BACK</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- OBJECTIVES SHEET (mission/task list) -->
+<div class="sheet" id="objectivesSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">OBJECTIVES</div>
+
+  <!-- Tabs -->
+  <div class="obj-tabs">
+    <div class="obj-tab" data-obj-tab="active" onclick="switchObjectivesTab('active')">
+      <span class="tab-led"></span>
+      <span class="label">ACTIVE</span>
+      <span class="count" id="objActiveCount">0</span>
+    </div>
+    <div class="obj-tab" data-obj-tab="complete" onclick="switchObjectivesTab('complete')">
+      <span class="tab-led"></span>
+      <span class="label">COMPLETE</span>
+      <span class="count" id="objCompleteCount">0</span>
+    </div>
+    <div class="obj-tab" data-obj-tab="all" onclick="switchObjectivesTab('all')">
+      <span class="tab-led"></span>
+      <span class="label">ALL</span>
+      <span class="count" id="objAllCount">0</span>
+    </div>
+  </div>
+
+  <div style="padding: 0 0 8px;">
+    <input class="field-input list-search" id="objectivesSearch" placeholder="SEARCH OBJECTIVES..." oninput="renderObjectivesList()" autocomplete="off" autocorrect="off" autocapitalize="off" />
+    <select class="list-sort" id="objectivesSort" onchange="onObjectivesSortChange()" style="width:100%; margin-top:6px;">
+      <option value="smart">SMART (URGENT + DEADLINE)</option>
+      <option value="deadline">BY DEADLINE</option>
+      <option value="created">NEWEST CREATED</option>
+      <option value="priority">BY PRIORITY</option>
+      <option value="distance">BY DISTANCE</option>
+    </select>
+  </div>
+
+  <!-- Quick-add row: title-only mission creation in one tap -->
+  <div class="obj-quick-add">
+    <input class="field-input" id="objQuickAddInput" placeholder="+ QUICK ADD OBJECTIVE..." autocomplete="off" autocorrect="off" autocapitalize="on" />
+    <button type="button" class="obj-quick-add-btn" onclick="commitQuickAddMission()">ADD</button>
+  </div>
+
+  <!-- "+ NEW OBJECTIVE" full-form button -->
+  <div class="new-obj-btn" onclick="openMissionForm(null)">
+    <span class="plus">+</span>
+    <span>NEW OBJECTIVE (FULL FORM)</span>
+  </div>
+
+  <div class="sheet-body" id="objectivesBody">
+    <!-- Mission cards injected by JS -->
+  </div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MISSION CREATE/EDIT FORM SHEET -->
+<div class="sheet" id="missionFormSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title" id="missionFormTitle">NEW OBJECTIVE</div>
+  <div class="sheet-body" style="padding: 0 4px;">
+
+    <div class="field-label">TITLE</div>
+    <input class="field-input" id="missionTitle" placeholder="WHAT NEEDS DOING..." autocomplete="off" />
+
+    <div class="field-label">NOTES (OPTIONAL)</div>
+    <textarea class="field-input notes" id="missionNotes" placeholder="DETAILS, CONTEXT, REMINDERS..."></textarea>
+
+    <div class="field-label">PRIORITY</div>
+    <div class="cat-filter-row" id="missionPriorityRow" style="margin-bottom: 8px;">
+      <div class="cat-chip with-led active" data-priority="normal" onclick="selectMissionPriority('normal')"><span class="led-indicator on"></span>NORMAL</div>
+      <div class="cat-chip with-led" data-priority="urgent" onclick="selectMissionPriority('urgent')"><span class="led-indicator"></span>URGENT</div>
+    </div>
+
+    <div class="field-label">LOCATION</div>
+    <div class="loc-row" id="missionLocRow">
+      <div class="loc-chip active" data-loc="none" onclick="selectMissionLocMode('none')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="7.5"/><line x1="3.5" y1="3.5" x2="14.5" y2="14.5"/></svg>
+        NO LOCATION
+      </div>
+      <div class="loc-chip" data-loc="here" onclick="selectMissionLocMode('here')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="9" cy="9" r="6"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>
+        DROP AT HERE
+      </div>
+      <div class="loc-chip" data-loc="poi" onclick="selectMissionLocMode('poi')">
+        <svg viewBox="-9 -15 18 21" fill="none"><line x1="0" y1="0" x2="0" y2="-13" stroke="currentColor" stroke-width="1.2"/><path d="M0 -13 L7 -10 L0 -7 Z" fill="currentColor"/></svg>
+        LINK TO POI
+      </div>
+      <div class="loc-chip" data-loc="map" onclick="selectMissionLocMode('map')">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="9" cy="9" r="7.5"/><line x1="9" y1="2" x2="9" y2="16"/><line x1="2" y1="9" x2="16" y2="9"/></svg>
+        PICK ON MAP
+      </div>
+    </div>
+    <div class="loc-status" id="missionLocStatus" style="display:none;"></div>
+
+    <div class="field-label">DEADLINE (OPTIONAL)</div>
+    <input class="field-input" id="missionDeadline" type="datetime-local" />
+    <div class="loc-status" id="missionDeadlineStatus" style="display:none;"></div>
+
+  </div>
+  <div class="sheet-actions" id="missionFormActions">
+    <div class="action-btn quiet" onclick="cancelMissionForm()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CANCEL</span></div></div>
+    </div>
+    <div class="action-btn quiet danger" onclick="deleteMissionFromForm()" id="missionDeleteBtn" style="display:none;">
+      <div class="socket"></div>
+      <div class="cap red"><div class="lcd"><span class="lcd-text">DELETE</span></div></div>
+    </div>
+    <div class="action-btn" onclick="saveMissionForm()">
+      <div class="socket"></div>
+      <div class="cap amber"><div class="lcd"><span class="lcd-text" id="missionSaveLabel">CREATE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MISSION MAP PICK BAR (slides up when user is picking a location on the map) -->
+<div id="missionPickBar" class="reposition-bar">
+  <div class="reposition-bar-info">
+    <div class="reposition-bar-label">PICK OBJECTIVE LOCATION</div>
+    <div class="reposition-bar-name">PAN MAP &middot; TAP CONFIRM</div>
+  </div>
+  <div class="reposition-bar-buttons">
+    <button type="button" class="reposition-cancel" onclick="cancelMissionMapPick()">CANCEL</button>
+    <button type="button" class="reposition-confirm" onclick="confirmMissionMapPick()">POSITION HERE</button>
+  </div>
+</div>
+
+<!-- STATS SHEET -->
+<div class="sheet" id="statsSheet">
+  <div class="grip"></div><div class="screw-r"></div>
+  <div class="sheet-title">LIFETIME STATS</div>
+  <div class="sheet-body" id="statsBody"></div>
+  <div class="sheet-actions">
+    <div class="action-btn" onclick="closeSheet()">
+      <div class="socket"></div>
+      <div class="cap steel"><div class="lcd"><span class="lcd-text">CLOSE</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input for imports -->
+<input type="file" id="importFile" accept=".json,application/json" style="display:none;" />
+
+<script src="app.js" defer></script>
+
+</body>
+</html>
