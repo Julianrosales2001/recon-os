@@ -751,15 +751,16 @@ window.RX = window.RX || {};
       if (ptrs.size === 1) {
         gest = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, t: Date.now(), moved: 0, mode: null };
         clearTimeout(lpTimer);
-        if (sc.map && sc.longPress) {
+        if (sc.longPress) {
           lpTimer = setTimeout(() => {
             if (gest && gest.moved < 8) { gest.mode = 'long'; const d = toDot(gest.sx, gest.sy); sc.longPress(d, A.top().st, A); A.dirty = true; }
           }, 600);
         }
-      } else if (ptrs.size === 2 && sc.map) {
+      } else if (ptrs.size === 2 && (sc.map || sc.pinch)) {
         clearTimeout(lpTimer);
         const [a, b] = [...ptrs.values()];
         gest = { mode: 'pinch', d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), z0: M.zoom, moved: 99 };
+        gest.dl = gest.d0;
       }
     });
     el.addEventListener('pointermove', e => {
@@ -774,6 +775,7 @@ window.RX = window.RX || {};
       if (gest.mode === 'pinch' && ptrs.size >= 2) {
         const [a, b] = [...ptrs.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (sc.pinch) { sc.pinch(Math.max(10, d) / gest.dl, A.top().st, A); gest.dl = Math.max(10, d); A.dirty = true; return; }
         const mid = toDot((a.x + b.x) / 2, (a.y + b.y) / 2);
         const target = gest.z0 + Math.log2(d / gest.d0);
         M.zoomBy(target - M.zoom, mid.x, mid.y, A.view());
@@ -785,7 +787,10 @@ window.RX = window.RX || {};
       if (gest.moved < 6 || gest.mode === 'long') return;
       clearTimeout(lpTimer);
       if (sc.map) { M.panBy(dx, dy); if (M.follow) { A.follow(false); A.say('FREE LOOK · PUSH JOG TO RE-CENTER', 3000); } A.dirty = true; }
+      else if (sc.drag) { sc.drag(dx / A.mx.pitch, dy / A.mx.pitch, A.top().st, A); A.dirty = true; }
+      else if (sc.swipe && gest.mode !== 'scroll' && Math.abs(e.clientX - gest.sx) > Math.abs(e.clientY - gest.sy) * 1.3) { gest.mode = 'swipe'; }
       else {
+        if (sc.swipe) gest.mode = 'scroll';
         const st = A.top().st;
         st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy / A.mx.pitch));
         st.jog = false; A.dirty = true;
@@ -803,6 +808,7 @@ window.RX = window.RX || {};
       if (ptrs.size === 0) {
         const g = gest; gest = null;
         if (g.mode === 'pinch' || g.mode === 'long') return;
+        if (g.mode === 'swipe') { const sx = g.lx - g.sx, sc = A.screen(); if (Math.abs(sx) > 36 && sc.swipe) { sc.swipe(sx < 0 ? 1 : -1, A.top().st, A); A.dirty = true; } return; }
         if (g.moved < 8 && Date.now() - g.t < 800 && e.type === 'pointerup') {
           const pt = pendingTap = { d: toDot(g.sx, g.sy), t: Date.now() };
           setTimeout(() => { if (pendingTap === pt) { pendingTap = null; tap(pt.d); } }, 350);
@@ -859,7 +865,8 @@ window.RX = window.RX || {};
     if (k >= '1' && k <= '6') { A.preset(+k - 1); flashKey(document.querySelectorAll('.preset-key')[+k - 1]); }
     else if (k === 'm' || k === 'M') { A.mark(); flashKey($('markKey')); }
     else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); if (A.drumFace() !== 'MENU' && A.stack.length <= 1 && !A.assign) { A.drumTo('MENU'); A.say('DRUM ▸ MENU', 1800); } else { A.drumPressFx(); A.menuAction(); } }
-    else if (k === '[' || k === ']') { A.drumRoll(k === ']' ? 1 : -1); }
+    else if (k === '[' || k === ']') { if (sc.pageStep) { sc.pageStep(k === ']' ? 1 : -1, A.top().st, A); A.dirty = true; } else A.drumRoll(k === ']' ? 1 : -1); }
+    else if (k === 'i' || k === 'I') { if (A.top().name === 'profile') return; if (A.stack.length > 1) A.home(); A.go('profile'); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'p' || k === 'P') { A.togglePresets(); flashKey($('presetsHead')); }
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); A.push(); }
@@ -1226,6 +1233,29 @@ window.RX = window.RX || {};
           if (url.length * 0.75 > 200 * 1024) { A.say('PHOTO TOO LARGE · TRY ANOTHER', 5000); A.beep('err'); return; }
           if (A._photoCb) A._photoCb(url);
           A.say('PHOTO SAVED · ' + Math.round(url.length * 0.75 / 1024) + ' KB', 3000); A.dirty = true;
+        } catch (err) { A.say('PHOTO FAILED', 4000); }
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // portrait for PROFILE: library or camera, shrunk to 600 px
+  A.pickPortrait = function (cb) { A._portraitCb = cb; $('filePortrait').value = ''; $('filePortrait').click(); };
+  $('filePortrait').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const r = Math.min(1, 600 / Math.max(img.width, img.height));
+          const w = Math.round(img.width * r), h = Math.round(img.height * r);
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const cx = cv.getContext('2d'); cx.fillStyle = '#000'; cx.fillRect(0, 0, w, h); cx.drawImage(img, 0, 0, w, h);
+          const url = cv.toDataURL('image/jpeg', 0.75);
+          if (A._portraitCb) A._portraitCb(url);
+          A.say('PHOTO LOADED · DRAG THE BOX TO YOUR FACE', 3500); A.dirty = true;
         } catch (err) { A.say('PHOTO FAILED', 4000); }
       };
       img.src = ev.target.result;

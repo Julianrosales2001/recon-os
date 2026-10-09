@@ -81,12 +81,12 @@ window.RX = window.RX || {};
   S.saveFog = function () { later('fog', 2000, () => safeSet(K.fog, JSON.stringify([...S.fog]))); };
   S.revealAround = function (lat, lng) {
     const la = Math.floor(lat / FOG_CELL_DEG), ln = Math.floor(lng / FOG_CELL_DEG);
-    let changed = false;
+    let changed = 0;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
       const k = packIdx(la + a, ln + b);
-      if (!S.fog.has(k)) { S.fog.add(k); changed = true; }
+      if (!S.fog.has(k)) { S.fog.add(k); changed++; }
     }
-    if (changed) S.saveFog();
+    if (changed) { S.saveFog(); if (S.noteGround) S.noteGround(changed); }
     return changed;
   };
 
@@ -107,6 +107,7 @@ window.RX = window.RX || {};
     S.workouts = readJSON(K.workouts, []);
     try { S.healthTab = localStorage.getItem(K.healthTab) || 'fast'; } catch (e) {}
     S.v2 = Object.assign({}, V2_DEFAULTS, readJSON(K.v2, {}) || {});
+    if (S.loadProfile) S.loadProfile();
   };
 
   S.isEmpty = function () {
@@ -123,6 +124,7 @@ window.RX = window.RX || {};
   };
   S.saveFasts = () => safeSet(K.fasts, JSON.stringify(S.fasts));
   S.saveWeighins = () => safeSet(K.weighins, JSON.stringify(S.weighins));
+  S.saveWorkouts = () => safeSet(K.workouts, JSON.stringify(S.workouts));
   S.saveTrail = function () {
     later('trail', 2000, () => safeSet(K.trail, JSON.stringify(S.trail.map(pt => [
       Math.round(pt.lat * 1e5) / 1e5, Math.round(pt.lng * 1e5) / 1e5, Math.floor(pt.ts / 1000)
@@ -155,7 +157,9 @@ window.RX = window.RX || {};
     if (!S.v2.recordTrail) return false;
     S.pruneTrail();
     const last = S.trail[S.trail.length - 1];
-    if (last && RX.geo.meters(last.lat, last.lng, lat, lng) < 15) return false;
+    const step = last ? RX.geo.meters(last.lat, last.lng, lat, lng) : 0;
+    if (last && step < 15) return false;
+    if (last && step < 2000 && S.noteMiles) S.noteMiles(step / 1609.344);
     S.trail.push({ lat, lng, ts: Date.now() });
     if (S.trail.length > 5000) S.trail = S.trail.slice(-5000);
     S.saveTrail();
@@ -227,7 +231,8 @@ window.RX = window.RX || {};
       healthSeeded: flag(K.healthSeeded),
       supplyPOIsSeeded: flag(K.supplySeeded),
       prefs: S.prefsV1,
-      v2prefs: S.v2
+      v2prefs: S.v2,
+      profile: S.profile || null
     };
   };
   S.summarize = function (d) {
@@ -257,6 +262,7 @@ window.RX = window.RX || {};
     if (d.healthSeeded) setFlag(K.healthSeeded);
     if (d.supplyPOIsSeeded) setFlag(K.supplySeeded);
     if (d.prefs && typeof d.prefs === 'object') { S.prefsV1 = Object.assign({}, S.prefsV1, d.prefs); safeSet(K.prefs, JSON.stringify(S.prefsV1)); }
+    if (d.profile && typeof d.profile === 'object') { safeSet('recon.os.profile', JSON.stringify(d.profile)); if (S.loadProfile) S.loadProfile(); }
     const exportedTs = d.exported ? Date.parse(d.exported) : null;
     const keep = d.v2prefs && typeof d.v2prefs === 'object' ? d.v2prefs : {};
     S.v2 = Object.assign({}, V2_DEFAULTS, S.v2, keep, { lastBackup: exportedTs || Date.now() });

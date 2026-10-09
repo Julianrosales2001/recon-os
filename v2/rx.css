@@ -220,7 +220,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tray-body {
   pointer-events: auto;
   width: 62px; height: 358px; padding: 7px 6px;
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-direction: column; gap: 1px;
   background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(180deg, #354C4D 0%, #2B3F40 100%);
   background-blend-mode: overlay, normal;
   border-radius: 6px 0 0 6px;
@@ -472,6 +472,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tool[data-tool=objectives] { background-image: url(keys/tool-objectives.png?v=2) !important; }
 .tool[data-tool=lot] { background-image: url(keys/tool-lot.png?v=2) !important; }
 .tool[data-tool=ref] { background-image: url(keys/tool-ref.png?v=2) !important; }
+.tool[data-tool=profile] { background-image: url(keys/tool-profile.png?v=1) !important; }
 .tool[data-tool=vis] { background-image: url(keys/tool-vis.png?v=1) !important; }
 .tool[data-tool=vis]:has(.led.on) { background-image: url(keys/tool-vis-lit.png?v=1) !important; }
 .tool[data-tool=objectives]:has(.led.on) { background-image: url(keys/tool-objectives-lit.png?v=2) !important; }

@@ -2200,6 +2200,6 @@ window.RX = window.RX || {};
       const mi = S.fog.size * CELL_SQMI;
       return { rows: [['EXPL', (mi < 100 ? mi.toFixed(1) : Math.round(mi)) + ' SQ MI'], cityRow, ['CELL', F.num(S.fog.size)]], tag: 'VIS' };
     }
-    return { lcd };
+    return { lcd, cityPct };
   })();
 })();
