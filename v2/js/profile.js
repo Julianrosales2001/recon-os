@@ -306,16 +306,15 @@ window.RX = window.RX || {};
   function seg(mx, x, y, w, f, col, mark) { const n = Math.floor(w / 3); for (let i = 0; i < n; i++) mx.rect(x + i * 3, y, 2, 5, col, i < Math.round(f * n) ? 1 : 0.13); if (mark != null) mx.vline(x + Math.round(mark * n) * 3 - 1, y - 1, 7, HOT, 1); }
   function pips(mx, x, y, w, done, target, col) { const gw = Math.floor((w - (target - 1) * 2) / target); for (let i = 0; i < target; i++) mx.rect(x + i * (gw + 2), y, gw, 5, col, i < done ? 1 : 0.13); }
   function header(g, st, A) {
-    g.header('PROFILE · ' + PAGES[st.page], (st.page + 1) + '/4');
-    g.hit(g.W - 34, 0, 34, 11, () => turn(st, A, 1));
+    g.header('PROFILE · ' + PAGES[st.pg], (st.pg + 1) + '/4');
     return 13;
   }
-  function turn(st, A, d) {
+  function turn(st, A, pg) {
     U.closeField(true);
-    st.page = (st.page + d + 4) % 4; st.scroll = 0; st.sel = 0; st.jog = false; st.edit = null;
-    S.saveV2({ profPage: st.page });
-    A.beep('thunk', 0.6); A.refreshChrome(); A.dirty = true;
-    if (st.page === 2) checkBadges(A);
+    st.pg = pg; st.scroll = 0; st.sel = 0; st.jog = false; st.edit = null;
+    S.saveV2({ profPage: st.pg });
+    A.dirty = true;
+    if (st.pg === 2) checkBadges(A);
   }
 
   // ======================================================================
@@ -539,31 +538,32 @@ window.RX = window.RX || {};
   // ======================================================================
   // THE SCREEN
   // ======================================================================
-  const JOGS = [['◂ UP', 'DOWN ▸', 'PUSH SELECT · [ ] PAGE'], ['◂ TURN', 'TURN ▸', 'SWIPE OR [ ] FOR PAGES'], ['◂ BADGE', 'BADGE ▸', 'SWIPE OR [ ] FOR PAGES'], ['◂ UP', 'DOWN ▸', 'PUSH EDIT · [ ] PAGE']];
+  const JOGS = [['◂ UP', 'DOWN ▸', 'PUSH SELECT · DRUM = PAGE'], ['◂ TURN', 'TURN ▸', 'ROLL THE DRUM FOR PAGES'], ['◂ BADGE', 'BADGE ▸', 'ROLL THE DRUM FOR PAGES'], ['◂ UP', 'DOWN ▸', 'PUSH EDIT · DRUM = PAGE']];
+  const DRUM_IDS = ['status', 'body', 'record', 'file'];
   RX.screens.profile = {
-    enter(st, params, A) { st.page = params.page != null ? params.page : (S.v2.profPage || 0); st.ang = 0; st.badge = 0; checkBadges(A); refreshCity(A); },
+    drum: DRUM_IDS,
+    enter(st, params, A) { st.pg = params.page != null ? params.page : (S.v2.profPage || 0); st.page = DRUM_IDS[st.pg]; st.ang = 0; st.badge = 0; checkBadges(A); refreshCity(A); },
+    onPage(pg, st, A) { turn(st, A, Math.max(0, DRUM_IDS.indexOf(pg))); },
     resume(st, A) { checkBadges(A); },
-    animating: st => st.page === 1 || !!S.activeFast(),
-    jogLabels: st => JOGS[st.page || 0],
-    swipe(dir, st, A) { turn(st, A, dir); },
-    pageStep(d, st, A) { turn(st, A, d); },
+    animating: st => st.pg === 1 || !!S.activeFast(),
+    jogLabels: st => JOGS[st.pg || 0],
     jog(d, st, A) {
-      if (st.page === 1) { st.ang = ((st.ang || 0) + d * 2 + NFR) % NFR; st.spunAt = Date.now(); return; }
-      if (st.page === 2) { st.badge = clamp((st.badge || 0) + d, 0, BADGES.length - 1); return; }
+      if (st.pg === 1) { st.ang = ((st.ang || 0) + d * 2 + NFR) % NFR; st.spunAt = Date.now(); return; }
+      if (st.pg === 2) { st.badge = clamp((st.badge || 0) + d, 0, BADGES.length - 1); return; }
       A.focusJog(d);
     },
-    push(st, A) { if (st.page === 1 || st.page === 2) { turn(st, A, 1); return; } A.focusPush(); },
+    push(st, A) { if (st.pg === 1 || st.pg === 2) return; A.focusPush(); },
     longPress(d, st, A) {
       const r = st.trainRect;
-      if (st.page === 0 && r && d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h && trainedToday()) undoTrained(A);
+      if (st.pg === 0 && r && d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h && trainedToday()) undoTrained(A);
     },
     render(g, st, A) {
       header(g, st, A);
-      if (st.page === 0) pageStatus(g, st, A);
-      else if (st.page === 1) pageBody(g, st, A);
-      else if (st.page === 2) pageRecord(g, st, A);
+      if (st.pg === 0) pageStatus(g, st, A);
+      else if (st.pg === 1) pageBody(g, st, A);
+      else if (st.pg === 2) pageRecord(g, st, A);
       else pageFile(g, st, A);
-      if (st.page !== 0) g.footer(A.sayActive() ? A.statusShown(g.t) : ['', 'JOG TURNS · SPINS ON ITS OWN', '◂ ▸ PICK A BADGE', 'TAP A ROW TO CHANGE IT'][st.page]);
+      if (st.pg !== 0) g.footer(A.sayActive() ? A.statusShown(g.t) : ['', 'JOG TURNS · SPINS ON ITS OWN', '◂ ▸ PICK A BADGE', 'TAP A ROW TO CHANGE IT'][st.pg]);
       else if (A.sayActive()) { const y = g.H - 23; g.mx.clearRect(0, y, g.W, 9); g.mini(FONT.fit(A.statusShown(g.t), g.W - 4, 'mini'), 2, y + 2, { c: HOT, a: 1 }); }
     },
     lcd() {

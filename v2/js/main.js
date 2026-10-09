@@ -454,19 +454,21 @@ window.RX = window.RX || {};
   // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   const DRUM_ART = (id, lit) => 'url(keys/drum-' + id + (lit ? '-lit' : '') + '.jpg?v=1)';
-  ['menu', 'scan', 'filter', 'back', 'undo', 'lot', 'traffic', 'area'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
+  ['menu', 'scan', 'filter', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
-  // a screen can claim the drum: sc.drum = three page ids. Rolling picks the page (st.page); pressing still goes BACK.
+  // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
+  // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
   const modeDrum = () => { const sc = A.screen(); return !A.assign && A.stack.length > 1 && sc.drum ? sc.drum : null; };
-  A.drumPage = () => { const md = modeDrum(); return md ? md[mod(A.drumRot, 3)] : null; };
+  const drumIdx = (md, st) => { if (st.drumI == null) st.drumI = Math.max(0, md.indexOf(st.page || md[0])); return st.drumI; };
+  A.drumPage = () => { const md = modeDrum(); return md ? md[drumIdx(md, A.top().st)] : null; };
   function updateDrum() {
     const face = mod(A.drumRot, 3);
     const atHome = A.stack.length <= 1;
     const md = modeDrum();
-    if (md) md.forEach((id, k) => { faceArt[k] = id; });
+    if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face + 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face - 1, 3)] = md[mod(i - 1, n)]; }
     else { faceArt[1] = 'scan'; faceArt[2] = 'filter'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
-    const id = md ? md[face].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
+    const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
   A.updateDrum = updateDrum;
@@ -476,6 +478,8 @@ window.RX = window.RX || {};
   A.drumRoll = function (dir, quiet) {
     A.wake();
     if (!canRoll()) { setDrumAngle(0); if (!quiet) A.say(A.assign ? 'FILE THE MARK FIRST' : 'THE DRUM ROLLS ON THE MAP', 2000); return; }
+    const md0 = modeDrum();
+    if (md0) { const st = A.top().st; st.drumI = mod(drumIdx(md0, st) + dir, md0.length); }
     A.drumRot += dir; A.drumTouched = Date.now();
     setDrumAngle(0); landThunk();
     onFace();
@@ -492,7 +496,7 @@ window.RX = window.RX || {};
   function onFace(silent) {
     const md = modeDrum();
     if (md) {
-      const top = A.top(), sc = A.screen(), pg = md[mod(A.drumRot, 3)];
+      const top = A.top(), sc = A.screen(), pg = md[drumIdx(md, top.st)];
       top.st.page = pg;
       if (sc.onPage) sc.onPage(pg, top.st, A);
       if (!silent) A.say('DRUM ▸ ' + pg.toUpperCase(), 1600);
@@ -514,10 +518,8 @@ window.RX = window.RX || {};
     if (!atHome) {
       if (!A.drumSaved) A.drumSaved = { rot: A.drumRot, scan: A.scan };
       const md = modeDrum(), st = A.top().st;
-      const want = md ? Math.max(0, md.indexOf(st.page || md[0])) : 0;
-      const cur = mod(A.drumRot, 3);
-      if (cur !== want) { A.drumRot += mod(want - cur, 3) === 1 ? 1 : -1; setDrumAngle(0); }
-      if (md && !st.page) st.page = md[0];
+      if (md) { st.drumI = null; drumIdx(md, st); if (!st.page) st.page = md[0]; }
+      else { const cur = mod(A.drumRot, 3); if (cur !== 0) { A.drumRot += mod(0 - cur, 3) === 1 ? 1 : -1; setDrumAngle(0); } }
     } else if (atHome && A.drumSaved) {
       const sv = A.drumSaved; A.drumSaved = null;
       A.drumRot = sv.rot; A.scan = sv.scan; setDrumAngle(0); landThunk(0.6);
@@ -788,9 +790,7 @@ window.RX = window.RX || {};
       clearTimeout(lpTimer);
       if (sc.map) { M.panBy(dx, dy); if (M.follow) { A.follow(false); A.say('FREE LOOK · PUSH JOG TO RE-CENTER', 3000); } A.dirty = true; }
       else if (sc.drag) { sc.drag(dx / A.mx.pitch, dy / A.mx.pitch, A.top().st, A); A.dirty = true; }
-      else if (sc.swipe && gest.mode !== 'scroll' && Math.abs(e.clientX - gest.sx) > Math.abs(e.clientY - gest.sy) * 1.3) { gest.mode = 'swipe'; }
       else {
-        if (sc.swipe) gest.mode = 'scroll';
         const st = A.top().st;
         st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy / A.mx.pitch));
         st.jog = false; A.dirty = true;
@@ -808,7 +808,6 @@ window.RX = window.RX || {};
       if (ptrs.size === 0) {
         const g = gest; gest = null;
         if (g.mode === 'pinch' || g.mode === 'long') return;
-        if (g.mode === 'swipe') { const sx = g.lx - g.sx, sc = A.screen(); if (Math.abs(sx) > 36 && sc.swipe) { sc.swipe(sx < 0 ? 1 : -1, A.top().st, A); A.dirty = true; } return; }
         if (g.moved < 8 && Date.now() - g.t < 800 && e.type === 'pointerup') {
           const pt = pendingTap = { d: toDot(g.sx, g.sy), t: Date.now() };
           setTimeout(() => { if (pendingTap === pt) { pendingTap = null; tap(pt.d); } }, 350);
@@ -865,7 +864,7 @@ window.RX = window.RX || {};
     if (k >= '1' && k <= '6') { A.preset(+k - 1); flashKey(document.querySelectorAll('.preset-key')[+k - 1]); }
     else if (k === 'm' || k === 'M') { A.mark(); flashKey($('markKey')); }
     else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); if (A.drumFace() !== 'MENU' && A.stack.length <= 1 && !A.assign) { A.drumTo('MENU'); A.say('DRUM ▸ MENU', 1800); } else { A.drumPressFx(); A.menuAction(); } }
-    else if (k === '[' || k === ']') { if (sc.pageStep) { sc.pageStep(k === ']' ? 1 : -1, A.top().st, A); A.dirty = true; } else A.drumRoll(k === ']' ? 1 : -1); }
+    else if (k === '[' || k === ']') { A.drumRoll(k === ']' ? 1 : -1); }
     else if (k === 'i' || k === 'I') { if (A.top().name === 'profile') return; if (A.stack.length > 1) A.home(); A.go('profile'); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'p' || k === 'P') { A.togglePresets(); flashKey($('presetsHead')); }
