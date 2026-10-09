@@ -427,12 +427,12 @@ window.RX = window.RX || {};
   // ---------- function drum ----------
   // A chunky three-sided roller in the old MENU slot. MENU (jog zooms, press =
   // menu/back), SCAN (jog steps through marks nearest-first, press opens one),
-  // FILTER (jog picks a category, press clears). It only rolls on the map; on
+  // LOT (press opens LOT mode on the crosshair; categories filter from the preset keys). It only rolls on the map; on
   // any other screen it sits on MENU, which then reads BACK.
   const DRUM = [
     { id: 'MENU', jp: '設定', icon: 'M3 4.5 L13 4.5 M3 8 L13 8 M3 11.5 L13 11.5' },
     { id: 'SCAN', jp: '走査', icon: 'M2 5 L2 2 L5 2 M11 2 L14 2 L14 5 M14 11 L14 14 L11 14 M5 14 L2 14 L2 11 M8 6.5 L8 9.5 M6.5 8 L9.5 8' },
-    { id: 'FILTER', jp: '選別', icon: 'M2.5 3 L13.5 3 L9.5 8 L9.5 13 L6.5 11.5 L6.5 8 Z' }
+    { id: 'LOT', jp: '区画', icon: 'M2.5 4.5 L9 2.5 L13.5 6 L12 13.5 L3.5 12 Z' }
   ];
   const BACK_FACE = { id: 'BACK', jp: '戻る', icon: 'M6.5 4 L2.5 8 L6.5 12 M2.5 8 L13.5 8' };
   const UNDO_FACE = { id: 'UNDO', jp: '取消', icon: 'M5 3.5 L2 6.5 L5 9.5 M2 6.5 L10 6.5 C13 6.5 14 8.5 14 10 C14 11.8 12.6 13 10.5 13 L7 13' };
@@ -454,7 +454,7 @@ window.RX = window.RX || {};
   // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   const DRUM_ART = (id, lit) => 'url(keys/drum-' + id + (lit ? '-lit' : '') + '.jpg?v=1)';
-  ['menu', 'scan', 'filter', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
+  ['menu', 'scan', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [0, 1].forEach(l => { const im = new Image(); im.src = DRUM_ART(id, l).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
   // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
@@ -466,7 +466,7 @@ window.RX = window.RX || {};
     const atHome = A.stack.length <= 1;
     const md = modeDrum();
     if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face - 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face + 1, 3)] = md[mod(i - 1, n)]; }
-    else { faceArt[1] = 'scan'; faceArt[2] = 'filter'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
+    else { faceArt[1] = 'scan'; faceArt[2] = 'lot'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
     const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
@@ -508,7 +508,7 @@ window.RX = window.RX || {};
     else { A.scan = null; }
     if (!silent) {
       if (id === 'MENU') A.say('DRUM ▸ MENU · JOG ZOOMS', 2200);
-      if (id === 'FILTER') A.say('DRUM ▸ FILTER · TURN THE JOG TO PICK', 2400);
+      if (id === 'LOT') A.say('DRUM ▸ LOT · PRESS TO READ THE SPOT UNDER THE CROSSHAIR', 2600);
     }
     updateDrum(); applyMode(); A.lcdDirty = true; A.dirty = true;
   }
@@ -540,9 +540,7 @@ window.RX = window.RX || {};
       if (it) A.openMark(it.id); else A.say('NOTHING TO OPEN', 2000);
       return;
     }
-    if (A.recall != null) { A.clearRecall(); A.say('FILTER CLEARED ▸ ALL CATEGORIES', 2500); }
-    else A.say('NO FILTER · TURN THE JOG TO PICK ONE', 2500);
-    A.lcdDirty = true;
+    A.go('lot');
   };
   // drag: the drum leans against the finger, then swings over a face every 40 px
   (function () {
@@ -1067,11 +1065,6 @@ window.RX = window.RX || {};
       const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
       const mins = Math.max(1, Math.round(m / 1609.344 / 3 * 60));
       rows = [['TGT', S.markLabel(it)], ['DST', Geo.fmtDist(m) + ' ' + Geo.cardinal(b) + ' ' + String(Math.round(b) % 360).padStart(3, '0') + '°'], ['ETA', mins > 90 ? (mins / 60).toFixed(1) + ' H WALK' : mins + ' MIN WALK']];
-    } else if (A.stack.length <= 1 && A.drumFace() === 'FILTER') {
-      const cat = A.recall != null ? U.CATS[A.recall] : null;
-      const n = cat ? S.pois.filter(p => p.category === cat.id).length : S.pois.length;
-      const nb = A.nearest(A.recall);
-      rows = [['CAT', cat ? cat.id : 'ALL'], ['MARKS', String(n)], ['NEAR', nb ? Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.brg) : '--']];
     } else if (A.disp === 'nav') {
       const g = A.gps;
       rows = [['SPD', g ? (g.speed * 2.237).toFixed(1) + ' MPH' : '--'],
@@ -1097,7 +1090,7 @@ window.RX = window.RX || {};
       m.text(RX.font.fit(r[1], m.cols - vx - 2), vx, y, { c: ink });
     });
     const df = A.stack.length <= 1 ? A.drumFace() : 'MENU';
-    const tag = scLcd ? (scLcd.tag || '') : df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'FILTER' ? 'FLT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
+    const tag = scLcd ? (scLcd.tag || '') : df === 'SCAN' && A.scanItem() ? 'SCN' : df === 'LOT' ? 'LOT' : ({ region: 'REG', nav: 'NAV', target: 'TGT' }[A.disp] || '');
     if (A.booted) m.text(tag, m.cols - 13, m.rows - 6, { face: 'mini', c: ink, a: 0.4 });
     m.present();
   }

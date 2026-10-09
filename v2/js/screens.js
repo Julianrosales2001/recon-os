@@ -218,13 +218,12 @@ window.RX = window.RX || {};
     jogLabels: (st, A) => {
       const f = A.drumFace();
       if (f === 'SCAN') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
-      if (f === 'FILTER') return ['◂ PREV', 'NEXT ▸', 'DRUM ▸ CLEAR · HOLD RESET'];
+      if (f === 'LOT') return ['◂ OUT', 'IN ▸', 'DRUM ▸ READ LOT · HOLD RESET'];
       return ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'];
     },
     jog(d, st, A) {
       const f = A.drumFace();
       if (f === 'SCAN') { A.scanStep(d); return; }
-      if (f === 'FILTER') { A.filterStep(d); return; }
       const v = A.view();
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
@@ -247,7 +246,7 @@ window.RX = window.RX || {};
       {
         const f = A.drumFace(), it = f === 'SCAN' ? A.scanItem() : null;
         document.getElementById('jogVal').textContent = f === 'SCAN' ? (it ? (A.scan.i + 1) + '/' + A.scan.list.length : '0/0')
-          : f === 'FILTER' ? (A.recall != null ? U.CATS[A.recall].short : 'ALL') : 'Z' + (Math.round(M.zoom * 2) / 2);
+          : 'Z' + (Math.round(M.zoom * 2) / 2);
       }
 
       // recall banner

@@ -220,7 +220,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tray-body {
   pointer-events: auto;
   width: 62px; height: 358px; padding: 7px 6px;
-  display: flex; flex-direction: column; gap: 1px;
+  display: flex; flex-direction: column; gap: 4px;
   background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(180deg, #354C4D 0%, #2B3F40 100%);
   background-blend-mode: overlay, normal;
   border-radius: 6px 0 0 6px;
