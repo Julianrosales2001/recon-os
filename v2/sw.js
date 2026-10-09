@@ -4,7 +4,7 @@
    - Google Fonts: stored after the first load
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.14.2';
+const VERSION = '2.14.3';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,

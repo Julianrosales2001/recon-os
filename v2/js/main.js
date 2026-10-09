@@ -465,7 +465,7 @@ window.RX = window.RX || {};
     const face = mod(A.drumRot, 3);
     const atHome = A.stack.length <= 1;
     const md = modeDrum();
-    if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face + 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face - 1, 3)] = md[mod(i - 1, n)]; }
+    if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face - 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face + 1, 3)] = md[mod(i - 1, n)]; }
     else { faceArt[1] = 'scan'; faceArt[2] = 'filter'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
     const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
@@ -479,7 +479,7 @@ window.RX = window.RX || {};
     A.wake();
     if (!canRoll()) { setDrumAngle(0); if (!quiet) A.say(A.assign ? 'FILE THE MARK FIRST' : 'THE DRUM ROLLS ON THE MAP', 2000); return; }
     const md0 = modeDrum();
-    if (md0) { const st = A.top().st; st.drumI = mod(drumIdx(md0, st) + dir, md0.length); }
+    if (md0) { const st = A.top().st; st.drumI = mod(drumIdx(md0, st) - dir, md0.length); }   // paged drums: swipe up = next page
     A.drumRot += dir; A.drumTouched = Date.now();
     setDrumAngle(0); landThunk();
     onFace();
@@ -864,7 +864,7 @@ window.RX = window.RX || {};
     if (k >= '1' && k <= '6') { A.preset(+k - 1); flashKey(document.querySelectorAll('.preset-key')[+k - 1]); }
     else if (k === 'm' || k === 'M') { A.mark(); flashKey($('markKey')); }
     else if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); if (A.drumFace() !== 'MENU' && A.stack.length <= 1 && !A.assign) { A.drumTo('MENU'); A.say('DRUM ▸ MENU', 1800); } else { A.drumPressFx(); A.menuAction(); } }
-    else if (k === '[' || k === ']') { A.drumRoll(k === ']' ? 1 : -1); }
+    else if (k === '[' || k === ']') { const paged = A.stack.length > 1 && sc.drum; A.drumRoll((k === ']' ? 1 : -1) * (paged ? -1 : 1)); }
     else if (k === 'i' || k === 'I') { if (A.top().name === 'profile') return; if (A.stack.length > 1) A.home(); A.go('profile'); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'p' || k === 'P') { A.togglePresets(); flashKey($('presetsHead')); }
