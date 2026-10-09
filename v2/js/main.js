@@ -1108,12 +1108,19 @@ window.RX = window.RX || {};
     if (colon) m.text(':', x0 + 24, 2, { s: 2, c: amber });
     m.text(mm, x0 + 36, 2, { s: 2, c: amber });
     const f = S.activeFast();
-    const y2 = 19;
-    m.text('FAST', 2, y2 + 1, { face: 'mini', c: amber, a: 0.6 });
-    m.textR(f ? U.F.durHM(Date.now() - f.startTs) : '--:--', m.cols - 2, y2, { c: amber });
-    const segs = 20, segW = Math.floor((m.cols - 4) / segs);
-    const frac = f ? Math.min(1, (Date.now() - f.startTs) / 864e5) : 0;
-    const yb = m.rows - 5;
+    const y2 = 19, segs = 20, segW = Math.floor((m.cols - 4) / segs), yb = m.rows - 5;
+    let frac;
+    if (f) {
+      // fasting: elapsed time, bar fills over 24 h
+      m.text('FAST', 2, y2 + 1, { face: 'mini', c: amber, a: 0.6 });
+      m.textR(U.F.durHM(Date.now() - f.startTs), m.cols - 2, y2, { c: amber });
+      frac = Math.min(1, (Date.now() - f.startTs) / 864e5);
+    } else {
+      // plain clock: the date under the time, the bar sweeps the minute
+      const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'], MONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      m.textC(DAYS[d.getDay()] + ' ' + U.F.pad2(d.getDate()) + ' ' + MONS[d.getMonth()], m.cols / 2, y2, { c: amber });
+      frac = (d.getSeconds() + 1) / 60;
+    }
     for (let i = 0; i < segs; i++) {
       const lit = i < Math.round(frac * segs);
       m.rect(2 + i * segW, yb, segW - 1, 3, amber, lit ? 1 : 0.1);
