@@ -510,7 +510,7 @@ window.RX = window.RX || {};
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   // the lit face glows mint on the map, amber one level in, red deeper
   const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=1)';
-  ['menu', 'scan', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
+  ['menu', 'scan', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
   // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
@@ -938,7 +938,7 @@ window.RX = window.RX || {};
     }
     else if (k === 'l' || k === 'L') { if (A.stack.length > 1) A.home(); A.go('log'); }
     else if (k === 's' || k === 'S' || k === '/') { e.preventDefault(); if (A.stack.length > 1) A.home(); A.go('search'); }
-    else if (k === 'o' || k === 'O') { if (A.stack.length > 1) A.home(); A.go('objectives'); }
+    else if (k === 'o' || k === 'O') { if (A.stack.length > 1) A.home(); A.go('cal'); }
     else if (k === 'g' || k === 'G') { if (A.stack.length > 1) A.home(); A.go('legend'); }
     else if (k === 'r' || k === 'R') { if (A.stack.length > 1) A.home(); A.go('ref'); }
     else if (k === 'h' || k === 'H') { if (A.stack.length > 1) A.home(); A.go('fast'); }

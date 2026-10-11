@@ -44,7 +44,7 @@ window.RX = window.RX || {};
       const hot = m.priority === 'urgent' || (m.deadline && m.deadline < Date.now());
       const off = m.poiId ? 9 : 0;
       g.hex(x, y + off, hot ? C.red : C.obj, 0.95);
-      if (!o.noHits) g.hit(x - 6, y + off - 6, 13, 13, () => A.go('objective', { id: m.id }));
+      if (!o.noHits) g.hit(x - 6, y + off - 6, 13, 13, () => A.go('calitem', { todo: m.id }));
     });
 
     // marks
@@ -629,16 +629,16 @@ window.RX = window.RX || {};
 
       // objectives
       const linked = S.missions.filter(x => x.poiId === p.id);
-      y = g.section('OBJECTIVES', y, linked.filter(x => x.status === 'active').length + ' ACTIVE');
+      y = g.section('TO-DOS', y, linked.filter(x => x.status === 'active').length + ' OPEN');
       linked.slice().sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1)).slice(0, 6).forEach(x => {
-        const sel = g.row(0, y, W - 2, 10, () => A.go('objective', { id: x.id }));
+        const sel = g.row(0, y, W - 2, 10, () => A.go('calitem', { todo: x.id }));
         g.hex(5, y + 4, x.status === 'active' ? (x.priority === 'urgent' ? C.red : C.obj) : C.ink, x.status === 'active' ? 1 : 0.4);
         g.text(g.fit(x.title, W - 50), 12, y + 1, { a: x.status === 'active' ? 1 : 0.45, c: sel ? C.hot : C.ink });
         g.miniR(x.status === 'active' ? (x.deadline ? 'DUE ' + F.date(x.deadline) : 'ACTIVE') : 'DONE', W - 4, y + 2, { a: 0.6 });
         y += 11;
       });
-      g.btn(0, y, W - 2, 11, '+ OBJECTIVE HERE', () => {
-        const mm = { id: 'MSN-' + Date.now(), title: S.markLabel(p), notes: '', priority: 'normal', status: 'active', created: Date.now(), completed: null, lat: p.lat, lng: p.lng, poiId: p.id, deadline: null };
+      g.btn(0, y, W - 2, 11, '+ TO-DO HERE', () => {
+        const mm = { id: 'MSN-' + Date.now(), title: S.markLabel(p), notes: '', priority: 'normal', status: 'active', created: Date.now(), completed: null, lat: p.lat, lng: p.lng, poiId: p.id, deadline: null, repeat: 'none' };
         A.go('objective', { draft: mm });
       }, { face: 'mini' });
       y += 14;
@@ -1231,7 +1231,7 @@ window.RX = window.RX || {};
       const W = g.W, mx = g.mx, m = st.m;
       if (!m) { g.header('OBJECTIVE'); g.textC('NOT FOUND', W / 2, 40); g.footer('BACK TO RETURN'); return; }
       const save = () => { if (!st.isNew) S.saveMissions(); A.updateLamps(); };
-      let y = g.header(st.isNew ? 'NEW OBJECTIVE' : 'OBJECTIVE', st.isNew ? '' : (m.status === 'complete' ? 'DONE ' + F.date(m.completed || m.created) : 'ACTIVE'), { c: m.priority === 'urgent' ? C.red : C.ink });
+      let y = g.header(st.isNew ? 'CAL · NEW TO-DO' : 'CAL · EDIT TO-DO', st.isNew ? '' : (m.status === 'complete' ? 'DONE ' + F.date(m.completed || m.created) : 'ACTIVE'), { c: m.priority === 'urgent' ? C.red : C.ink });
       y = g.scrollBegin(y, footTop(g));
       y = g.section('TITLE', y);
       g.field('ob-title-' + m.id, 0, y, W - 2, 13, { value: m.title, placeholder: 'WHAT NEEDS DOING', maxLen: 80, onCommit: v => { m.title = String(v || '').trim() || m.title; save(); } });
@@ -1251,6 +1251,9 @@ window.RX = window.RX || {};
       else if (m.deadline) { g.mx.clearRect(3, y + 2, W - 46, 9); g.text(F.day(m.deadline) + ' ' + F.hm(m.deadline), 4, y + 3); }
       g.btn(W - 37, y, 35, 13, 'CLEAR', () => { m.deadline = null; save(); }, { face: 'mini', dim: !m.deadline });
       y += 16;
+      y = g.section('REPEAT', y, m.deadline ? '' : 'NEEDS A DUE DATE');
+      g.seg(0, y, W - 2, 11, [['none', 'NONE'], ['day', 'DAY'], ['week', 'WEEK'], ['month', 'MONTH'], ['year', 'YEAR']].map(r => ({ label: r[1], on: (m.repeat || 'none') === r[0], fn: () => { m.repeat = r[0]; save(); } })), { face: 'mini' });
+      y += 14;
       y = g.section('PLACE', y);
       const p = m.poiId ? S.poi(m.poiId) : null;
       const placeTxt = p ? 'MARK ▸ ' + S.markLabel(p) : (m.lat != null ? 'PIN ▸ ' + m.lat.toFixed(4) + ', ' + m.lng.toFixed(4) : 'NO PLACE');
@@ -1264,7 +1267,7 @@ window.RX = window.RX || {};
       ], { face: 'mini' });
       y += 16;
       if (st.isNew) {
-        g.btn(0, y, W - 2, 15, '▸ CREATE OBJECTIVE', () => {
+        g.btn(0, y, W - 2, 15, '▸ SAVE TO-DO', () => {
           if (!m.title.trim()) { A.say('GIVE IT A TITLE FIRST', 2500); A.beep('err'); return; }
           S.missions.push(m); S.saveMissions(); S.log('mission-create', m.id, 'Created: ' + m.title);
           st.isNew = false; A.updateLamps(); A.back(); A.say('CREATED ▸ ' + m.title, 2500); A.beep('file');
@@ -1272,17 +1275,17 @@ window.RX = window.RX || {};
         y += 18;
       } else {
         const bw = Math.floor((W - 2) / 2);
-        g.btn(0, y, bw - 1, 14, m.status === 'complete' ? 'REOPEN' : '✓ COMPLETE', () => toggleMission(m, A), { solid: true });
+        g.btn(0, y, bw - 1, 14, m.status === 'complete' ? 'REOPEN' : '✓ DONE', () => RX.calComplete(A, m), { solid: true });
         g.btn(bw, y, W - 2 - bw, 14, '× DELETE', () => A.go('confirm', {
-          title: 'DELETE OBJECTIVE', danger: true, confirm: 'DELETE', lines: ['DELETE "' + m.title + '"?'],
-          onConfirm: () => { st.deleted = true; S.missions = S.missions.filter(x => x.id !== m.id); S.saveMissions(); S.log('mission-delete', m.id, 'Deleted: ' + m.title); A.updateLamps(); A.back(); A.say('OBJECTIVE DELETED', 2500); }
+          title: 'DELETE TO-DO', danger: true, confirm: 'DELETE', lines: ['DELETE "' + m.title + '"?'],
+          onConfirm: () => { st.deleted = true; S.missions = S.missions.filter(x => x.id !== m.id); S.saveMissions(); S.log('mission-delete', m.id, 'Deleted: ' + m.title); A.updateLamps(); A.back(); if (A.top().name === 'calitem') A.back(); A.say('TO-DO DELETED', 2500); }
         }), { c: C.red });
         y += 18;
         g.mini('CREATED ' + F.dateY(m.created) + ' ' + F.hm(m.created), 1, y, { a: 0.45 });
         y += 9;
       }
       g.scrollEnd(y);
-      g.footer(A.sayActive() ? A.statusShown(g.t) : (st.isNew ? 'FILL IN, THEN CREATE' : 'CHANGES SAVE AS YOU GO'));
+      g.footer(A.sayActive() ? A.statusShown(g.t) : (st.isNew ? 'FILL IN, THEN SAVE' : 'CHANGES SAVE AS YOU GO'));
     }
   };
 

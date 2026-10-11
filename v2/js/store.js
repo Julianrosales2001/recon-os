@@ -109,6 +109,7 @@ window.RX = window.RX || {};
     S.v2 = Object.assign({}, V2_DEFAULTS, readJSON(K.v2, {}) || {});
     if (S.loadProfile) S.loadProfile();
     if (S.loadRolo) S.loadRolo();
+    if (S.loadCal) S.loadCal();
   };
 
   S.isEmpty = function () {
@@ -234,7 +235,8 @@ window.RX = window.RX || {};
       prefs: S.prefsV1,
       v2prefs: S.v2,
       profile: S.profile || null,
-      rolo: S.rolo || []
+      rolo: S.rolo || [],
+      events: S.events || [], goals: S.goals || []
     };
   };
   S.summarize = function (d) {
@@ -265,6 +267,8 @@ window.RX = window.RX || {};
     if (d.supplyPOIsSeeded) setFlag(K.supplySeeded);
     if (d.prefs && typeof d.prefs === 'object') { S.prefsV1 = Object.assign({}, S.prefsV1, d.prefs); safeSet(K.prefs, JSON.stringify(S.prefsV1)); }
     if (Array.isArray(d.rolo)) { S.rolo = d.rolo; if (S.saveRolo) S.saveRolo(); }
+    if (Array.isArray(d.events)) { S.events = d.events; if (S.saveEvents) S.saveEvents(); }
+    if (Array.isArray(d.goals)) { S.goals = d.goals; if (S.saveGoals) S.saveGoals(); }
     if (d.profile && typeof d.profile === 'object') { safeSet('recon.os.profile', JSON.stringify(d.profile)); if (S.loadProfile) S.loadProfile(); }
     const exportedTs = d.exported ? Date.parse(d.exported) : null;
     const keep = d.v2prefs && typeof d.v2prefs === 'object' ? d.v2prefs : {};

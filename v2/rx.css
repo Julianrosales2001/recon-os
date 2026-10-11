@@ -476,13 +476,13 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tool[data-tool=fast] { background-image: url(keys/tool-fast.png?v=2) !important; }
 .tool[data-tool=fast]:has(.led.on) { background-image: url(keys/tool-fast-lit.png?v=2) !important; }
 .tool[data-tool=legend] { background-image: url(keys/tool-legend.png?v=2) !important; }
-.tool[data-tool=objectives] { background-image: url(keys/tool-objectives.png?v=2) !important; }
+.tool[data-tool=cal] { background-image: url(keys/tool-cal.png?v=1) !important; }
 .tool[data-tool=lot] { background-image: url(keys/tool-lot.png?v=2) !important; }
 .tool[data-tool=ref] { background-image: url(keys/tool-ref.png?v=2) !important; }
 .tool[data-tool=profile] { background-image: url(keys/tool-profile.png?v=1) !important; }
 .tool[data-tool=vis] { background-image: url(keys/tool-vis.png?v=1) !important; }
 .tool[data-tool=vis]:has(.led.on) { background-image: url(keys/tool-vis-lit.png?v=1) !important; }
-.tool[data-tool=objectives]:has(.led.on) { background-image: url(keys/tool-objectives-lit.png?v=2) !important; }
+.tool[data-tool=cal]:has(.led.on) { background-image: url(keys/tool-cal-lit.png?v=1) !important; }
 .tool:active, .tool.down { filter: drop-shadow(0.5px 0.8px 0.6px rgba(0,0,0,0.6)) brightness(0.94); }
 
 /* jog: gunmetal, straight knurl (main.js slides it as the wheel turns) */

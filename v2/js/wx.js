@@ -85,12 +85,22 @@ window.RX = window.RX || {};
     const act = S.missions.filter(m => m.status === 'active');
     const score = m => (m.deadline && m.deadline < now ? 0 : m.priority === 'urgent' ? 1 : m.deadline ? 2 : 3);
     act.sort((a, b) => score(a) - score(b) || (a.deadline || Infinity) - (b.deadline || Infinity) || (a.created || 0) - (b.created || 0));
-    const m = act[0];
+    let m = act[0];
+    // an event in the next 12 hours beats a to-do that isn't late or urgent
+    const ev = RX.cal ? RX.cal.upcoming(12).find(it => it.kind === 'event') : null;
+    const useEv = ev && (!m || score(m) >= 2 && (!m.deadline || ev.ts < m.deadline));
     const chores = [];
     const pend = S.pending().length; if (pend) chores.push(pend + ' PEND');
     if (!S.v2.lastBackup || now - S.v2.lastBackup > 7 * 864e5) chores.push('BACKUP');
-    if (act.length > 1) chores.push('+' + (act.length - 1) + ' OBJ');
-    if (!m) return { rows: [['NEXT', 'QUEUE CLEAR'], ['', act.length ? '' : 'NO OPEN OBJECTIVES'], ['ALSO', chores.join(' · ') || 'NOTHING WAITING']], tag: 'NXT' };
+    if (act.length > (useEv ? 0 : 1)) chores.push('+' + (act.length - (useEv ? 0 : 1)) + ' TO-DO');
+    if (useEv) {
+      const e = ev.ev, mins = Math.round((ev.ts - now) / 60000);
+      let when = mins <= 1 ? 'NOW' : mins < 60 ? 'IN ' + mins + ' MIN' : 'AT ' + hm12(ev.ts);
+      const pl = e.poiId ? S.poi(e.poiId) : null;
+      if (pl) when += ' · ' + Geo.fmtDist(Geo.meters(h.lat, h.lng, pl.lat, pl.lng));
+      return { rows: [['NEXT', e.title], ['WHEN', when], ['ALSO', chores.join(' · ') || 'NOTHING ELSE']], tag: 'NXT' };
+    }
+    if (!m) return { rows: [['NEXT', 'QUEUE CLEAR'], ['', 'NOTHING DUE'], ['ALSO', chores.join(' · ') || 'NOTHING WAITING']], tag: 'NXT' };
     let when = 'NO DEADLINE';
     if (m.deadline) {
       const d = m.deadline - now, day = new Date(m.deadline);
@@ -98,7 +108,7 @@ window.RX = window.RX || {};
       when = d < 0 ? 'OVERDUE ' + F.ago(m.deadline).replace(' AGO', '') : sameDay ? 'TODAY ' + hm12(m.deadline) : tmrw ? 'TOMORROW ' + hm12(m.deadline) : F.day(m.deadline);
     } else if (m.priority === 'urgent') when = 'URGENT';
     if (m.lat != null && m.lng != null) when += ' · ' + Geo.fmtDist(Geo.meters(h.lat, h.lng, m.lat, m.lng));
-    return { rows: [['NEXT', m.title || 'OBJECTIVE'], ['DUE', when], ['ALSO', chores.join(' · ') || 'NOTHING ELSE']], tag: 'NXT' };
+    return { rows: [['NEXT', m.title || 'TO-DO'], ['DUE', when], ['ALSO', chores.join(' · ') || 'NOTHING ELSE']], tag: 'NXT' };
   }
 
   // what the LCD shows for each glance; draw() handles the weather picture
