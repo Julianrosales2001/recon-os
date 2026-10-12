@@ -871,7 +871,7 @@ window.RX = window.RX || {};
     onPage(pg, st, A) { st.edit = false; if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
     jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
     jog(d, st, A) {
-      if (st.page === 'stages') { st.scrub = Math.max(0, Math.min(MAXH, Math.round(((st.scrub || 0) + d * 0.5) * 2) / 2)); return; }
+      if (st.page === 'stages') { st.scrub = Math.max(0, Math.min(MAXH, Math.round((st.scrub || 0) + d))); return; }   // an hour a click
       if (st.edit) { const f = S.activeFast(); if (f) { f.startTs = Math.min(Date.now(), f.startTs + d * 15 * 60000); S.saveFasts(); } return; }
       A.focusJog(d);
     },
