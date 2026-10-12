@@ -718,48 +718,199 @@ window.RX = window.RX || {};
   // ======================================================================
   // FAST
   // ======================================================================
-  function fastBar(g, y, frac) {
-    const W = g.W, mx = g.mx, x0 = 1, w = W - 4;
-    [[12, '12'], [16, '16'], [18, '18']].forEach(([h, l]) => g.mx.text(l, x0 + Math.round(w * h / 24) - 4, y, { face: 'mini', c: g.ink, a: 0.7 }));
+  // A fast past 24 hours starts a new lap: the bar resets, the count reads ×2, ×3 … and each lap has its colour.
+  const LAP_COL = ['#FF8C2A', '#3D8BFF', '#A46BFF', '#FF4D4D', '#F2F4EC'];
+  const LAP_NAME = ['ORANGE', 'BLUE', 'VIOLET', 'RED', 'WHITE'];
+  const lapOf = ms => { ms = Math.max(0, ms); const n = Math.floor(ms / 864e5) + 1; return { n, frac: (ms % 864e5) / 864e5, col: LAP_COL[Math.min(n, LAP_COL.length) - 1] }; };
+  RX.fastLap = lapOf; RX.fastLapCol = LAP_COL;
+  // next goal to count down to: 18, 24, 36, 48, then every 24
+  const nextGoal = h => h < 18 ? 18 : h < 24 ? 24 : h < 36 ? 36 : (Math.floor(h / 24) + 1) * 24;
+  // typed start time: "8:30P", "2030", "7P", "YEST 9P", "SUN 6:15A", "10/11 21:00". A bare time means its last occurrence.
+  function parseStart(str) {
+    const s0 = RX.font.norm(str || '').trim(); if (!s0) return null;
+    const now = new Date();
+    let day = null, rest = s0;
+    const md = rest.match(/^(\d{1,2})\/(\d{1,2})\s+/);
+    if (md) { day = new Date(now.getFullYear(), +md[1] - 1, +md[2]); if (day > now) day.setFullYear(day.getFullYear() - 1); rest = rest.slice(md[0].length); }
+    else {
+      const wd = rest.match(/^(TODAY|YEST(?:ERDAY)?|SUN|MON|TUE|WED|THU|FRI|SAT)[A-Z]*\s+/);
+      if (wd) {
+        day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const k = wd[1];
+        if (k.startsWith('YEST')) day.setDate(day.getDate() - 1);
+        else if (k !== 'TODAY') { const want = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].indexOf(k); while (day.getDay() !== want) day.setDate(day.getDate() - 1); }
+        rest = rest.slice(wd[0].length);
+      }
+    }
+    const m = rest.replace(/\s+/g, '').match(/^(\d{1,2})(?::?(\d{2}))?(A|P|AM|PM)?$/);
+    if (!m) return null;
+    let hh = +m[1], mm = m[2] ? +m[2] : 0; const ap = m[3];
+    if (mm > 59 || hh > 23 || (ap && (hh < 1 || hh > 12))) return null;
+    if (ap) { if (ap[0] === 'P' && hh < 12) hh += 12; if (ap[0] === 'A' && hh === 12) hh = 0; }
+    let d;
+    if (day) { d = new Date(day); d.setHours(hh, mm, 0, 0); }
+    else { d = new Date(now); d.setHours(hh, mm, 0, 0); if (d > now) d.setDate(d.getDate() - 1); }
+    return d.getTime() <= Date.now() ? d.getTime() : null;
+  }
+  RX.parseFastStart = parseStart;
+
+  function fastBar(g, y, el) {
+    const W = g.W, mx = g.mx, x0 = 1, w = W - 4, L = lapOf(el);
+    const prev = L.n > 1 ? LAP_COL[Math.min(L.n - 1, LAP_COL.length) - 1] : null;
+    const off = (L.n - 1) * 24, TK = L.n === 1 ? [12, 16, 18] : L.n === 2 ? [12, 18] : [12];
+    TK.forEach(h => { const l = String(off + h); g.mx.text(l, x0 + Math.round(w * h / 24) - Math.round(RX.font.measure(l, 'mini') / 2), y, { face: 'mini', c: g.ink, a: 0.7 }); });
+    // the lap count, in the lap's colour
+    if (L.n > 1) { const t = '×' + L.n, tw = RX.font.measure(t) + 4; mx.rect(W - tw - 2, y - 2, tw, 9, L.col, 0.9); g.text(t, W - tw, y - 1, { c: '#0B0805' }); }
     y += 7;
     for (let i = 0; i < 24; i++) {
       const sx = x0 + Math.round(w * i / 24), ex = x0 + Math.round(w * (i + 1) / 24) - 1;
-      mx.rect(sx, y, ex - sx, 7, g.ink, i < Math.floor(frac * 24) ? 1 : (i < frac * 24 ? 0.6 : 0.12));
+      const done = i < Math.floor(L.frac * 24), part = !done && i < L.frac * 24;
+      // what's left of this lap shows the last lap faintly underneath
+      mx.rect(sx, y, ex - sx, 7, done || part ? L.col : (prev || g.ink), done ? 1 : part ? 0.6 : (prev ? 0.22 : 0.12));
     }
-    [12, 16, 18].forEach(h => mx.vline(x0 + Math.round(w * h / 24) - 1, y - 2, 11, C.hot, 0.9));
+    TK.forEach(h => mx.vline(x0 + Math.round(w * h / 24) - 1, y - 2, 11, C.hot, 0.9));
     y += 9;
-    ['0', '6', '12', '18', '24H'].forEach((l, i) => mx.text(l, Math.min(W - RX.font.measure(l, 'mini') - 1, x0 + Math.round(w * i / 4) - (i ? 3 : 0)), y, { face: 'mini', c: g.ink, a: 0.5 }));
+    ['0', '6', '12', '18', '24H'].forEach((l, i) => { const v = off + i * 6, lab = i === 4 ? (off + 24) + 'H' : String(v); mx.text(lab, Math.min(W - RX.font.measure(lab, 'mini') - 1, x0 + Math.round(w * i / 4) - (i ? 3 : 0)), y, { face: 'mini', c: g.ink, a: 0.5 }); });
+    // finished laps as pips
+    if (L.n > 1) { let px = x0; for (let k = 1; k < L.n; k++) { mx.rect(px, y + 7, 9, 3, LAP_COL[Math.min(k, LAP_COL.length) - 1], 0.95); px += 11; } y += 4; }
     return y + 8;
+  }
+  // a finished fast's bar in the history: whole laps under, the last lap's share over
+  function lapBar(mx, x, y, w, h, hours) {
+    const n = Math.floor(hours / 24), rem = hours % 24;
+    mx.rect(x, y, w, h, LAP_COL[0], 0.12);
+    for (let k = 0; k < n; k++) mx.rect(x, y, w, h, LAP_COL[Math.min(k, LAP_COL.length - 1)], 0.95);
+    if (rem > 0) mx.rect(x, y, Math.round(w * rem / 24), h, LAP_COL[Math.min(n, LAP_COL.length - 1)], 0.95);
+  }
+
+  // ---- what the body is doing, hour by hour (approximate; people vary) ----
+  const STAGES = [
+    { h: 0, t: 'FED', lines: ['DIGESTING YOUR LAST MEAL.', 'BLOOD SUGAR AND INSULIN ARE UP -', 'THE BODY IS STORING ENERGY.'] },
+    { h: 4, t: 'POST-MEAL', lines: ['INSULIN FALLING. THE LIVER RELEASES', 'STORED SUGAR (GLYCOGEN) TO HOLD', 'BLOOD SUGAR STEADY.'] },
+    { h: 12, t: 'FAT MOBILIZING', lines: ['GLYCOGEN RUNNING LOW. FAT BREAKDOWN', 'PICKS UP AND THE LIVER STARTS', 'MAKING KETONES.'] },
+    { h: 18, t: 'GLYCOGEN SPENT', lines: ['LIVER GLYCOGEN LARGELY USED UP BY', 'ABOUT 18-24H. NEW GLUCOSE COMES FROM', 'GLUCONEOGENESIS. KETONES REACH', 'ABOUT 0.5 MMOL AROUND 21H.'] },
+    { h: 24, t: 'KETOSIS', lines: ['FAT IS NOW THE MAIN FUEL. KETONES', 'CLIMB TOWARD 1-2 MMOL. GROWTH', 'HORMONE PULSES GROW. AUTOPHAGY', 'THOUGHT TO RISE (MOSTLY ANIMAL DATA).'] },
+    { h: 48, t: 'DEEP KETOSIS', lines: ['KETONES 1.5-3 MMOL. THE BRAIN RUNS', 'PARTLY ON KETONES. HUNGER OFTEN', 'EASES. KEEP ELECTROLYTES UP.'] },
+    { h: 72, t: 'PROLONGED', lines: ['KETONES 3+ MMOL. GROWTH HORMONE 3X', 'BASELINE BY DAY 5 IN ONE STUDY.', 'IMMUNE RENEWAL SEEN IN MICE.', 'THIS LONG: TALK TO A DOCTOR.'] }
+  ];
+  const ramp = (h, a, b) => h <= a ? 0 : h >= b ? 1 : (h - a) / (b - a);
+  const EFFECTS = [
+    { k: 'INSULIN', d: 'LOW', f: h => 0.15 + 0.85 * ramp(h, 3, 16) },
+    { k: 'GLYCOGEN', d: 'USE', f: h => h < 18 ? ramp(h, 2, 8) : 1 - ramp(h, 18, 30) * 0.85 },
+    { k: 'FAT BURN', d: '', f: h => ramp(h, 10, 30) },
+    { k: 'KETONES', d: '', f: h => Math.min(1, (h < 12 ? 0 : h < 21 ? 0.5 * (h - 12) / 9 : h < 48 ? 0.5 + 1.0 * (h - 21) / 27 : h < 72 ? 1.5 + 1.0 * (h - 48) / 24 : 2.5 + 1.0 * Math.min(1, (h - 72) / 48)) / 3.5), v: h => h < 12 ? 0.1 : h < 21 ? 0.1 + 0.4 * (h - 12) / 9 : h < 48 ? 0.5 + (h - 21) / 27 : h < 72 ? 1.5 + (h - 48) / 24 : 2.5 + Math.min(1, (h - 72) / 48) },
+    { k: 'GROWTH H', d: '', f: h => ramp(h, 12, 60), v: h => 1 + 2 * ramp(h, 12, 120) },
+    { k: 'AUTOPHGY', d: 'EST', f: h => ramp(h, 16, 60) },
+    { k: 'HUNGER', d: '', f: h => Math.max(0, (0.55 + 0.45 * Math.cos((h % 24) / 24 * Math.PI * 6)) * (h < 48 ? 0.9 : Math.max(0.15, 0.9 - (h - 48) / 48))) },
+    { k: 'IMMUNE', d: 'EST', f: h => ramp(h, 48, 96) }
+  ];
+  const stageAt = h => { let s = STAGES[0]; STAGES.forEach(x => { if (h >= x.h) s = x; }); return s; };
+  const MAXH = 120;
+
+  function pageStages(g, st, A) {
+    const W = g.W, H = g.H, mx = g.mx, f = S.activeFast(), now = f ? (Date.now() - f.startTs) / 36e5 : null;
+    if (st.scrub == null) st.scrub = now != null ? Math.min(MAXH, now) : 18;
+    const h = st.scrub, L = lapOf(h * 36e5);
+    g.header('FAST · STAGES', now != null ? 'NOW ' + F.durHM(now * 36e5) + (Math.floor(now / 24) ? ' ×' + (Math.floor(now / 24) + 1) : '') : 'NO FAST · PREVIEW', { c: C.amber });
+    let y = 13;
+    // the window: 24 hours wide, following the scrubber
+    const lx = 40, cw = W - lx - 2, span = 24, pph = cw / span;
+    const t0 = Math.max(0, Math.min(MAXH - span, h - span / 2));
+    const X = hh => Math.round(lx + (hh - t0) * pph);
+    // lap colours along the top
+    for (let x = lx; x < lx + cw; x++) { const hh = t0 + (x - lx) / pph; mx.rect(x, y, 1, 3, lapOf(hh * 36e5).col, 0.85); }
+    y += 5;
+    for (let hh = Math.ceil(t0 / 6) * 6; hh <= t0 + span; hh += 6) { const x = X(hh), lab = String(hh); mx.text(lab, Math.max(lx, Math.min(W - RX.font.measure(lab, 'mini') - 1, x - 3)), y, { face: 'mini', c: g.ink, a: 0.6 }); }
+    y += 7;
+    const top = y, rh = 9;
+    EFFECTS.forEach((e, i) => {
+      const ry = y + i * rh;
+      g.mini(e.k, 1, ry + 2, { a: 0.75 }); if (e.d === 'EST') g.mini('•', 2 + RX.font.measure(e.k, 'mini'), ry + 2, { a: 0.5 });
+      for (let x = lx; x < lx + cw; x++) {
+        const hh = t0 + (x - lx) / pph, v = Math.max(0, Math.min(1, e.f(hh))), hgt = Math.round(v * 7), past = now != null && hh <= now, col = lapOf(hh * 36e5).col;
+        if (hgt > 0) { mx.rect(x, ry + 8 - hgt, 1, hgt, col, past ? 0.5 : 0.22); mx.set(x, ry + 8 - hgt, col, past ? 1 : 0.6); }
+        else mx.set(x, ry + 7, g.ink, 0.12);
+      }
+      mx.hline(lx, ry + 8, cw, g.ink, 0.1, 2);
+    });
+    const bot = y + EFFECTS.length * rh;
+    // stage boundaries
+    STAGES.forEach(sg => { if (sg.h > t0 && sg.h < t0 + span) mx.vline(X(sg.h), top - 1, bot - top + 1, g.ink, 0.25, 2); });
+    // NOW and the scrubber
+    if (now != null && now >= t0 && now <= t0 + span) { const x = X(now), nc = lapOf(now * 36e5).col; mx.vline(x, top - 1, bot - top + 1, nc, 0.6, 2); mx.hline(x - 2, top - 14, 5, nc, 1); mx.hline(x - 1, top - 13, 3, nc, 1); mx.set(x, top - 12, nc, 1); }
+    const sx = X(h);
+    mx.vline(sx, top - 3, bot - top + 5, C.hot, 1);
+    mx.rect(sx - 1, top - 4, 3, 2, C.hot, 1);
+    // drag across the chart to scrub
+    g.hit(lx, top - 8, cw, bot - top + 10, () => {}, { scrub: true });
+    y = bot + 4;
+    // what's happening at the scrubber
+    const sg = stageAt(h);
+    mx.hline(0, y - 1, W, g.ink, 0.25, 2);
+    g.text(Math.floor(h) + 'H' + (h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, '0') : '') + ' · ' + sg.t, 1, y + 2, { c: L.col });
+    if (L.n > 1) g.textR('×' + L.n, W - 2, y + 2, { c: L.col });
+    y += 12;
+    const fy = H - 11;
+    const vals = [];
+    const ket = EFFECTS[3].v(h), gh = EFFECTS[4].v(h);
+    vals.push('KETONES ' + ket.toFixed(1) + ' MMOL (EST)');
+    if (gh > 1.15) vals.push('GROWTH HORMONE ' + gh.toFixed(1) + 'X BASELINE (EST)');
+    vals.push(h < 18 ? 'GLYCOGEN: IN USE' : h < 30 ? 'GLYCOGEN: MOSTLY SPENT' : 'GLYCOGEN: SPENT');
+    sg.lines.forEach(l => { if (y + 8 < fy) { g.mini(g.fit(l, W - 3, 'mini'), 1, y, { a: 0.85 }); y += 7; } });
+    y += 2;
+    vals.forEach(v => { if (y + 8 < fy) { g.mini(v, 1, y, { c: C.hot, a: 0.9 }); y += 7; } });
+    if (y + 8 < fy) g.mini(g.fit('• MOSTLY ANIMAL DATA · APPROX · PEOPLE VARY · NOT MEDICAL ADVICE', W - 2, 'mini'), 1, y + 1, { a: 0.4 });
+    return 'JOG ▸ SCRUB · PUSH ▸ NOW';
   }
 
   RX.screens.fast = {
     pal: 'amber',
+    drum: ['fast', 'stages'],
+    enter(st) { st.page = 'fast'; },
     animating: () => true,
-    jogLabels: st => st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
+    onPage(pg, st, A) { st.edit = false; if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
+    jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
     jog(d, st, A) {
+      if (st.page === 'stages') { st.scrub = Math.max(0, Math.min(MAXH, Math.round(((st.scrub || 0) + d * 0.5) * 2) / 2)); return; }
       if (st.edit) { const f = S.activeFast(); if (f) { f.startTs = Math.min(Date.now(), f.startTs + d * 15 * 60000); S.saveFasts(); } return; }
       A.focusJog(d);
     },
-    push(st, A) { if (st.edit) { st.edit = false; A.refreshChrome(); A.say('START TIME SAVED', 2000); return; } A.focusPush(); },
+    push(st, A) {
+      if (st.page === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; A.say(f ? 'SCRUBBER ▸ NOW' : 'NO FAST RUNNING', 1500); return; }
+      if (st.edit) { st.edit = false; A.refreshChrome(); A.say('START TIME SAVED', 2000); return; }
+      A.focusPush();
+    },
     back(st, A) { if (st.edit) { st.edit = false; A.refreshChrome(); return true; } return false; },
+    // on STAGES, a finger dragged across the chart moves the scrubber
+    drag(dx, dy, st) { if (st.page === 'stages') st.scrub = Math.max(0, Math.min(MAXH, (st.scrub || 0) + dx / ((RX.app.mx.cols - 36) / 24))); else { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy)); } },
     render(g, st, A) {
       const W = g.W, mx = g.mx;
+      if (st.page === 'stages') { const ft = pageStages(g, st, A); g.footer(A.sayActive() ? A.statusShown(g.t) : ft); return; }
       const f = S.activeFast(), fs = S.fastStreak();
       let y = g.header(f ? 'FAST · DAY ' + f.dayNum : 'FAST', 'STREAK ' + fs.current + (fs.atRisk ? ' · AT RISK' : ''), { c: C.amber });
       y = g.scrollBegin(y, footTop(g));
       if (f) {
-        const el = Date.now() - f.startTs;
-        g.mini(st.edit ? 'ADJUST START · JOG OR ±15M' : 'ELAPSED', 1, y, { a: 0.6 });
+        const el = Date.now() - f.startTs, L = lapOf(el), hrs = el / 36e5;
+        g.mini(st.edit ? 'ADJUST START · TYPE IT OR JOG 15 MIN' : 'ELAPSED', 1, y, { a: 0.6 });
         y += 8;
         const s = F.dur(el);
-        g.text(s, 1, y, { s: 3, c: C.amber });
+        g.text(s, 1, y, { s: 3, c: L.col });
         y += 24;
         g.mini('START ' + F.day(f.startTs) + ' ' + F.hm(f.startTs), 1, y, { a: 0.75 });
-        g.miniR(el >= 18 * 36e5 ? '18H MET' : '18H IN ' + F.durHM(18 * 36e5 - el), W - 3, y, { a: 0.95, c: el >= 18 * 36e5 ? C.hot : C.amber });
+        const goal = nextGoal(hrs);
+        g.miniR(goal + 'H IN ' + F.durHM(goal * 36e5 - el), W - 3, y, { a: 0.95, c: C.amber });
         y += 10;
-        y = fastBar(g, y, Math.min(1, el / 864e5));
+        y = fastBar(g, y, el);
         y += 2;
         if (st.edit) {
+          // type the start: 8:30P · 2030 · YEST 9P · SUN 6:15A · 10/11 21:00
+          g.field('fast-start', 0, y, W - 2, 13, { label: 'START', value: '', placeholder: F.hm(f.startTs) + ' · E.G. 8:30P, YEST 9P', maxLen: 18, onCommit: v => {
+            if (!v) return;
+            const t = parseStart(v);
+            if (t == null) { A.say('CAN\'T READ THAT TIME · TRY 8:30P OR YEST 9P', 3500); A.beep('err'); return; }
+            f.startTs = t; S.saveFasts(); A.say('START ▸ ' + F.day(t) + ' ' + F.hm(t) + ' · ' + F.durHM(Date.now() - t) + ' IN', 3500); A.beep('ok');
+          } });
+          y += 16;
           const bw = Math.floor((W - 2) / 3);
           g.btn(0, y, bw - 1, 14, '-15M', () => { f.startTs -= 15 * 60000; S.saveFasts(); });
           g.btn(bw, y, bw - 1, 14, '+15M', () => { f.startTs = Math.min(Date.now(), f.startTs + 15 * 60000); S.saveFasts(); });
@@ -787,10 +938,10 @@ window.RX = window.RX || {};
       done.slice(0, 8).forEach(x => {
         const sel = g.row(0, y, W - 2, 10, () => A.go('fastrec', { id: x.id }));
         g.mini(F.day(x.startTs), 2, y + 2, { a: sel ? 1 : 0.7 });
-        const bx = 48, bw = W - 48 - 30;
-        mx.rect(bx, y + 2, bw, 5, C.amber, 0.12);
-        mx.rect(bx, y + 2, Math.round(bw * Math.min(1, (x.hours || 0) / 24)), 5, C.amber, 0.95);
-        g.textR((x.hours || 0).toFixed(1) + 'H', W - 4, y + 1);
+        // the bar stops short of the hours, however wide they print
+        const hv = (x.hours || 0).toFixed(1) + 'H', bx = 48, bw = W - bx - RX.font.measure('000.0H') - 9;
+        lapBar(mx, bx, y + 2, bw, 5, x.hours || 0);
+        g.textR(hv, W - 4, y + 1);
         y += 11;
       });
       y += 2;
@@ -1796,7 +1947,6 @@ window.RX = window.RX || {};
     return { o: cy.state, ref: cy.us, n: 'US', long: 'US' };
   }
   const kfmt = n => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : n.toLocaleString('en-US');
-  const i2c = i => i === 0 ? C.hot : C.ink;
   const gk = n => n == null ? '—' : n >= 1e8 ? Math.round(n / 1e6) + 'M' : n >= 1e7 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e5 && n < 1e6 ? Math.round(n / 1e3) + 'K' : kfmt(n);
   const gm = n => n == null || n < 0 ? '—' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n);
   const vacPct = o => o && o.units ? Math.round(o.vacant / o.units * 100) + '%' : '—';
@@ -2021,19 +2171,20 @@ window.RX = window.RX || {};
       });
       g.mini(g.fit('GROWTH = PEOPLE NOW VS ' + (cy0 ? cy0.prior : '5 YRS AGO') + ' · JOBLESS = UNEMPLOYED SHARE OF LABOR FORCE · COLLEGE = BACHELOR+ (25 AND UP) · COMMUTE = AVG MINUTES · BUILT = MEDIAN YEAR', W - 2, 'mini'), 1, y + 1, { a: 0.45 }); y += 10;
       // PEOPLE: race and ethnicity, one stacked bar per scale, then the shares
-      const RACE = [['HISPANIC', 'hisp', 1], ['WHITE', 'white', 0.72], ['BLACK', 'black', 0.48], ['ASIAN', 'asian', 0.3], ['OTHER', null, 0.15]];
+      // each group its own colour: white, bronze, dark green, yellow, blue
+      const RACE = [['HISPANIC', 'hisp', '#B8742A'], ['WHITE', 'white', '#F2F4EC'], ['BLACK', 'black', '#2A8F4A'], ['ASIAN', 'asian', '#F2CF2E'], ['OTHER', null, '#4A86F0']];
       const share = (o, k) => { if (!o || o.hisp == null) return null; if (k) return o[k]; return Math.max(0, 100 - o.hisp - o.white - o.black - o.asian); };
       y = g.section('PEOPLE · RACE & ETHNICITY', y + 2, '% OF RESIDENTS');
       cols.forEach(c => {
         g.mini(c[0], 1, y + 2, { a: c[1] && c[1].hisp != null ? 0.7 : 0.35 });
         const bx = lw, bw = W - lw - 3;
-        if (c[1] && c[1].hisp != null) { let x = bx; RACE.forEach((rc, ri) => { const v = share(c[1], rc[1]) || 0, w = ri === RACE.length - 1 ? bx + bw - x : Math.round(bw * v / 100); if (w > 0) { mx.rect(x, y + 1, Math.max(1, w - 1), 6, i2c(ri), rc[2]); x += w; } }); }
+        if (c[1] && c[1].hisp != null) { let x = bx; RACE.forEach((rc, ri) => { const v = share(c[1], rc[1]) || 0, w = ri === RACE.length - 1 ? bx + bw - x : Math.round(bw * v / 100); if (w > 0) { mx.rect(x, y + 1, Math.max(1, w - 1), 6, rc[2], 1); x += w; } }); }
         else mx.hline(bx, y + 4, bw, C.ink, 0.2, 2);
         y += 9;
       });
       y += 1;
       RACE.forEach((rc, ri) => {
-        mx.rect(2, y + 2, 4, 4, i2c(ri), rc[2]); g.mini(rc[0], 9, y + 2, { a: 0.7 });
+        mx.rect(2, y + 2, 4, 4, rc[2], 1); g.mini(rc[0], 9, y + 2, { a: 0.7 });
         cols.forEach((c, i) => { const v = share(c[1], rc[1]); g.textR(v == null ? '—' : Math.round(v) + '%', lw + cw * (i + 1) - 2, y + 1, { c: i === 1 && c[1] ? C.hot : C.ink, a: v == null ? 0.35 : 1 }); });
         y += 10;
       });
@@ -2177,8 +2328,8 @@ window.RX = window.RX || {};
   RX.screens.fast.lcd = () => {
     const f = S.activeFast(), fs = S.fastStreak();
     if (!f) return { rows: [['FAST', 'NONE RUNNING'], ['STRK', fs.current + ' · BEST ' + fs.best], ['LAST', fs.daysSinceLast != null ? fs.daysSinceLast.toFixed(1) + ' DAYS AGO' : '--']], tag: 'FST' };
-    const el = Date.now() - f.startTs;
-    return { rows: [['TIME', F.dur(el)], ['DAY', String(f.dayNum) + ' · STREAK ' + fs.current], ['FROM', F.hm(f.startTs)]], tag: 'FST' };
+    const el = Date.now() - f.startTs, L = lapOf(el);
+    return { rows: [['TIME', F.dur(el) + (L.n > 1 ? ' ×' + L.n : '')], ['DAY', String(f.dayNum) + ' · STREAK ' + fs.current], ['FROM', F.hm(f.startTs)]], tag: 'FST' };
   };
   RX.screens.log.lcd = () => {
     const t0 = dayStart(), today = S.journal.filter(j => j.ts >= t0).length;

@@ -474,7 +474,7 @@ window.RX = window.RX || {};
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   // the lit face glows mint on the map, amber one level in, red deeper
   const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=1)';
-  ['menu', 'near', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals', 'r150', 'r300', 'r600', 'r1200', 'r2500'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
+  ['menu', 'near', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals', 'r150', 'r300', 'r600', 'r1200', 'r2500', 'fast', 'stages'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
   // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
@@ -1109,11 +1109,14 @@ window.RX = window.RX || {};
     const f = S.activeFast();
     const y2 = 19, segs = 20, segW = Math.floor((m.cols - 4) / segs), yb = m.rows - 5;
     let frac;
+    let barCol = amber, under = null;
     if (f) {
-      // fasting: elapsed time, bar fills over 24 h
+      // fasting: elapsed time; the bar fills over each 24 h and starts again in the next lap's colour (×2, ×3 …)
+      const L = RX.fastLap(Date.now() - f.startTs);
       m.text('FAST', 2, y2 + 1, { face: 'mini', c: amber, a: 0.6 });
+      if (L.n > 1) m.text('×' + L.n, 20, y2 + 1, { face: 'mini', c: L.col, a: 1 });
       m.textR(U.F.durHM(Date.now() - f.startTs), m.cols - 2, y2, { c: amber });
-      frac = Math.min(1, (Date.now() - f.startTs) / 864e5);
+      frac = L.frac; barCol = L.col; if (L.n > 1) under = RX.fastLapCol[Math.min(L.n - 1, RX.fastLapCol.length) - 1];
     } else {
       // plain clock: the date under the time, the bar sweeps the minute
       const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'], MONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -1122,7 +1125,7 @@ window.RX = window.RX || {};
     }
     for (let i = 0; i < segs; i++) {
       const lit = i < Math.round(frac * segs);
-      m.rect(2 + i * segW, yb, segW - 1, 3, amber, lit ? 1 : 0.1);
+      m.rect(2 + i * segW, yb, segW - 1, 3, lit ? barCol : (under || barCol), lit ? 1 : (under ? 0.22 : 0.1));
     }
     m.present();
   }
