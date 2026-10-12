@@ -49,13 +49,12 @@ window.RX = window.RX || {};
 
     // marks
     const hidden = new Set(S.v2.hiddenCats || []);
-    const recallCat = A.recall != null ? U.CATS[A.recall].id : null;
-    const scanIt = !o.noHits && A.stack.length <= 1 && A.drumFace() === 'SCAN' ? A.scanItem() : null;
+    const scanIt = !o.noHits && A.stack.length <= 1 && A.drumFace() === 'NEAR' ? A.nearItem() : null;
     const shown = [];
     for (const p of S.pois) {
       if (p.category && hidden.has(p.category)) continue;
       const live = (A.assign && A.assign.id === p.id) || (A.filed && A.filed.id === p.id) || (scanIt && scanIt.id === p.id);
-      if (M.zoom < (TIER_MIN[p.tier || 2] || 0) && !live && !(recallCat && p.category === recallCat)) continue;
+      if (M.zoom < (TIER_MIN[p.tier || 2] || 0) && !live) continue;
       const d = M.latLngToDot(p.lat, p.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
       if (x < -8 || y < -8 || x > W + 8 || y > H + 8) continue;
       shown.push({ p, x, y });
@@ -63,22 +62,12 @@ window.RX = window.RX || {};
     shown.sort((a, b) => a.y - b.y);
     for (const s of shown) {
       const p = s.p;
-      if (recallCat && p.category && p.category !== recallCat) {
-        const cat = U.catById(p.category);
-        mx.carve(s.x, s.y, 2.2); mx.disc(s.x, s.y, 1.2, cat ? cat.color : C.ink, 0.3);
-        continue;
-      }
       const blinking = A.assign && A.assign.id === p.id;
       if (blinking && Math.floor(t / 280) % 2) { mx.carve(s.x, s.y, 6.2); mx.ring(s.x, s.y, 5, C.amber, 1, 2); }
       else g.pin(s.x, s.y, p, blinking ? { c: C.amber } : null);
       if (!o.noHits) g.hit(s.x - 7, s.y - 7, 15, 15, () => A.openMark(p.id));
     }
-    if (recallCat) {
-      const nb = A.nearest(A.recall);
-      if (nb) { const d = M.latLngToDot(nb.p.lat, nb.p.lng, v); g.brackets(Math.floor(d.x), Math.floor(d.y), 9 + (Math.floor(t / 400) % 2), C.hot, 1); }
-    }
-
-    // SCAN: brackets and the mark's name under it
+    // NEAR: brackets and the mark's name under it
     if (scanIt) {
       const d = M.latLngToDot(scanIt.lat, scanIt.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
       g.brackets(x, y, 9 + (Math.floor(t / 450) % 2), C.hot, 1);
@@ -131,6 +120,28 @@ window.RX = window.RX || {};
         mx.vline(cx, cy - 3, 2, C.ink, 0.7); mx.vline(cx, cy + 2, 2, C.ink, 0.7);
       }
     }
+  }
+
+  // ---- the category ring: six discs around a fresh pin; tap one, or jog to it and push ----
+  const RING_R = 23;
+  function drawRing(g, A, by) {
+    const a = A.assign, p = a && S.poi(a.id); if (!p) return;
+    const mx = g.mx, W = g.W, d = M.latLngToDot(p.lat, p.lng, A.view());
+    const x = Math.floor(d.x), y = Math.floor(d.y);
+    // keep the ring inside the screen and above the banner; a short lead goes back to the pin if it had to move
+    const cx = Math.max(RING_R + 8, Math.min(W - RING_R - 8, x)), cy = Math.max(12 + RING_R + 8, Math.min(by - RING_R - 10, y));
+    if (Math.hypot(cx - x, cy - y) > 3) mx.line(x, y, cx, cy, C.amber, 0.6, 2);
+    U.CATS.forEach((c, i) => {
+      const ang = -Math.PI / 2 + i * Math.PI / 3, dx = Math.round(cx + RING_R * Math.cos(ang)), dy = Math.round(cy + RING_R * Math.sin(ang));
+      const on = i === a.sel;
+      if (on) { mx.carve(dx, dy, 9.5); mx.ring(dx, dy, 8.5, c.color, 1); }
+      g.pin(dx, dy, { category: c.id }, { r: 6, a: on ? 1 : 0.5 });
+      g.mini(String(i + 1), dx + 6, dy - 9, { c: c.color, a: on ? 1 : 0.55 });
+      g.hit(dx - 8, dy - 8, 17, 17, () => A.finishAssign(i));
+    });
+    // the pin itself, at the hub
+    if (Math.floor(g.t / 280) % 2) { mx.carve(cx, cy, 6.2); mx.ring(cx, cy, 5, C.amber, 1, 2); }
+    else g.pin(cx, cy, p, { c: C.amber });
   }
 
   function hud(g, A, title) {
@@ -216,21 +227,22 @@ window.RX = window.RX || {};
     animating: () => true,
     // the jog dial takes on the drum's face
     jogLabels: (st, A) => {
+      if (A.assign) return ['◂ PICK', 'PICK ▸', 'PUSH ▸ FILE · DRUM ▸ UNDO'];
       const f = A.drumFace();
-      if (f === 'SCAN') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
+      if (f === 'NEAR') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
       if (f === 'LOT') return ['◂ OUT', 'IN ▸', 'DRUM ▸ READ LOT · HOLD RESET'];
       return ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'];
     },
     jog(d, st, A) {
+      if (A.assign) { A.ringStep(d); return; }
       const f = A.drumFace();
-      if (f === 'SCAN') { A.scanStep(d); return; }
+      if (f === 'NEAR') { A.nearStep(d); return; }
       const v = A.view();
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
-    push(st, A) { A.locate(); },
+    push(st, A) { if (A.assign) { A.finishAssign(A.assign.sel); return; } A.locate(); },
     back(st, A) {
-      if (A.recall != null) { A.clearRecall(); A.say('ALL CATEGORIES ▸ SHOWN', 2000); return true; }
       if (A.target) { A.target = null; A.say('TARGET CLEARED', 2000); return true; }
       return false;
     },
@@ -244,19 +256,12 @@ window.RX = window.RX || {};
       drawMap(g, A);
       hud(g, A);
       {
-        const f = A.drumFace(), it = f === 'SCAN' ? A.scanItem() : null;
-        document.getElementById('jogVal').textContent = f === 'SCAN' ? (it ? (A.scan.i + 1) + '/' + A.scan.list.length : '0/0')
+        const f = A.drumFace(), it = f === 'NEAR' ? A.nearItem() : null;
+        document.getElementById('jogVal').textContent = A.assign ? (A.assign.sel + 1) + '/6' : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
           : 'Z' + (Math.round(M.zoom * 2) / 2);
-      }
-
-      // recall banner
-      if (A.recall != null) {
-        const cat = U.CATS[A.recall];
-        const s = cat.id + ' ONLY · TAP ' + (A.recall + 1) + ' OR BACK TO CLEAR';
-        const w = RX.font.measure(s, 'mini') + 14;
-        mx.clearRect(1, 14, w, 9); mx.frame(1, 14, w, 9, cat.color, 0.8);
-        mx.disc(6, 18, 2, cat.color, 1);
-        g.mini(s, 11, 16, { a: 0.95 });
+        // the jog's labels follow the ring coming and going
+        const jl = this.jogLabels(st, A), key = jl.join('|');
+        if (st._jl !== key) { st._jl = key; document.getElementById('jogL').textContent = jl[0]; document.getElementById('jogR').textContent = jl[1]; document.getElementById('jogFoot').textContent = jl[2]; }
       }
 
       // tiles status
@@ -273,12 +278,15 @@ window.RX = window.RX || {};
       // MARK flow overlays
       if (A.assign) {
         const bx = 4, bw = W - 8, bh = 33, by = fy - 12 - bh;
+        drawRing(g, A, by);
+        const cat = U.CATS[A.assign.sel], pp = S.poi(A.assign.id);
         mx.clearRect(bx, by, bw, bh); mx.frame(bx, by, bw, bh, C.amber, 1);
-        g.text('MARK ' + A.assign.id.slice(-4) + ' · DROPPED', bx + 4, by + 3, { c: C.amber });
-        g.text('FILE IT ▸ PRESS 1-6', bx + 4, by + 13);
+        mx.disc(bx + 7, by + 7, 3, cat.color, 1);
+        g.text(g.fit('MARK ' + A.assign.id.slice(-4) + ' ▸ ' + cat.id + (pp && pp.name ? ' · ' + pp.name : ''), bw - 16), bx + 14, by + 4, { c: C.hot });
+        g.mini('TAP OR JOG ▸ PICK · PUSH ▸ FILE', bx + 4, by + 15, { a: 0.9 });
         const left = Math.max(0, A.assign.until - Date.now());
-        g.mini('AUTO-PEND ' + Math.ceil(left / 1000) + 'S · BACK = UNDO', bx + 4, by + 24, { c: C.amber, a: 0.9 });
-        mx.rect(bx + bw - 46, by + 25, Math.round(42 * left / 5000), 3, C.amber, 1);
+        g.mini('MARK ▸ LATER · DRUM ▸ UNDO · ' + Math.ceil(left / 1000) + 'S', bx + 4, by + 24, { c: C.amber, a: 0.9 });
+        mx.rect(bx + bw - 30, by + 25, Math.round(26 * left / A.ASSIGN_MS), 3, C.amber, 1);
       } else if (A.filed && Date.now() < A.filed.until) {
         const bx = 4, bw = W - 8, bh = 23, by = fy - 12 - bh;
         const p = S.poi(A.filed.id);

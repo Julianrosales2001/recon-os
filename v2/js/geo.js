@@ -79,6 +79,8 @@ window.RX = window.RX || {};
       regionName,
       road: (addr.road || '').toUpperCase(),
       house: addr.house_number || '',
+      county: county.toUpperCase() + (county && !/PARISH/i.test(county) ? ' CO' : ''),
+      town: (city || '').toUpperCase(), st, postcode: addr.postcode || '',
       display: display || ''
     };
   }

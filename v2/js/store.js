@@ -33,7 +33,7 @@ window.RX = window.RX || {};
     sound: true, idleDim: true, recordTrail: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'wx', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', presetsCollapsed: false, conv: {}, code: null, hicon: false
+    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, conv: {}, code: null, hicon: false
   };
 
   // ---------- low level ----------

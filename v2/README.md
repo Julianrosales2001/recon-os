@@ -13,9 +13,9 @@ pick your `recon-os-backup-*.json`.
 
 ## Keys (laptop)
 
-M mark · 1–6 file / show only · F tools tray · Enter = jog push · Esc = back ·
-drag = pan · scroll = zoom · L log · S search · H fast · O objectives ·
-G legend · D cycle LCD readout
+M mark · 1–6 file a fresh mark · P AUX slider · A SCAN · W HERE · F tools tray ·
+Enter = jog push · Esc = back · drag = pan · scroll = zoom · L log · S search ·
+H fast · O calendar · G legend · D cycle LCD readout
 
 ## Files
 
@@ -29,4 +29,5 @@ G legend · D cycle LCD readout
     data/us-states.json  state lines + US national border (Natural Earth 1:10m)
     js/ui.js       immediate-mode UI kit drawn into the matrix
     js/screens.js  all screens
+    js/aux.js      AUX slider (the screen panel rides up to uncover SCAN + HERE), SCAN sweep, HERE readout
     js/main.js     boot, navigation, keys, jog, touch, GPS, lamps
