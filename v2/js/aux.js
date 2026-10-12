@@ -109,7 +109,7 @@ window.RX = window.RX || {};
       if (y >= cl) {
         if (!c.up) {
           c.up = true; c.popT = t;
-          if (A && A.booted) { A.beep('key'); glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 220 + i * 60); }
+          if (A && A.booted) { A.beep('aux.keyup'); glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 220 + i * 60); if (!i) setTimeout(() => A.beep('aux.lamp'), 220); }
         }
         const kk = t - c.popT; base = kk < 75 ? 3 - Math.floor(kk / 25) : 0;
         c.pop = kk >= 0 && kk < 200 ? 1 + 0.05 * Math.max(0, 1 - Math.abs(kk - 100) / 60) : 1;
@@ -173,7 +173,7 @@ window.RX = window.RX || {};
     slide = { dir: 1, t0: now(), fn: reduced() ? () => [T, true] : openCurve(y0), done: () => {
       X.open = true; S.saveV2({ auxOpen: true }); relayout(true);
       KEYS.forEach(k => { if (cap[k].up && !cap[k].gl) glowFade(k, glowTarget(k), 120); });
-      A.beep('thunk', 0.6); A.dirty = true;
+      A.beep('aux.open', 0.6); A.dirty = true;
     } };
     kick();
   }
@@ -187,12 +187,12 @@ window.RX = window.RX || {};
   function runClose(y0) {
     beginClose();
     el.bar.setAttribute('aria-expanded', 'false');
-    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); A.beep('thunk', 0.8); A.dirty = true; } };
+    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); A.beep('aux.close', 0.8); A.dirty = true; } };
     kick();
   }
   X.toggle = function () {
     if (slide) return;
-    A.wake(); A.beep('key');
+    A.wake(); A.beep('aux.latch');
     if (X.y > T / 2) runClose(X.y); else runOpen(X.y);
   };
   X.openNow = function () { if (!X.open && !slide) runOpen(X.y); };
@@ -274,7 +274,7 @@ window.RX = window.RX || {};
   };
   // after boot: if it was left open, the lamps catch
   X.booted = function () {
-    if (X.open) KEYS.forEach((k, i) => { cap[k].up = true; glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 300 + i * 60); });
+    if (X.open) { KEYS.forEach((k, i) => { cap[k].up = true; glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 300 + i * 60); }); setTimeout(() => A.beep('aux.lamp'), 300); }
     if (X.pendingKey) { const k = X.pendingKey; X.pendingKey = null; X.key(k); }
   };
   // a key asked for while the panel was shut: press it once the panel has settled
@@ -347,6 +347,8 @@ window.RX = window.RX || {};
     const tok = st.tok = (st.tok || 0) + 1;
     st.busy = true; st.err = null; st.ping = now(); st.from = from; st.fromGps = fresh;
     A.dirty = true; A.lcdDirty = true;
+    A.beep('scan.ping'); clearInterval(st.pingT);
+    st.pingT = setInterval(() => { if (st.tok !== tok || !st.busy) { clearInterval(st.pingT); return; } A.beep('scan.ping'); }, 1300);
     try {
       const els = await overpass(from.lat, from.lng, rM);
       if (st.tok !== tok) return;
@@ -365,13 +367,13 @@ window.RX = window.RX || {};
       st.pulse = now(); st.sel = 0; st.jog = true; st.scroll = 0;
       const n = items.filter(i => i.m <= st.rFt * FT).length;
       A.say('SCAN ▸ ' + n + ' PLACE' + (n === 1 ? '' : 'S') + ' IN ' + st.rFt + ' FT' + (fresh ? '' : ' OF THE MAP CENTER'), 3500);
-      A.beep(n ? 'ok' : 'key');
+      A.beep('scan.ping'); setTimeout(() => A.beep(n ? 'scan.found' : 'scan.empty'), 450);
     } catch (e) {
       if (st.tok !== tok) return;
       st.err = (e && e.name === 'AbortError') ? 'NO ANSWER' : 'NO SIGNAL';
       A.say('SCAN ▸ ' + st.err + ' · PRESS SCAN TO TRY AGAIN', 4000); A.beep('err');
     } finally {
-      if (st.tok === tok) { st.busy = false; A.dirty = true; A.lcdDirty = true; }
+      if (st.tok === tok) { st.busy = false; clearInterval(st.pingT); A.dirty = true; A.lcdDirty = true; }
     }
   }
   // what the current radius and kind leave on the scope
@@ -400,7 +402,7 @@ window.RX = window.RX || {};
       st.sel = 0; st.jog = true; X.setMode('scan'); sweep(st, A);
     },
     resume(st) { X.setMode('scan'); },
-    leave(st) { st.tok = (st.tok || 0) + 1; X.setMode(null); },
+    leave(st) { st.tok = (st.tok || 0) + 1; clearInterval(st.pingT); X.setMode(null); },
     again(st, A) { sweep(st, A); },
     onPage(pg, st, A) {
       st.rFt = +pg.slice(1); S.saveV2({ scanR: st.rFt });
@@ -533,7 +535,7 @@ window.RX = window.RX || {};
     Geo.reverse(f.lat, f.lng, 18).then(r => done('addr', r || false));
     elevation(f.lat, f.lng).then(m => done('elev', m == null ? false : m));
     if (RX.parcel) RX.parcel.at(f.lat, f.lng).then(p => done('lot', p || false)).catch(() => done('lot', false)); else done('lot', false);
-    A.say(f.gps ? 'HERE ▸ FIX ±' + Math.round(f.acc) + ' M' : 'HERE ▸ NO GPS FIX · READING THE MAP CENTER', 3000);
+    A.say(f.gps ? 'HERE ▸ FIX ±' + Math.round(f.acc) + ' M' : 'HERE ▸ NO GPS FIX · READING THE MAP CENTER', 3000); A.beep('here.fix');
   }
   function addrLines(st) {
     const a = st.addr; if (!a) return [];

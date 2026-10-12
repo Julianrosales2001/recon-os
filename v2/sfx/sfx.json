@@ -1,0 +1,23 @@
+{
+  "v": 1791838968,
+  "stock": {
+    "err": "stock/err.wav",
+    "file": "stock/file.wav",
+    "jog": "stock/jog.wav",
+    "key": "stock/key.wav",
+    "mark": "stock/mark.wav",
+    "ok": "stock/ok.wav",
+    "thunk": "stock/thunk.wav"
+  },
+  "stockVol": {
+    "err": 0.0464,
+    "file": 0.0481,
+    "jog": 0.0211,
+    "key": 0.0379,
+    "mark": 0.0561,
+    "ok": 0.0435,
+    "thunk": 0.2018
+  },
+  "custom": {},
+  "vol": {}
+}

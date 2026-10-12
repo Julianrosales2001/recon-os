@@ -2,13 +2,14 @@
    - the page itself: network first, so a push shows up on the next open; the stored copy when offline
    - everything else from this site (scripts, styles, key art, reference ROM): stored copy first
    - Google Fonts: stored after the first load
+   - sfx/sfx.json (the sound list): network first, like the page
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.22.0';
+const VERSION = '2.23.0';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,
-  ...['font', 'matrix', 'geo', 'store', 'map', 'parcel', 'traffic', 'area', 'ui', 'screens', 'profile', 'rolo', 'wx', 'cal', 'aux', 'main'].map(n => 'js/' + n + '.js?v=' + VERSION),
+  ...['font', 'matrix', 'geo', 'store', 'map', 'parcel', 'traffic', 'area', 'ui', 'screens', 'profile', 'rolo', 'wx', 'cal', 'sfx', 'aux', 'main'].map(n => 'js/' + n + '.js?v=' + VERSION),
   'ref/firstaid.json?v=1', 'ref/knots.json?v=1', 'ref/convert.json?v=1', 'ref/cipher.json?v=1', 'data/tx-acs.json?v=2024b', 'data/tx-crime.json?v=2025', 'data/us-major.json?v=2024', 'data/us-states.json?v=1',
   'icons/ros-icon-180.png', 'icons/ros-icon-192.png'
 ];
@@ -32,6 +33,12 @@ self.addEventListener('fetch', e => {
   const same = url.origin === self.location.origin;
   const font = FONT_HOSTS.includes(url.hostname);
   if (!same && !font) return;                       // tiles, search: straight to the network
+
+  // the sound list changes whenever you add a file: fresh when online (the files themselves carry ?v=)
+  if (url.pathname.endsWith('/sfx/sfx.json')) {
+    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; }).catch(() => caches.match(req)));
+    return;
+  }
 
   if (req.mode === 'navigate') {                    // the page: fresh when online
     e.respondWith(fetch(req).then(res => {

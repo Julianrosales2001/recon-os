@@ -631,7 +631,7 @@ window.RX = window.RX || {};
       g.btn(W - 58, y, 56, 11, '+ LOG VISIT', () => {
         p.visits = (p.visits || 0) + 1; p.lastVisited = Date.now(); save();
         S.log('visit', p.id, 'Visited (manual): ' + S.markLabel(p), (p.category || '') + ' · ×' + p.visits);
-        A.say('VISIT LOGGED · ×' + p.visits, 2500); A.beep('ok');
+        A.say('VISIT LOGGED · ×' + p.visits, 2500); A.beep('visit');
       }, { face: 'mini' });
       y += 14;
 
@@ -1049,6 +1049,7 @@ window.RX = window.RX || {};
       row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', val(S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
       row('IDLE DIM', 'DIMS AFTER 60 S UNTOUCHED', tog(S.v2.idleDim), () => S.saveV2({ idleDim: !S.v2.idleDim }));
       row('KEY SOUNDS', 'CLICKS · FOLLOWS SILENT SWITCH', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); });
+      row('SOUND TEST', 'EVERY SOUND SLOT · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));
 
       y = g.section('02 · PLACE NAMES', y + 2);
       row('LOOKUP', 'AREA · CITY · METRO VIA OPENSTREETMAP', tog(S.v2.placeLookup), () => { S.saveV2({ placeLookup: !S.v2.placeLookup }); if (S.v2.placeLookup && A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
@@ -2322,6 +2323,42 @@ window.RX = window.RX || {};
     }
   };
 
+
+  // ---------------------------------------------------------------- sound test
+  // every slot, what it plays right now (your file, stock, inherited, the synth, or nothing), tap to hear it
+  RX.screens.sound = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH ▸ PLAY'],
+    enter(st) { st.sel = 0; st.jog = true; },
+    lcd() {
+      const X = RX.sfx, m = X.man, mine = m ? Object.keys(m.custom || {}).length : 0;
+      return { rows: [['SFX', m ? (mine + ' YOURS · ' + Object.keys(m.stock || {}).length + ' STOCK') : (X.manErr || 'LOADING')], ['ADD', 'SLOT.WAV IN V2/SFX'], ['THEN', 'RUN SFX/BUILD.PY']], tag: 'SFX' };
+    },
+    render(g, st, A) {
+      const W = g.W, X = RX.sfx, m = X.man;
+      let y = g.header('SOUND TEST', m ? Object.keys(m.custom || {}).length + ' YOURS' : (X.manErr || 'LOADING'));
+      y = g.scrollBegin(y, footTop(g));
+      if (!S.v2.sound) { g.mini('KEY SOUNDS ARE OFF IN MENU · THESE STILL PLAY', 1, y + 1, { c: C.amber, a: 0.9 }); y += 10; }
+      let grp = null;
+      X.SLOTS.forEach(([slot, parent, desc, group]) => {
+        if (group !== grp) { grp = group; y = g.section(group, y + (y > 20 ? 2 : 0)); }
+        const play = () => { try { RX.sfx.play(slot); } catch (e) {} st.last = slot; st.lastT = performance.now(); };
+        const sel = g.row(0, y, W - 2, 18, play);
+        const d = X.describe(slot), mine = /YOUR/.test(d), silent = d === 'SILENT';
+        const flash = st.last === slot && performance.now() - st.lastT < 300;
+        g.text(slot.toUpperCase(), 4, y + 2, { c: flash ? C.amber : sel ? C.hot : C.ink });
+        g.miniR(d, W - 4, y + 3, { c: mine ? C.amber : C.ink, a: silent ? 0.35 : mine ? 1 : 0.7 });
+        g.mini(desc + (parent ? ' · ELSE ' + parent.toUpperCase() : ''), 4, y + 11, { a: 0.5 });
+        y += 19;
+      });
+      y += 2;
+      g.mini('ADD ONE: NAME IT AFTER THE SLOT (AUX.OPEN.WAV),', 1, y, { a: 0.55 });
+      g.mini('DROP IT IN V2/SFX, RUN PYTHON3 V2/SFX/BUILD.PY', 1, y + 7, { a: 0.55 });
+      y += 16;
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A SLOT TO HEAR IT');
+    },
+    animating: st => !!st.last && performance.now() - st.lastT < 350
+  };
 
   // ---------- the LCD per mode: each screen says what its glance strip shows ----------
   const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };

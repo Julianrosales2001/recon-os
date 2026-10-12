@@ -44,44 +44,10 @@ window.RX = window.RX || {};
   ro.observe($('screen')); ro.observe($('lcdHost')); ro.observe($('clockHost'));
 
   // ---------- sound ----------
-  let ac = null;
-  A.beep = function (kind) {
+  // every sound is a slot (js/sfx.js): your file from v2/sfx/ if you dropped one in, else its parent, else the stock original
+  A.beep = function (kind, arg) {
     if (!S.v2.sound) return;
-    try {
-      if (!ac) {
-        if (navigator.audioSession) { try { navigator.audioSession.type = 'ambient'; } catch (e) {} }
-        ac = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (ac.state === 'suspended') ac.resume();
-      const t = ac.currentTime;
-      const tone = (f, d, v, at, type) => {
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = type || 'square'; o.frequency.setValueAtTime(f, t + (at || 0));
-        g.gain.setValueAtTime(0, t + (at || 0)); g.gain.linearRampToValueAtTime(v, t + (at || 0) + 0.003);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + (at || 0) + d);
-        o.connect(g); g.connect(ac.destination); o.start(t + (at || 0)); o.stop(t + (at || 0) + d + 0.02);
-      };
-      if (kind === 'key') tone(1900, 0.018, 0.035);
-      else if (kind === 'jog') tone(2600, 0.008, 0.02);
-      else if (kind === 'mark') { tone(1320, 0.05, 0.05); tone(1760, 0.07, 0.05, 0.06); }
-      else if (kind === 'file') { tone(880, 0.04, 0.045); tone(1320, 0.04, 0.045, 0.045); tone(1760, 0.06, 0.04, 0.09); }
-      else if (kind === 'err') tone(220, 0.14, 0.05, 0, 'sawtooth');
-      else if (kind === 'ok') tone(1480, 0.05, 0.04);
-      else if (kind === 'morse') { const d = arguments[1] || 0.08, o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = 680; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.004); g.gain.setValueAtTime(0.06, t + d - 0.004); g.gain.linearRampToValueAtTime(0, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.01); }
-      else if (kind === 'thunk') {
-        // low, heavy thud: a falling sine plus a muffled knock — no tick
-        const v = 0.2 * (arguments[1] || 1);
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
-        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-        o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 0.18);
-        const len = Math.floor(ac.sampleRate * 0.03), buf = ac.createBuffer(1, len, ac.sampleRate), dd = buf.getChannelData(0);
-        for (let i = 0; i < len; i++) dd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-        const n = ac.createBufferSource(), lp = ac.createBiquadFilter(), ng = ac.createGain();
-        lp.type = 'lowpass'; lp.frequency.value = 380; ng.gain.value = v * 0.9;
-        n.buffer = buf; n.connect(lp); lp.connect(ng); ng.connect(ac.destination); n.start(t);
-      }
-    } catch (e) {}
+    try { RX.sfx.play(kind, arg); } catch (e) {}
   };
 
   // ---------- status line ----------
@@ -309,7 +275,7 @@ window.RX = window.RX || {};
       S.log('classify', p.id, 'Classified: ' + S.markLabel(p), cat.id);
       A.filed = { label: cat.id, color: cat.color, until: Date.now() + 2600, id: p.id };
       A.say('MARK ' + p.id.slice(-4) + ' ▸ ' + cat.id + (A.place ? ' · ' + A.place.area : ''), 4000);
-      A.beep('file');
+      A.beep('ring.file');
     }
     A.dirty = true; updateLamps(); updateDrum();
   };
@@ -410,7 +376,7 @@ window.RX = window.RX || {};
       const ms = now - t0;
       if (reduce || ms >= dur) { if (open) poseTray(6, 0); else poseTray(0, -90); return; }
       const p = fn(ms); poseTray(p[0], p[1]);
-      if (!landed && ms > (open ? 560 : 420)) { landed = true; A.beep('thunk', open ? 0.45 : 0.8); }
+      if (!landed && ms > (open ? 560 : 420)) { landed = true; A.beep(open ? 'fn.open' : 'fn.close', open ? 0.45 : 0.8); }
       trayRaf = requestAnimationFrame(step);
     };
     trayRaf = requestAnimationFrame(step);
@@ -495,7 +461,7 @@ window.RX = window.RX || {};
   A.updateDrum = updateDrum;
   function setDrumAngle(extra) { rotor.style.transform = 'rotateX(' + (-A.drumRot * 120 + (extra || 0)) + 'deg)'; }
   const canRoll = () => A.booted && !A.assign && !A.pick && (A.stack.length <= 1 || !!modeDrum());
-  function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => A.beep('thunk', level), 190); }
+  function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => A.beep('drum.roll', level), 190); }
   A.drumRoll = function (dir, quiet) {
     A.wake();
     if (!canRoll()) { setDrumAngle(0); if (!quiet) A.say(A.assign ? 'FILE THE MARK FIRST' : 'THE DRUM ROLLS ON THE MAP', 2000); return; }
@@ -550,7 +516,7 @@ window.RX = window.RX || {};
   A.drumPressFx = function () {
     drumPressEl.classList.add('down');
     clearTimeout(A._drumUpT); A._drumUpT = setTimeout(() => drumPressEl.classList.remove('down'), 170);
-    A.beep('thunk', 0.8);
+    A.beep('drum.press', 0.8);
   };
   A.drumPress = function () {
     A.wake(); A.drumTouched = Date.now(); A.drumPressFx();
@@ -708,7 +674,7 @@ window.RX = window.RX || {};
     jog.addEventListener('wheel', e => { e.preventDefault(); A.jog(e.deltaY > 0 ? -1 : 1); pos += e.deltaY > 0 ? -8 : 8; knurl.style.backgroundPosition = pos + 'px 0'; }, { passive: false });
   })();
   A.jog = function (d) {
-    A.wake(); A.beep('jog');
+    A.wake(); A.beep(A.assign && A.screen().map ? 'ring.pick' : 'jog');
     const top = A.top(), sc = RX.screens[top.name];
     if (sc.jog) { sc.jog(d, top.st, A); A.dirty = true; return; }
     A.focusJog(d);
@@ -973,7 +939,7 @@ window.RX = window.RX || {};
     A.gpsErr = null;
     if (first) {
       M.setView(lat, lng, Math.max(M.zoom, 15)); M.follow = true;
-      A.say('GPS LOCK · ±' + Math.round(acc) + 'M', 3000); A.beep('ok');
+      A.say('GPS LOCK · ±' + Math.round(acc) + 'M', 3000); A.beep('gps.lock');
       A.flashFix = now;
     } else if (moved && M.follow && !A.pick) M.setView(lat, lng);
     // fog
@@ -1002,7 +968,7 @@ window.RX = window.RX || {};
       if (!st.logged && (now - st.since) / 1000 >= rule[1]) {
         p.visits = (p.visits || 0) + 1; p.lastVisited = now; S.savePOIs(); st.logged = true;
         S.log('visit', p.id, 'Visited: ' + S.markLabel(p), p.category + ' · ×' + p.visits);
-        A.say('VISIT LOGGED ▸ ' + S.markLabel(p) + ' · ×' + p.visits, 4000); A.beep('ok');
+        A.say('VISIT LOGGED ▸ ' + S.markLabel(p) + ' · ×' + p.visits, 4000); A.beep('visit');
       }
     });
     Object.keys(visitDwell).forEach(id => { if (!seen.has(id)) delete visitDwell[id]; });
@@ -1283,6 +1249,9 @@ window.RX = window.RX || {};
     A.stack = [];
     A.go('boot');
     updateLamps();
+    RX.sfx.load();
+    { const unlock = () => { RX.sfx.unlock(); document.removeEventListener('pointerdown', unlock, true); document.removeEventListener('keydown', unlock, true); };
+      document.addEventListener('pointerdown', unlock, true); document.addEventListener('keydown', unlock, true); }
     RX.aux.wire(A, { closeTray: () => setTray(false) });
     requestAnimationFrame(loop);
     startGps();
@@ -1297,6 +1266,7 @@ window.RX = window.RX || {};
     A.lcdDirty = true;
     A.replace('map');
     RX.aux.booted();
+    A.beep('boot');
     if (A.emptyAtBoot && !S.pois.length && !S.missions.length && !S.fasts.length) {
       A.go('confirm', {
         title: 'NO DATA ON THIS DEVICE', confirm: 'IMPORT FILE', cancel: 'START EMPTY',

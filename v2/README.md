@@ -30,4 +30,6 @@ H fast · O calendar · G legend · D cycle LCD readout
     js/ui.js       immediate-mode UI kit drawn into the matrix
     js/screens.js  all screens
     js/aux.js      AUX slider (the screen panel rides up to uncover SCAN + HERE), SCAN sweep, HERE readout
+    js/sfx.js      sound slots: your files from sfx/, else the parent slot, else the stock originals
+    sfx/           drop sounds here named after their slot, then run python3 v2/sfx/build.py (see sfx/README.md)
     js/main.js     boot, navigation, keys, jog, touch, GPS, lamps
