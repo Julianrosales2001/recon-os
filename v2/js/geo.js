@@ -104,18 +104,96 @@ window.RX = window.RX || {};
     } catch (e) { return null; }
   };
 
-  G.search = async function (q, near) {
-    let url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&q=' + encodeURIComponent(q);
+  // ---------- place + address search ----------
+  // OpenStreetMap often knows the street but not the house number, so a plain address query comes back as the
+  // same street several times. For anything that starts with a house number we also ask the US Census
+  // geocoder (TIGER address ranges, nearly every US street; JSONP because it doesn't allow cross-origin
+  // fetch), add the town you're in when you didn't type one, and fold the repeated street hits into one.
+  const isAddrQ = q => /^\s*\d+[A-Z]?(?:-\d+)?\s+[A-Z0-9]/i.test(q);
+  const hasLocality = q => /,|\b\d{5}\b|\b[A-Z]{2}\s*$/i.test(String(q).trim());
+  const normKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  function jsonp(url, ms) {
+    return new Promise((resolve, reject) => {
+      const cb = '__rxgeo' + Date.now().toString(36) + Math.floor(Math.random() * 1e6);
+      const sc = document.createElement('script');
+      let t = 0;
+      const done = (err, data) => { clearTimeout(t); window[cb] = () => {}; sc.remove(); if (err) reject(err); else resolve(data); };
+      t = setTimeout(() => done(new Error('timeout')), ms || 9000);
+      window[cb] = data => done(null, data);
+      sc.onerror = () => done(new Error('load'));
+      sc.src = url + '&format=jsonp&callback=' + cb;
+      document.head.appendChild(sc);
+    });
+  }
+  async function census(q) {
+    const data = await jsonp('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?benchmark=Public_AR_Current&address=' + encodeURIComponent(q), 9000);
+    const m = (data && data.result && data.result.addressMatches) || [];
+    return m.map(x => {
+      const parts = String(x.matchedAddress || '').split(',').map(t => t.trim());
+      return { lat: +x.coordinates.y, lng: +x.coordinates.x, name: (parts[0] || '').toUpperCase(), kind: 'ADDRESS', where: [parts[1], [parts[2], parts[3]].filter(Boolean).join(' ')].filter(Boolean).join(', ').toUpperCase(), rank: 0, src: 'census' };
+    }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+  }
+  async function nomSearch(q, near) {
+    let url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&q=' + encodeURIComponent(q);
     if (near) {
       const d = 0.6;
       url += '&viewbox=' + (near.lng - d) + ',' + (near.lat + d) + ',' + (near.lng + d) + ',' + (near.lat - d);
     }
     const data = await nominatim(url);
     return (data || []).map(r => {
-      const p = placeFromAddress(r.address, r.display_name);
-      const name = (r.name || (r.display_name || '').split(',')[0] || '').toUpperCase();
-      return { lat: +r.lat, lng: +r.lon, name, kind: (r.type || r.category || '').toUpperCase().replace(/_/g, ' '), where: p.city };
+      const a = r.address || {}, p = placeFromAddress(a, r.display_name);
+      const house = a.house_number && (a.road || a.pedestrian || a.footway);
+      const street = r.category === 'highway' || r.class === 'highway' || r.addresstype === 'road';
+      let name, kind, rank;
+      if (house) { name = (a.house_number + ' ' + (a.road || a.pedestrian || a.footway)).toUpperCase(); kind = 'ADDRESS'; rank = 0; }
+      else if (street) { name = (r.name || a.road || (r.display_name || '').split(',')[0] || '').toUpperCase(); kind = 'STREET'; rank = 2; }
+      else { name = (r.name || (r.display_name || '').split(',')[0] || '').toUpperCase(); kind = (r.type || r.category || '').toUpperCase().replace(/_/g, ' '); rank = 1; }
+      const where = p.city + (house && a.postcode ? ' ' + a.postcode : '');
+      return { lat: +r.lat, lng: +r.lon, name, kind, where, rank, src: 'osm' };
     });
+  }
+  let locCache = null;
+  async function localityNear(near) {
+    if (!near) return '';
+    if (locCache && G.meters(locCache.lat, locCache.lng, near.lat, near.lng) < 5000) return locCache.city;
+    const r = await G.reverse(near.lat, near.lng, 10);
+    if (r && r.city) { locCache = { lat: near.lat, lng: near.lng, city: r.city }; return r.city; }
+    return '';
+  }
+  G.search = async function (q, near, place) {
+    q = String(q || '').trim();
+    const addr = isAddrQ(q);
+    let q2 = q;
+    if (addr && !hasLocality(q)) {
+      const loc = (place && place.city) || await localityNear(near).catch(() => '');
+      if (loc) q2 = q + ', ' + loc;
+    }
+    const [nom, cen] = await Promise.allSettled([nomSearch(q2, near), addr ? census(q2) : Promise.resolve([])]);
+    if (nom.status === 'rejected' && (cen.status === 'rejected' || !cen.value.length)) throw nom.reason;
+    let out = (cen.status === 'fulfilled' ? cen.value : []).concat(nom.status === 'fulfilled' ? nom.value : []);
+    // the town we added may be the wrong one: try the address as typed before giving up on a house match
+    if (addr && q2 !== q && !out.some(r => r.rank === 0)) {
+      const plain = await nomSearch(q, near).catch(() => []);
+      out = out.concat(plain);
+    }
+    const ref = near || (out[0] ? { lat: out[0].lat, lng: out[0].lng } : { lat: 0, lng: 0 });
+    const dist = r => G.meters(ref.lat, ref.lng, r.lat, r.lng);
+    // the same street comes back once per OSM segment: keep the nearest one
+    const res = [], seenStreet = new Map();
+    const num = r => (String(r.name).match(/^(\d+)/) || [])[1];
+    out.sort((a, b) => a.rank - b.rank || (a.src === b.src ? 0 : a.src === 'osm' ? -1 : 1) || dist(a) - dist(b)).forEach(r => {
+      if (!r.name) return;
+      if (r.rank === 2) { const k = normKey(r.name); if (seenStreet.has(k)) return; seenStreet.set(k, true); }
+      // the same house from both sources (W vs WEST, AVE vs AVENUE): OSM's exact building point wins over the Census estimate
+      if (r.rank === 0 && res.some(x => x.rank === 0 && num(x) && num(x) === num(r) && G.meters(x.lat, x.lng, r.lat, r.lng) < 150)) return;
+      if (res.some(x => normKey(x.name) === normKey(r.name) && G.meters(x.lat, x.lng, r.lat, r.lng) < 250)) return;
+      res.push(r);
+    });
+    const houses = res.filter(r => r.rank === 0);
+    if (addr && houses.length) return res.filter(r => r.rank !== 2);
+    if (addr) res.forEach(r => { if (r.rank === 2) r.kind = 'STREET · NO HOUSE MATCH'; });
+    return res;
   };
 
   G.parseCoords = function (s) {

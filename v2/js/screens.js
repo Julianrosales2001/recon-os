@@ -1039,7 +1039,7 @@ window.RX = window.RX || {};
           .map(p => ({ p, m: distTo(A, p), b: brgTo(A, p) })).sort((a, b) => a.m - b.m).slice(0, 6);
         y = g.section('YOUR MARKS · ' + items.length, y);
         y = assetRows(g, st, A, items, y, p => A.openMark(p.id));
-        y = g.section('PLACES · OPENSTREETMAP', y + 2, st.busy ? 'SEARCHING' : (st.err ? 'OFFLINE' : st.places.length + ' FOUND'));
+        y = g.section('PLACES + ADDRESSES', y + 2, st.busy ? 'SEARCHING' : (st.err ? 'OFFLINE' : st.places.length + ' FOUND'));
         st.places.forEach(r => {
           const h = 21;
           const sel = g.row(0, y, W - 40, h - 1, () => { pushRecent(st.q); goTarget(A, r.lat, r.lng, r.name); });
@@ -1078,10 +1078,11 @@ window.RX = window.RX || {};
     if (st.lastQ === q && !now) return;
     st.lastQ = q; st.busy = true; st.err = null; A.dirty = true;
     try {
-      const res = await Geo.search(q, here(A));
+      const res = await Geo.search(q, here(A), A.place);
       if ((st.q || '').trim() !== q) return;
       const h = here(A);
-      st.places = res.sort((a, b) => Geo.meters(h.lat, h.lng, a.lat, a.lng) - Geo.meters(h.lat, h.lng, b.lat, b.lng)).slice(0, 8);
+      // house matches first, then places, then streets; nearest first within each
+      st.places = res.sort((a, b) => (a.rank || 0) - (b.rank || 0) || Geo.meters(h.lat, h.lng, a.lat, a.lng) - Geo.meters(h.lat, h.lng, b.lat, b.lng)).slice(0, 8);
     } catch (e) { st.err = true; st.places = []; }
     st.busy = false; A.dirty = true;
   }
