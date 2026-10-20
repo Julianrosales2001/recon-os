@@ -33,7 +33,7 @@ window.RX = window.RX || {};
     sound: true, idleDim: true, recordTrail: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'wx', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, conv: {}, code: null, hicon: false
+    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, hlthPage: 'fast', conv: {}, code: null, hicon: false
   };
 
   // ---------- low level ----------
@@ -236,7 +236,8 @@ window.RX = window.RX || {};
       v2prefs: S.v2,
       profile: S.profile || null,
       rolo: S.rolo || [],
-      events: S.events || [], goals: S.goals || []
+      events: S.events || [], goals: S.goals || [],
+      moves: S.moves || []
     };
   };
   S.summarize = function (d) {
@@ -269,6 +270,7 @@ window.RX = window.RX || {};
     if (Array.isArray(d.rolo)) { S.rolo = d.rolo; if (S.saveRolo) S.saveRolo(); }
     if (Array.isArray(d.events)) { S.events = d.events; if (S.saveEvents) S.saveEvents(); }
     if (Array.isArray(d.goals)) { S.goals = d.goals; if (S.saveGoals) S.saveGoals(); }
+    if (Array.isArray(d.moves)) { S.moves = d.moves; if (S.saveMoves) S.saveMoves(); }
     if (d.profile && typeof d.profile === 'object') { safeSet('recon.os.profile', JSON.stringify(d.profile)); if (S.loadProfile) S.loadProfile(); }
     const exportedTs = d.exported ? Date.parse(d.exported) : null;
     const keep = d.v2prefs && typeof d.v2prefs === 'object' ? d.v2prefs : {};

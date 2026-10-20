@@ -468,8 +468,8 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tool { background: url(keys/tool-search.png?v=2) center / 45px 36px no-repeat !important; box-shadow: none !important; filter: drop-shadow(1.1px 1.6px 1.2px rgba(0,0,0,0.55)); }
 .tool[data-tool=log] { background-image: url(keys/tool-log.png?v=2) !important; }
 .tool[data-tool=log]:has(.led.on) { background-image: url(keys/tool-log-lit.png?v=2) !important; }
-.tool[data-tool=fast] { background-image: url(keys/tool-fast.png?v=2) !important; }
-.tool[data-tool=fast]:has(.led.on) { background-image: url(keys/tool-fast-lit.png?v=2) !important; }
+.tool[data-tool=fast] { background-image: url(keys/tool-health.png?v=1) !important; }
+.tool[data-tool=fast]:has(.led.on) { background-image: url(keys/tool-health-lit.png?v=1) !important; }
 .tool[data-tool=legend] { background-image: url(keys/tool-legend.png?v=2) !important; }
 .tool[data-tool=cal] { background-image: url(keys/tool-cal.png?v=1) !important; }
 .tool[data-tool=lot] { background-image: url(keys/tool-lot.png?v=2) !important; }

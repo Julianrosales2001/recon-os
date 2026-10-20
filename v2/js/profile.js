@@ -72,8 +72,10 @@ window.RX = window.RX || {};
   // NUMBERS (worked out fresh each frame — the lists are small)
   // ======================================================================
   const wis = () => S.weighins.filter(w => w && w.lbs).slice().sort((a, b) => a.ts - b.ts);
-  const trainedToday = () => S.workouts.find(w => w.type === 'TRAINED' && w.ts >= dayStart());
-  const sessionsIn = (a, b) => S.workouts.filter(w => w.ts >= a && w.ts < b).length;
+  // anything logged today counts (HLTH ▸ TRAIN exercises or an old TRAINED entry)
+  const trainedToday = () => S.workouts.filter(w => w.ts >= dayStart()).sort((a, b) => a.ts - b.ts)[0];
+  // sessions = days you trained (three exercises on one day is one session)
+  const sessionsIn = (a, b) => new Set(S.workouts.filter(w => w.ts >= a && w.ts < b).map(w => dayKey(w.ts))).size;
 
   function weightInfo() {
     const L = wis(), P = S.profile;
@@ -114,7 +116,8 @@ window.RX = window.RX || {};
   function trainWeeks() {
     // weeks with the target met: total and best run of back-to-back weeks
     const T = Math.max(1, S.profile.trainTarget || 2), cnt = {};
-    S.workouts.forEach(w => { const k = weekStart(w.ts); cnt[k] = (cnt[k] || 0) + 1; });
+    const seen = new Set();
+    S.workouts.forEach(w => { const dk = dayKey(w.ts); if (seen.has(dk)) return; seen.add(dk); const k = weekStart(w.ts); cnt[k] = (cnt[k] || 0) + 1; });
     const keys = Object.keys(cnt).map(Number).sort((a, b) => a - b);
     let total = 0, best = 0, run = 0, prev = null, bestEnd = null;
     keys.forEach(k => { if (cnt[k] >= T) { total++; run = (prev != null && Math.round((k - prev) / (7 * DAY)) === 1 && cnt[prev] >= T) ? run + 1 : 1; if (run > best) { best = run; bestEnd = k; } } prev = k; });
@@ -389,16 +392,13 @@ window.RX = window.RX || {};
     const bw = Math.floor((W - 4) / 2);
     g.btn(1, keyTop, bw, 10, '+ WEIGH IN', () => A.go('weighin'), { c: YEL });
     st.trainRect = { x: 3 + bw, y: keyTop, w: bw, h: 10 };
-    g.btn(3 + bw, keyTop, bw, 10, tr.today ? 'TRAINED ✓' : 'TRAINED', () => {
-      if (trainInfo().today) { A.say('HOLD TRAINED TO UNDO', 2500); return; }
-      S.workouts.push({ id: S.healthId('WO'), ts: Date.now(), type: 'TRAINED', durationMin: null, intensity: null, distanceMi: null, sets: null, notes: '' });
-      S.saveWorkouts(); A.beep('ok');
-      const t2 = trainInfo(); A.say(t2.done >= t2.T ? 'TRAINED · TARGET MET · ' + t2.done + '/' + t2.T : 'TRAINED · ' + t2.done + '/' + t2.T + ' THIS WEEK', 3500);
-      checkBadges(A);
-    }, { c: tr.today ? GRN : ORG, on: !!tr.today });
+    // training is logged by exercise now: this key opens HLTH ▸ TRAIN
+    g.btn(3 + bw, keyTop, bw, 10, tr.today ? 'TRAINED ✓' : 'TRAINED ▸', () => A.go('fast', { page: 'train' }), { c: tr.today ? GRN : ORG, on: !!tr.today });
   }
+  // an old one-tap TRAINED entry from today can still be held away
+  const oldTrained = () => S.workouts.find(w => w.type === 'TRAINED' && !w.moveId && w.ts >= dayStart());
   function undoTrained(A) {
-    const t = trainedToday(); if (!t) return;
+    const t = oldTrained(); if (!t) return;
     S.workouts = S.workouts.filter(w => w !== t); S.saveWorkouts();
     A.beep('thunk', 0.8); A.say('TRAINED UNDONE', 2500); A.dirty = true;
   }
@@ -562,7 +562,7 @@ window.RX = window.RX || {};
     push(st, A) { if (st.pg === 1 || st.pg === 2) return; A.focusPush(); },
     longPress(d, st, A) {
       const r = st.trainRect;
-      if (st.pg === 0 && r && d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h && trainedToday()) undoTrained(A);
+      if (st.pg === 0 && r && d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h && oldTrained()) undoTrained(A);
     },
     render(g, st, A) {
       header(g, st, A);

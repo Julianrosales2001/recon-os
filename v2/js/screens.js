@@ -865,11 +865,13 @@ window.RX = window.RX || {};
 
   RX.screens.fast = {
     pal: 'amber',
-    drum: ['fast', 'stages'],
-    enter(st) { st.page = 'fast'; },
+    drum: ['fast', 'stages', 'train'],
+    // HLTH opens on the page you last used; the calendar can open it on TRAIN for a day
+    enter(st, params) { params = params || {}; st.page = params.page || S.v2.hlthPage || 'fast'; if (params.day) st.fday = params.day; },
     animating: () => true,
-    onPage(pg, st, A) { st.edit = false; if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
-    jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
+    onPage(pg, st, A) { st.edit = false; st.scroll = 0; S.saveV2({ hlthPage: pg }); if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
+    jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.page === 'train' ? ['◂ UP', 'DOWN ▸', 'PUSH ▸ DONE'] : st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
+    longPress(d, st, A) { if (st.page !== 'train') return; const t = RX.fit.tileAt(st, d); if (t) { A.beep('key'); A.go('move', { id: t.id, day: st.fday }); } },
     jog(d, st, A) {
       if (st.page === 'stages') { st.scrub = Math.max(0, Math.min(MAXH, Math.round((st.scrub || 0) + d))); return; }   // an hour a click
       if (st.edit) { const f = S.activeFast(); if (f) { f.startTs = Math.min(Date.now(), f.startTs + d * 15 * 60000); S.saveFasts(); } return; }
@@ -886,6 +888,7 @@ window.RX = window.RX || {};
     render(g, st, A) {
       const W = g.W, mx = g.mx;
       if (st.page === 'stages') { const ft = pageStages(g, st, A); g.footer(A.sayActive() ? A.statusShown(g.t) : ft); return; }
+      if (st.page === 'train') { const ft = RX.fit.page(g, st, A); g.footer(A.sayActive() ? A.statusShown(g.t) : ft); return; }
       const f = S.activeFast(), fs = S.fastStreak();
       let y = g.header(f ? 'FAST · DAY ' + f.dayNum : 'FAST', 'STREAK ' + fs.current + (fs.atRisk ? ' · AT RISK' : ''), { c: C.amber });
       y = g.scrollBegin(y, footTop(g));
@@ -2362,7 +2365,8 @@ window.RX = window.RX || {};
 
   // ---------- the LCD per mode: each screen says what its glance strip shows ----------
   const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
-  RX.screens.fast.lcd = () => {
+  RX.screens.fast.lcd = (st, A) => {
+    if (st && st.page === 'train') return RX.fit.lcd(st, A);
     const f = S.activeFast(), fs = S.fastStreak();
     if (!f) return { rows: [['FAST', 'NONE RUNNING'], ['STRK', fs.current + ' · BEST ' + fs.best], ['LAST', fs.daysSinceLast != null ? fs.daysSinceLast.toFixed(1) + ' DAYS AGO' : '--']], tag: 'FST' };
     const el = Date.now() - f.startTs, L = lapOf(el);

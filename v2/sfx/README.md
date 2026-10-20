@@ -42,6 +42,9 @@ plays it when you tap it.
 | ring.file | the ring files a mark | file |
 | gps.lock | the first GPS lock | ok |
 | visit | a visit is logged at a mark | ok |
+| fit.set | one set logged on TRAIN | ok |
+| fit.done | an exercise is done for the day | file |
+| fit.down | a set counted down (10 → 9) | jog |
 | boot | startup | silent |
 
 The Morse tone (REF ▸ CIPHER) is generated and has no slot.

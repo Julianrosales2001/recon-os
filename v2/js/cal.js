@@ -61,7 +61,12 @@ window.RX = window.RX || {};
       const done = m.status === 'complete', late = !done && m.deadline < now;
       out.push({ kind: 'todo', m, ts: m.deadline, title: m.title, c: done ? GRY : late ? RED : AMB, done, urgent: m.priority === 'urgent' });
     });
-    S.workouts.forEach(w => { if (w.ts >= d && w.ts < end) out.push({ kind: 'train', ts: w.ts, title: w.type === 'TRAINED' ? 'TRAINED' : String(w.type || 'WORKOUT') + (w.durationMin ? ' · ' + w.durationMin + 'M' : ''), c: ORG, done: true }); });
+    S.workouts.forEach(w => {
+      if (w.ts < d || w.ts >= end) return;
+      // an exercise from HLTH ▸ TRAIN reads its sets and wears its colour
+      const ft = w.moveId && RX.fit && RX.fit.title(w);
+      out.push({ kind: 'train', ts: w.ts, moveId: w.moveId || null, title: ft || (w.type === 'TRAINED' ? 'TRAINED' : String(w.type || 'WORKOUT') + (w.durationMin ? ' · ' + w.durationMin + 'M' : '')), c: (ft && RX.fit.col(w)) || ORG, done: true });
+    });
     S.weighins.forEach(w => { if (w.ts >= d && w.ts < end) out.push({ kind: 'weigh', ts: w.ts, title: 'WEIGH-IN · ' + w.lbs, c: YEL, done: true }); });
     S.fasts.forEach(f => { const fe = f.endTs || now; if (f.startTs < end && fe > d) out.push({ kind: 'fast', ts: Math.max(f.startTs, d), title: f.endTs ? 'FAST · ' + Math.round(f.hours || 0) + 'H' : 'FAST · ' + Math.floor((now - f.startTs) / 36e5) + 'H RUNNING', c: AMB, allDay: true, fast: true, done: !!f.endTs }); });
     out.sort((a, b) => (b.allDay ? 1 : 0) - (a.allDay ? 1 : 0) || a.ts - b.ts);
@@ -147,6 +152,7 @@ window.RX = window.RX || {};
     if (it.kind === 'event') A.go('calitem', { ev: it.ev.id, ts: it.ts });
     else if (it.kind === 'todo') A.go('calitem', { todo: it.m.id });
     else if (it.kind === 'fast') A.go('fast');
+    else if (it.kind === 'train' && it.moveId) A.go('fast', { page: 'train', day: sod(it.ts) });
     else if (it.kind === 'weigh' || it.kind === 'train') A.go('profile');
   }
   function addBtn(g, x, y, A, st) { g.btn(x, y, 30, 10, '+ NEW', () => A.go('calnew', { day: st.sel }), { face: 'mini', c: AMB }); }
@@ -157,6 +163,15 @@ window.RX = window.RX || {};
   function pageMonth(g, st, A) {
     const W = g.W, H = g.H, mx = g.mx, sel = st.sel, sd = new Date(sel);
     g.header('CAL · MONTH', MON[sd.getMonth()] + ' ' + sd.getFullYear());
+    // the exercise filter: tap to step through them; one picked lights the days you did it
+    const FX = RX.fit ? RX.fit.sorted() : [], fm = st.fit ? FX.find(m => m.id === st.fit) : null;
+    if (FX.length) {
+      const lab = fm ? fm.name : 'FIT: ALL', fw = measure(lab, 'mini') + 8, fx = W - measure(MON[sd.getMonth()] + ' ' + sd.getFullYear(), 'mini') - fw - 6;
+      mx.clearRect(fx - 1, 0, fw + 2, 10);
+      mx.frame(fx, 1, fw, 9, fm ? fm.col : C.ink, fm ? 1 : 0.45); if (fm) mx.rect(fx + 1, 2, fw - 2, 7, fm.col, 0.2);
+      g.mini(lab, fx + 4, 3, { c: fm ? fm.col : C.ink, a: fm ? 1 : 0.7 });
+      g.hit(fx - 2, 0, fw + 4, 12, () => { const i = fm ? FX.indexOf(fm) : -1; st.fit = i + 1 < FX.length ? FX[i + 1].id : null; A.beep('jog'); });
+    }
     const cw = Math.floor((W - 1) / 7), x0 = 1, y0 = 21;
     const listMin = 52, ch = clamp(Math.floor((H - 12 - y0 - listMin) / 6), 13, 22);
     DL.forEach((d, i) => g.mini(d, x0 + i * cw + Math.floor(cw / 2) - 1, 14, { a: i === 0 || i === 6 ? 0.4 : 0.6 }));
@@ -169,10 +184,20 @@ window.RX = window.RX || {};
       else if (isT) mx.frame(cx, cy, cw - 1, ch - 1, HOT, 0.8);
       else mx.frame(cx, cy, cw - 1, ch - 1, C.ink, inM ? 0.12 : 0.05);
       g.mini(String(dd.getDate()), cx + 2, cy + 2, { c: isT ? HOT : C.ink, a: !inM ? 0.2 : past ? 0.45 : (k % 7 === 0 || k % 7 === 6) ? 0.65 : 0.9 });
-      const its = dayItems(d).filter(i => !i.fast), cols = [];
+      const all = dayItems(d), its = all.filter(i => !i.fast && i.kind !== 'train'), cols = [];
       ORDER.forEach(c => { if (its.some(i => i.c === c)) cols.push(c); });
       if (its.some(i => i.c === GRY) && cols.length < 3) cols.push(GRY);
-      cols.slice(0, 3).forEach((c, i) => mx.rect(cx + 3 + i * 4, cy + ch - 7, 3, 3, c, past || !inM ? 0.45 : 1));
+      cols.slice(0, 3).forEach((c, i) => mx.rect(cx + 3 + i * 4, cy + ch - 7, 3, 3, c, (past || !inM ? 0.45 : 1) * (fm ? 0.35 : 1)));
+      // training runs down the right edge, one square per exercise in its colour (hollow = planned)
+      const tr = all.filter(i => i.kind === 'train'), tcols = [];
+      tr.forEach(i => { if (!tcols.includes(i.c)) tcols.push(i.c); });
+      if (fm) {
+        if (tr.some(i => i.moveId === fm.id)) { mx.rect(cx + 1, cy + 1, cw - 3, ch - 3, fm.col, inM ? 0.3 : 0.12); mx.frame(cx, cy, cw - 1, ch - 1, fm.col, inM ? 1 : 0.4); }
+        else if (d >= today && RX.fit.plannedOn(fm, d) && inM) mx.frame(cx + 1, cy + 1, cw - 3, ch - 3, fm.col, 0.35, 2);
+      } else {
+        tcols.slice(0, 3).forEach((c, i) => mx.rect(cx + cw - 6, cy + 2 + i * 4, 3, 3, c, !inM ? 0.4 : 1));
+        if (d >= today && inM) FX.filter(m => RX.fit.plannedOn(m, d) && !tcols.includes(m.col)).slice(0, 3 - Math.min(3, tcols.length)).forEach((m, i) => mx.frame(cx + cw - 6, cy + 2 + (tcols.length + i) * 4, 3, 3, m.col, 0.6));
+      }
       if (fastOn(d)) mx.hline(cx, cy + ch - 3, cw - 1, AMB, past ? 0.5 : 1);
       g.hit(cx, cy, cw - 1, ch - 1, () => { if (st.sel === d) { st.page = 'week'; st.drumI = null; A.refreshChrome(); } st.sel = d; st.scroll = 0; A.beep('jog'); });
     }
@@ -309,7 +334,7 @@ window.RX = window.RX || {};
   const PAGES = ['month', 'week', 'agenda', 'goals'];
   RX.screens.cal = {
     drum: PAGES,
-    enter(st, params) { st.sel = sod(params.day || Date.now()); st.page = params.page || S.v2.calPage || 'month'; },
+    enter(st, params) { st.sel = sod(params.day || Date.now()); st.page = params.page || S.v2.calPage || 'month'; st.fit = params.fit || null; },
     onPage(pg, st, A) { st.scroll = 0; st.sel = st.sel || sod(); S.saveV2({ calPage: pg }); },
     animating: st => st.page === 'week' && st.sel === sod(),
     jogLabels: st => st.page === 'month' || st.page === 'week' ? ['◂ DAY', 'DAY ▸', st.page === 'month' ? 'PUSH ▸ WEEK VIEW' : 'PUSH ▸ NEW EVENT'] : ['◂ UP', 'DOWN ▸', 'PUSH ▸ OPEN'],

@@ -23,6 +23,7 @@ window.RX = window.RX || {};
     ['here.fix', 'ok', 'HERE TAKES A FIX', 'HERE'],
     ['ring.pick', 'jog', 'RING MOVES TO A CATEGORY', 'RING'], ['ring.file', 'file', 'RING FILES THE MARK', 'RING'],
     ['gps.lock', 'ok', 'FIRST GPS LOCK', 'GPS'], ['visit', 'ok', 'VISIT LOGGED AT A MARK', 'GPS'],
+    ['fit.set', 'ok', 'ONE SET LOGGED', 'FIT'], ['fit.done', 'file', 'EXERCISE DONE FOR THE DAY', 'FIT'], ['fit.down', 'jog', 'SET COUNTED DOWN', 'FIT'],
     ['boot', null, 'STARTUP', 'BOOT']
   ];
   const parentOf = {}; SLOTS.forEach(s => { parentOf[s[0]] = s[1]; });
