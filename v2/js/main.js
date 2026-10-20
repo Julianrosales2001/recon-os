@@ -323,10 +323,12 @@ window.RX = window.RX || {};
   press($('markKey'), () => A.mark(), () => 'mark');
   A.menuAction = function () { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign) A.undoDrop(); else A.back(); };
   press($('fnKey'), () => setTray(!A.trayOpen), () => A.trayOpen ? 'fn.close' : 'fn.open');
+  // a tray key's sound covers its whole move: the tray stows and the drum turns without their own sounds
   document.querySelectorAll('.tool').forEach(b => press(b, () => {
     const t = b.dataset.tool;
-    if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false); return; }
-    setTray(false);
+    A._toolQuiet = performance.now() + 800;
+    if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false, true); return; }
+    setTray(false, true);
     if (A.top().name === t) return;
     if (A.stack.length > 1) A.home();
     A.go(t);
@@ -369,14 +371,14 @@ window.RX = window.RX || {};
     return [lift, ang];
   }
   let trayRaf = 0;
-  function runTray(open) {
+  function runTray(open, quiet) {
     cancelAnimationFrame(trayRaf);
     const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const dur = open ? 800 : 600, t0 = performance.now(), fn = open ? openPose : closePose;
     // empty F1/F2: the key click on the press and a thud as it lands. Your sound there is the whole motion, from its first frame
     const slot = open ? 'fn.open' : 'fn.close';
-    let landed = RX.sfx.mine(slot);
-    if (landed) A.beep(slot);
+    let landed = quiet || RX.sfx.mine(slot);
+    if (landed && !quiet) A.beep(slot);
     const step = now => {
       const ms = now - t0;
       if (reduce || ms >= dur) { if (open) poseTray(6, 0); else poseTray(0, -90); return; }
@@ -397,7 +399,7 @@ window.RX = window.RX || {};
   };
   A.fitCart = fitCart;
   fitCart(); new ResizeObserver(fitCart).observe($('bezel'));
-  function setTray(open) {
+  function setTray(open, quiet) {
     if (open === A.trayOpen) return;
     if (open && RX.aux && Math.abs(RX.aux.y) > 0.5 && !RX.aux.open) return;   // not while the panel is moving
     A.trayOpen = open;
@@ -405,7 +407,7 @@ window.RX = window.RX || {};
     $('bay').classList.toggle('live', open);
     $('fnKey').setAttribute('aria-expanded', open ? 'true' : 'false');
     fnLed();
-    runTray(open);
+    runTray(open, quiet);
   }
   // the spine's dot: mint while open; amber when LOG or OBJ have something waiting
   function fnLed() {
@@ -466,7 +468,7 @@ window.RX = window.RX || {};
   A.updateDrum = updateDrum;
   function setDrumAngle(extra) { rotor.style.transform = 'rotateX(' + (-A.drumRot * 120 + (extra || 0)) + 'deg)'; }
   const canRoll = () => A.booted && !A.assign && !A.pick && (A.stack.length <= 1 || !!modeDrum());
-  function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => A.beep('drum.roll', level), 190); }
+  function landThunk(level) { clearTimeout(A._thunkT); A._thunkT = setTimeout(() => { if (performance.now() < (A._toolQuiet || 0)) return; A.beep('drum.roll', level); }, 190); }
   A.drumRoll = function (dir, quiet) {
     A.wake();
     if (!canRoll()) { setDrumAngle(0); if (!quiet) A.say(A.assign ? 'FILE THE MARK FIRST' : 'THE DRUM ROLLS ON THE MAP', 2000); return; }

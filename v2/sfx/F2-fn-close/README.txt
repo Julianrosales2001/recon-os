@@ -1,6 +1,7 @@
 F2-fn-close
 
-Plays when: the cartridge stows: you press FN again, tap a tool, or tap the map.
+Plays when: the cartridge stows: you press FN again or tap the map.
+(Picking a key in the tray stows it quietly: that key's sound covers the whole move.)
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.
