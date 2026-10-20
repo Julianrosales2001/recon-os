@@ -5,7 +5,7 @@
    - sfx/sfx.json (the sound list): network first, like the page
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.24.0';
+const VERSION = '2.24.1';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,

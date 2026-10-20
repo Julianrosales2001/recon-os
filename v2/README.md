@@ -15,7 +15,7 @@ pick your `recon-os-backup-*.json`.
 
 M mark · 1–6 file a fresh mark · P AUX slider · A SCAN · W HERE · F tools tray ·
 Enter = jog push · Esc = back · drag = pan · scroll = zoom · L log · S search ·
-H fast · O calendar · G legend · D cycle LCD readout
+H health (fast · stages · train) · O calendar · G legend · D cycle LCD readout
 
 ## Files
 
@@ -29,6 +29,7 @@ H fast · O calendar · G legend · D cycle LCD readout
     data/us-states.json  state lines + US national border (Natural Earth 1:10m)
     js/ui.js       immediate-mode UI kit drawn into the matrix
     js/screens.js  all screens
+    js/fit.js      HLTH ▸ TRAIN: exercises (recon.os.moves), one-tap logging into recon.os.workouts, its calendar colours
     js/aux.js      AUX slider (the screen panel rides up to uncover SCAN + HERE), SCAN sweep, HERE readout
     js/sfx.js      sound slots: your files from sfx/, else the parent slot, else the stock originals
     sfx/           drop sounds here named after their slot, then run python3 v2/sfx/build.py (see sfx/README.md)
