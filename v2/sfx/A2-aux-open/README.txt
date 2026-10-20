@@ -2,11 +2,9 @@ A2-aux-open
 
 Plays when: the AUX panel lands at the top.
 
-Drop your sound here, named exactly:
-
-  sound.mp3
-
-sound.wav and sound.m4a work too. If there is more than one, .mp3 wins.
+Drop your sound here (.mp3, .wav or .m4a).
+RP Sound Push renames it and sends it to the phone by itself.
+(Without RP Sound Push: name it sound.mp3 yourself, then push.)
 
 No file here: plays K7-thunk (heavy landing).
 
