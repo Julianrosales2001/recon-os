@@ -167,13 +167,15 @@ window.RX = window.RX || {};
     };
   }
   const reduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // empty A2/A3: the latch click and a thud as the panel lands. Your sound there is the whole slide, from its first frame
   function runOpen(y0) {
     if (hooks.closeTray) hooks.closeTray();
+    const mine = RX.sfx.mine('aux.open'); if (mine) A.beep('aux.open');
     el.bar.setAttribute('aria-expanded', 'true');
     slide = { dir: 1, t0: now(), fn: reduced() ? () => [T, true] : openCurve(y0), done: () => {
       X.open = true; S.saveV2({ auxOpen: true }); relayout(true);
       KEYS.forEach(k => { if (cap[k].up && !cap[k].gl) glowFade(k, glowTarget(k), 120); });
-      A.beep('aux.open', 0.6); A.dirty = true;
+      if (!mine) A.beep('aux.open', 0.6); A.dirty = true;
     } };
     kick();
   }
@@ -186,14 +188,17 @@ window.RX = window.RX || {};
   }
   function runClose(y0) {
     beginClose();
+    const mine = RX.sfx.mine('aux.close'); if (mine) A.beep('aux.close');
     el.bar.setAttribute('aria-expanded', 'false');
-    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); A.beep('aux.close', 0.8); A.dirty = true; } };
+    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); if (!mine) A.beep('aux.close', 0.8); A.dirty = true; } };
     kick();
   }
   X.toggle = function () {
     if (slide) return;
-    A.wake(); A.beep('aux.latch');
-    if (X.y > T / 2) runClose(X.y); else runOpen(X.y);
+    A.wake();
+    const closing = X.y > T / 2;
+    if (!RX.sfx.mine(closing ? 'aux.close' : 'aux.open')) A.beep('aux.latch');
+    if (closing) runClose(X.y); else runOpen(X.y);
   };
   X.openNow = function () { if (!X.open && !slide) runOpen(X.y); };
   const usable = () => X.open && !slide && !drag;

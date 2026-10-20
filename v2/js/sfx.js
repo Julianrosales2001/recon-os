@@ -34,7 +34,9 @@ window.RX = window.RX || {};
   SLOTS.forEach(s => { parentOf[s[0]] = s[2]; folderOf[s[0]] = s[1]; });
   const rootOf = s => { while (parentOf[s]) s = parentOf[s]; return s; };
   // found[slot] = { url, kind: 'YOURS' | 'ORIGINAL' } once its folder has been checked
-  const X = RX.sfx = { SLOTS, ROOTS, folderOf, found: {}, raw: {}, bufs: {}, ready: false, checked: 0, rootOf };
+  const X = RX.sfx = { SLOTS, ROOTS, folderOf, found: {}, raw: {}, bufs: {}, lead: {}, ready: false, checked: 0, rootOf };
+  // does this moment's own folder hold a sound of yours? (then it owns the whole action: no key click, no landing thud)
+  X.mine = slot => !!(X.found[slot] && X.found[slot].kind === 'YOURS');
   let ac = null;
 
   X.ctx = function () {
@@ -125,9 +127,16 @@ window.RX = window.RX || {};
   function decodeAll() {
     Object.keys(X.raw).forEach(u => {
       const ab = X.raw[u]; delete X.raw[u];
-      const done = b => { X.bufs[u] = b; };
+      // a file that opens on silence (most library clips and every MP3 do) starts at its first sound
+      const done = b => { X.bufs[u] = b; X.lead[u] = leadIn(b); };
       try { const p = ac.decodeAudioData(ab, done, () => {}); if (p && p.then) p.then(done).catch(() => {}); } catch (e) {}
     });
+  }
+  function leadIn(b) {
+    const n = Math.min(b.length, Math.floor(b.sampleRate * 0.5)), ch = [];
+    for (let c = 0; c < b.numberOfChannels; c++) ch.push(b.getChannelData(c));
+    for (let i = 0; i < n; i++) for (let c = 0; c < ch.length; c++) if (Math.abs(ch[c][i]) > 0.004) return Math.max(0, i - 24) / b.sampleRate;
+    return 0;
   }
   X.unlock = function () { X.ctx(); decodeAll(); };
 
@@ -135,8 +144,9 @@ window.RX = window.RX || {};
     if (slot === 'morse') return X.synth('morse', arg);
     const r = X.resolve(slot), buf = r && X.bufs[r.url];
     if (!buf) { X.synth(rootOf(r ? r.from : slot), arg); return; }   // not loaded yet, or nothing up the chain
+    // yours plays exactly as it is; the originals keep the levels the RP asks for (a softer thud and so on)
     const c = X.ctx(), src = c.createBufferSource(), g = c.createGain();
-    src.buffer = buf; g.gain.value = arg || 1;
-    src.connect(g); g.connect(c.destination); src.start();
+    src.buffer = buf; g.gain.value = r.kind === 'YOURS' ? 1 : (arg || 1);
+    src.connect(g); g.connect(c.destination); src.start(0, X.lead[r.url] || 0);
   };
 })();

@@ -312,15 +312,16 @@ window.RX = window.RX || {};
     document.addEventListener('animationend', e => { if (e.target.classList && e.target.classList.contains('boing')) e.target.classList.remove('boing'); }, true);
     A.boing = boing;
   })();
-  function press(el, fn) {
-    el.addEventListener('pointerdown', e => { e.preventDefault(); A.wake(); el.classList.add('down'); A.beep('key'); });
+  // own: the moment this key sets off; when you've given that moment your own sound, it replaces the key click
+  function press(el, fn, own) {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); A.wake(); el.classList.add('down'); if (!(own && RX.sfx.mine(own()))) A.beep('key'); });
     const up = () => el.classList.remove('down');
     el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up); el.addEventListener('pointercancel', up);
     el.addEventListener('click', e => { e.preventDefault(); fn(e); });
   }
-  press($('markKey'), () => A.mark());
+  press($('markKey'), () => A.mark(), () => 'mark');
   A.menuAction = function () { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign) A.undoDrop(); else A.back(); };
-  press($('fnKey'), () => setTray(!A.trayOpen));
+  press($('fnKey'), () => setTray(!A.trayOpen), () => A.trayOpen ? 'fn.close' : 'fn.open');
   document.querySelectorAll('.tool').forEach(b => press(b, () => {
     const t = b.dataset.tool;
     if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false); return; }
@@ -328,7 +329,7 @@ window.RX = window.RX || {};
     if (A.top().name === t) return;
     if (A.stack.length > 1) A.home();
     A.go(t);
-  }));
+  }, () => 'fn.close'));
   $('lcdBtn').addEventListener('click', () => {
     A.wake(); A.beep('key');
     const sc = A.screen();
@@ -371,12 +372,15 @@ window.RX = window.RX || {};
     cancelAnimationFrame(trayRaf);
     const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const dur = open ? 800 : 600, t0 = performance.now(), fn = open ? openPose : closePose;
-    let landed = false;
+    // empty F1/F2: the key click on the press and a thud as it lands. Your sound there is the whole motion, from its first frame
+    const slot = open ? 'fn.open' : 'fn.close';
+    let landed = RX.sfx.mine(slot);
+    if (landed) A.beep(slot);
     const step = now => {
       const ms = now - t0;
       if (reduce || ms >= dur) { if (open) poseTray(6, 0); else poseTray(0, -90); return; }
       const p = fn(ms); poseTray(p[0], p[1]);
-      if (!landed && ms > (open ? 560 : 420)) { landed = true; A.beep(open ? 'fn.open' : 'fn.close', open ? 0.45 : 0.8); }
+      if (!landed && ms > (open ? 560 : 420)) { landed = true; A.beep(slot, open ? 0.45 : 0.8); }
       trayRaf = requestAnimationFrame(step);
     };
     trayRaf = requestAnimationFrame(step);
@@ -407,7 +411,7 @@ window.RX = window.RX || {};
     const alert = $('logLed').classList.contains('on') || $('objLed').classList.contains('on');
     const l = $('fnLed'); l.classList.toggle('on', A.trayOpen || alert); l.classList.toggle('amber', !A.trayOpen && alert);
   }
-  $('bay').addEventListener('click', () => { if (A.trayOpen) { A.beep('key'); setTray(false); } });
+  $('bay').addEventListener('click', () => { if (A.trayOpen) { if (!RX.sfx.mine('fn.close')) A.beep('key'); setTray(false); } });
 
   // ---------- function drum ----------
   // A chunky three-sided roller in the old MENU slot. MENU (jog zooms, press =

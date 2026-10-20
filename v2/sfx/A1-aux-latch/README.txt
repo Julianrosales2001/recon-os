@@ -1,6 +1,7 @@
 A1-aux-latch
 
-Plays when: the AUX grip is tapped.
+Plays when: you tap the AUX grip. (A2-aux-open or A3-aux-close with a sound of
+yours takes over that whole slide, click included.)
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.
