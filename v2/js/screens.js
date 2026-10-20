@@ -784,14 +784,40 @@ window.RX = window.RX || {};
   }
 
   // ---- what the body is doing, hour by hour (approximate; people vary) ----
+  // now: what's going on · feel: what you may notice · todo: what helps · stop: when to end it
+  // Sources: Cahill 2006 (PubMed 16848698), Zauner 2000 (PubMed 10837292), Ho 1988 (JCI 113450),
+  // Bagherniya 2018 autophagy review (PubMed 30172870), NICE CG32 refeeding criteria.
   const STAGES = [
-    { h: 0, t: 'FED', lines: ['DIGESTING YOUR LAST MEAL.', 'BLOOD SUGAR AND INSULIN ARE UP -', 'THE BODY IS STORING ENERGY.'] },
-    { h: 4, t: 'POST-MEAL', lines: ['INSULIN FALLING. THE LIVER RELEASES', 'STORED SUGAR (GLYCOGEN) TO HOLD', 'BLOOD SUGAR STEADY.'] },
-    { h: 12, t: 'FAT MOBILIZING', lines: ['GLYCOGEN RUNNING LOW. FAT BREAKDOWN', 'PICKS UP AND THE LIVER STARTS', 'MAKING KETONES.'] },
-    { h: 18, t: 'GLYCOGEN SPENT', lines: ['LIVER GLYCOGEN LARGELY USED UP BY', 'ABOUT 18-24H. NEW GLUCOSE COMES FROM', 'GLUCONEOGENESIS. KETONES REACH', 'ABOUT 0.5 MMOL AROUND 21H.'] },
-    { h: 24, t: 'KETOSIS', lines: ['FAT IS NOW THE MAIN FUEL. KETONES', 'CLIMB TOWARD 1-2 MMOL. GROWTH', 'HORMONE PULSES GROW. AUTOPHAGY', 'THOUGHT TO RISE (MOSTLY ANIMAL DATA).'] },
-    { h: 48, t: 'DEEP KETOSIS', lines: ['KETONES 1.5-3 MMOL. THE BRAIN RUNS', 'PARTLY ON KETONES. HUNGER OFTEN', 'EASES. KEEP ELECTROLYTES UP.'] },
-    { h: 72, t: 'PROLONGED', lines: ['KETONES 3+ MMOL. GROWTH HORMONE 3X', 'BASELINE BY DAY 5 IN ONE STUDY.', 'IMMUNE RENEWAL SEEN IN MICE.', 'THIS LONG: TALK TO A DOCTOR.'] }
+    { h: 0, t: 'FED',
+      now: 'DIGESTING YOUR LAST MEAL. BLOOD SUGAR AND INSULIN ARE UP AND THE BODY IS STORING ENERGY: TOPPING UP GLYCOGEN IN THE LIVER AND MUSCLES AND PUTTING THE EXTRA INTO FAT.',
+      feel: 'FULL. SLEEPY AFTER A BIG OR CARB-HEAVY MEAL.',
+      todo: 'START THE TIMER AFTER YOUR LAST BITE. WATER, BLACK COFFEE AND PLAIN TEA DO NOT BREAK THE FAST.' },
+    { h: 4, t: 'POST-MEAL',
+      now: 'DIGESTION WRAPS UP AND INSULIN FALLS BACK TOWARD BASELINE. THE LIVER RELEASES STORED SUGAR (GLYCOGEN) TO HOLD BLOOD SUGAR STEADY, AND FAT RELEASE PICKS UP.',
+      feel: 'NORMAL. THE FIRST HUNGER USUALLY SHOWS UP AT YOUR USUAL MEAL TIMES. IT COMES IN WAVES AND PASSES.',
+      todo: 'DRINK WATER. HUNGER AT A NORMAL MEALTIME IS HABIT (THE HORMONE GHRELIN RISES ON SCHEDULE), NOT AN EMERGENCY.' },
+    { h: 12, t: 'FAT MOBILIZING',
+      now: 'LIVER GLYCOGEN IS RUNNING DOWN. LOW INSULIN AND RISING GLUCAGON UNLOCK FAT STORES, SO FAT BECOMES A BIGGER SHARE OF YOUR FUEL AND THE LIVER STARTS MAKING KETONES. IT ALSO MAKES NEW SUGAR FROM GLYCEROL, LACTATE AND AMINO ACIDS (GLUCONEOGENESIS).',
+      feel: 'HUNGER WAVES. LOWER FOCUS OR A SHORT FUSE, MOSTLY IF YOU USUALLY EAT OFTEN. IT GETS EASIER THE MORE FASTS YOU DO.',
+      todo: 'STAY BUSY THROUGH A WAVE. A PINCH OF SALT IN WATER HELPS IF YOU FEEL FLAT.' },
+    { h: 18, t: 'GLYCOGEN SPENT',
+      now: 'LIVER GLYCOGEN IS LARGELY USED UP BY ABOUT 24H, SO MOST NEW SUGAR NOW COMES FROM GLUCONEOGENESIS. FAT SUPPLIES MOST OF YOUR ENERGY. KETONES REACH ABOUT 0.5 MMOL AROUND 21H. INSULIN IS NEAR ITS LOW.',
+      feel: 'OFTEN A DIP AROUND 18-22H: HEADACHE, COLD HANDS, LOW ENERGY. IT USUALLY LEVELS OFF, AND SOME PEOPLE GET A SECOND WIND.',
+      todo: 'SALT AND WATER. LOW INSULIN MAKES THE KIDNEYS LET GO OF SODIUM AND WATER: THAT IS MOST OF THE QUICK DROP ON THE SCALE, AND OF THE HEADACHES. KEEP TRAINING LIGHT TO MODERATE.' },
+    { h: 24, t: 'KETOSIS',
+      now: 'FAT IS THE MAIN FUEL. KETONES CLIMB TOWARD 1-2 MMOL AND THE BRAIN STARTS USING THEM. GROWTH HORMONE PULSES GROW, WHICH HELPS PROTECT MUSCLE. NOREPINEPHRINE RISES, SO YOUR METABOLISM HOLDS UP INSTEAD OF SLOWING. AUTOPHAGY (CELLS RECYCLING WORN PARTS) IS THOUGHT TO RISE, BUT MOST OF THAT EVIDENCE IS FROM ANIMALS.',
+      feel: 'DAY 2 IS OFTEN THE HARDEST: HUNGER, HEADACHE, LIGHT SLEEP, A METALLIC TASTE OR KETO BREATH. HUNGER OFTEN EASES LATE ON DAY 2.',
+      todo: 'SODIUM, POTASSIUM, MAGNESIUM: BROTH OR A SUGAR-FREE ELECTROLYTE MIX. STAND UP SLOWLY. BREAKING A 24-48H FAST: A NORMAL MEAL IS FINE, JUST SKIP THE BINGE.' },
+    { h: 48, t: 'DEEP KETOSIS',
+      now: 'KETONES 1.5-3 MMOL. THE BRAIN GETS A GROWING SHARE OF ITS ENERGY FROM KETONES, SO LESS SUGAR IS NEEDED AND MUSCLE BREAKDOWN STARTS TO EASE. IN ONE STUDY RESTING METABOLISM WAS ABOUT 14% HIGHER BY DAY 3 AND NOREPINEPHRINE MORE THAN DOUBLED BY DAY 4. BLOOD SUGAR SETTLES LOWER (ABOUT 3.5 MMOL / 63 MG/DL), WHICH IS NORMAL HERE.',
+      feel: 'MANY FEEL STEADY, CLEAR-HEADED AND LESS HUNGRY. OTHERS FEEL WEAK, COLD OR DIZZY WHEN THEY STAND.',
+      todo: 'KEEP THE ELECTROLYTES GOING. SKIP HARD WORKOUTS. BREAK IT WITH A SMALLER MEAL AND BUILD BACK UP.',
+      stop: 'FAINTING, A RACING OR SKIPPING HEART, CONFUSION, VOMITING: EAT AND GET CHECKED.' },
+    { h: 72, t: 'PROLONGED',
+      now: 'KETONES 3+ MMOL, RISING TOWARD 5-7 OVER WEEKS. IN FASTS THAT LONG THE BRAIN RUNS UP TO ABOUT TWO-THIRDS ON KETONES AND THE BODY SPARES PROTEIN AS MUCH AS IT CAN. GROWTH HORMONE WAS ABOUT 3× BASELINE BY DAY 5 IN ONE STUDY. IMMUNE CELL RENEWAL HAS BEEN SEEN IN MICE.',
+      feel: 'HUNGER IS MOSTLY QUIET. ENERGY COMES AND GOES. WEAKNESS, FEELING COLD, POOR SLEEP AND DIZZINESS ARE COMMON.',
+      todo: 'THIS LONG, TALK TO A DOCTOR, ESPECIALLY IF YOU TAKE MEDS FOR BLOOD SUGAR OR BLOOD PRESSURE. PAST 5 DAYS REFEEDING SYNDROME BECOMES A REAL RISK: BREAK THE FAST WITH SMALL, LOW-SUGAR MEALS AND GET MEDICAL ADVICE.',
+      stop: 'FAINTING, CHEST PAIN, A RACING OR SKIPPING HEART, CONFUSION, VOMITING: EAT AND GET CHECKED.' }
   ];
   const ramp = (h, a, b) => h <= a ? 0 : h >= b ? 1 : (h - a) / (b - a);
   const EFFECTS = [
@@ -846,20 +872,30 @@ window.RX = window.RX || {};
     y = bot + 4;
     // what's happening at the scrubber
     const sg = stageAt(h);
+    if (st.stageShown !== sg.t) { st.stageShown = sg.t; st.scroll = 0; }   // a new stage starts at its top
     mx.hline(0, y - 1, W, g.ink, 0.25, 2);
     g.text(Math.floor(h) + 'H' + (h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, '0') : '') + ' · ' + sg.t, 1, y + 2, { c: L.col });
     if (L.n > 1) g.textR('×' + L.n, W - 2, y + 2, { c: L.col });
-    y += 12;
-    const fy = H - 11;
-    const vals = [];
+    y += 11;
+    // the numbers at this hour, on one line
     const ket = EFFECTS[3].v(h), gh = EFFECTS[4].v(h);
-    vals.push('KETONES ' + ket.toFixed(1) + ' MMOL (EST)');
-    if (gh > 1.15) vals.push('GROWTH HORMONE ' + gh.toFixed(1) + 'X BASELINE (EST)');
-    vals.push(h < 18 ? 'GLYCOGEN: IN USE' : h < 30 ? 'GLYCOGEN: MOSTLY SPENT' : 'GLYCOGEN: SPENT');
-    sg.lines.forEach(l => { if (y + 8 < fy) { g.mini(g.fit(l, W - 3, 'mini'), 1, y, { a: 0.85 }); y += 7; } });
-    y += 2;
-    vals.forEach(v => { if (y + 8 < fy) { g.mini(v, 1, y, { c: C.hot, a: 0.9 }); y += 7; } });
-    if (y + 8 < fy) g.mini(g.fit('• MOSTLY ANIMAL DATA · APPROX · PEOPLE VARY · NOT MEDICAL ADVICE', W - 2, 'mini'), 1, y + 1, { a: 0.4 });
+    const nums = 'KETONES ' + ket.toFixed(1) + ' MMOL' + (gh > 1.15 ? ' · GROWTH H ' + gh.toFixed(1) + '×' : '') + ' · ESTIMATES';
+    g.mini(g.fit(nums, W - 3, 'mini'), 1, y, { c: C.hot, a: 0.9 });
+    y += 8;
+    // the stage write-up scrolls (drag up and down; drag sideways or jog to move through time)
+    const per = Math.floor((W - 6) / 4);
+    let yy = g.scrollBegin(y, H - 12);
+    const block = (head, text, c) => {
+      g.mini(head, 1, yy, { c: c || L.col, a: 1 }); yy += 7;
+      U.wrap(text, per).forEach(l => { g.mini(l, 3, yy, { a: 0.88 }); yy += 7; });
+      yy += 3;
+    };
+    block("WHAT'S HAPPENING", sg.now);
+    block('YOU MAY FEEL', sg.feel);
+    block('WHAT HELPS', sg.todo);
+    if (sg.stop) block('STOP AND EAT IF', sg.stop, C.red);
+    U.wrap('APPROXIMATE · PEOPLE VARY · • MOSTLY ANIMAL DATA · NOT MEDICAL ADVICE', per).forEach(l => { g.mini(l, 1, yy, { a: 0.4 }); yy += 7; });
+    g.scrollEnd(yy + 2);
     return 'JOG ▸ SCRUB · PUSH ▸ NOW';
   }
 
@@ -883,8 +919,8 @@ window.RX = window.RX || {};
       A.focusPush();
     },
     back(st, A) { if (st.edit) { st.edit = false; A.refreshChrome(); return true; } return false; },
-    // on STAGES, a finger dragged across the chart moves the scrubber
-    drag(dx, dy, st) { if (st.page === 'stages') st.scrub = Math.max(0, Math.min(MAXH, (st.scrub || 0) + dx / ((RX.app.mx.cols - 36) / 24))); else { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy)); } },
+    // on STAGES a sideways drag moves the scrubber, an up-down drag scrolls the write-up
+    drag(dx, dy, st) { if (st.page === 'stages' && Math.abs(dx) > Math.abs(dy)) st.scrub = Math.max(0, Math.min(MAXH, (st.scrub || 0) + dx / ((RX.app.mx.cols - 36) / 24))); else { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy)); } },
     render(g, st, A) {
       const W = g.W, mx = g.mx;
       if (st.page === 'stages') { const ft = pageStages(g, st, A); g.footer(A.sayActive() ? A.statusShown(g.t) : ft); return; }
