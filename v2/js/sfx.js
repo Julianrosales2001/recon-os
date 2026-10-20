@@ -19,6 +19,11 @@ window.RX = window.RX || {};
     ['thunk', 'K7-thunk', null, 'HEAVY LANDING', 'KEYS'],
     ['drum.roll', 'D1-drum-roll', 'thunk', 'DRUM LANDS ON A FACE', 'DRUM'], ['drum.press', 'D2-drum-press', 'thunk', 'DRUM PRESSED', 'DRUM'],
     ['fn.open', 'F1-fn-open', 'thunk', 'FN CARTRIDGE FLIPS OUT', 'FN'], ['fn.close', 'F2-fn-close', 'thunk', 'FN CARTRIDGE STOWS', 'FN'],
+    // the eight keys in the FN tray: one sound for all of them (F3), or one per key (F4-F11)
+    ['tool', 'F3-tools', 'key', 'ANY KEY IN THE FN TRAY', 'TOOLS'],
+    ['tool.search', 'F4-tool-srch', 'tool', 'SRCH KEY', 'TOOLS'], ['tool.log', 'F5-tool-log', 'tool', 'LOG KEY', 'TOOLS'], ['tool.fast', 'F6-tool-hlth', 'tool', 'HLTH KEY', 'TOOLS'],
+    ['tool.legend', 'F7-tool-lgnd', 'tool', 'LGND KEY', 'TOOLS'], ['tool.cal', 'F8-tool-cal', 'tool', 'CAL KEY', 'TOOLS'], ['tool.ref', 'F9-tool-ref', 'tool', 'REF KEY', 'TOOLS'],
+    ['tool.vis', 'F10-tool-vis', 'tool', 'VIS KEY', 'TOOLS'], ['tool.profile', 'F11-tool-prfl', 'tool', 'PRFL KEY', 'TOOLS'],
     ['aux.latch', 'A1-aux-latch', 'key', 'AUX GRIP TAPPED', 'AUX'], ['aux.open', 'A2-aux-open', 'thunk', 'AUX PANEL LANDS UP', 'AUX'], ['aux.close', 'A3-aux-close', 'thunk', 'AUX PANEL LANDS HOME', 'AUX'],
     ['aux.keyup', 'A4-aux-keyup', 'key', 'AUX KEYS SPRING UP', 'AUX'], ['aux.lamp', 'A5-aux-lamp', null, 'AUX LAMPS FLICKER ON', 'AUX'],
     ['scan.ping', 'S1-scan-ping', null, 'SONAR PULSE', 'SCAN'], ['scan.found', 'S2-scan-found', 'ok', 'SWEEP FOUND PLACES', 'SCAN'], ['scan.empty', 'S3-scan-empty', 'key', 'SWEEP FOUND NOTHING', 'SCAN'],

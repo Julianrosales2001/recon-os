@@ -15,6 +15,9 @@ A folder with no sound of yours plays its related sound, and its README.txt says
 (A2-aux-open plays K7-thunk). A5-aux-lamp, S1-scan-ping, B1-boot stay silent until you fill them.
 Each folder's README.txt says when it plays.
 
+The FN tray keys: F3-tools sets one sound for all eight; F4-tool-srch through F11-tool-prfl
+set one key each.
+
 A sound of yours owns its whole action. It starts the instant the action does (any silence at
 the front of the file is skipped), and the RP's own click and landing thud for that action
 step aside, so you only hear yours.

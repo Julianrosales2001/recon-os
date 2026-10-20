@@ -313,8 +313,9 @@ window.RX = window.RX || {};
     A.boing = boing;
   })();
   // own: the moment this key sets off; when you've given that moment your own sound, it replaces the key click
-  function press(el, fn, own) {
-    el.addEventListener('pointerdown', e => { e.preventDefault(); A.wake(); el.classList.add('down'); if (!(own && RX.sfx.mine(own()))) A.beep('key'); });
+  // sound: what the key itself plays when pressed (the K1-key click unless it has its own folder)
+  function press(el, fn, own, sound) {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); A.wake(); el.classList.add('down'); if (!(own && RX.sfx.mine(own()))) A.beep(sound ? sound() : 'key'); });
     const up = () => el.classList.remove('down');
     el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up); el.addEventListener('pointercancel', up);
     el.addEventListener('click', e => { e.preventDefault(); fn(e); });
@@ -329,7 +330,7 @@ window.RX = window.RX || {};
     if (A.top().name === t) return;
     if (A.stack.length > 1) A.home();
     A.go(t);
-  }, () => 'fn.close'));
+  }, null, () => 'tool.' + b.dataset.tool));   // each tray key has its folder (F4-F11), else F3-tools, else the K1-key click
   $('lcdBtn').addEventListener('click', () => {
     A.wake(); A.beep('key');
     const sc = A.screen();
