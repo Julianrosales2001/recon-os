@@ -2,16 +2,17 @@
    - the page itself: network first, so a push shows up on the next open; the stored copy when offline
    - everything else from this site (scripts, styles, key art, reference ROM): stored copy first
    - Google Fonts: stored after the first load
-   - sfx/sfx.json (the sound list): network first, like the page
+   - sfx/ (one folder per sound): network first, so a sound you push replaces the old one; stored copy when offline
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.24.1';
+const VERSION = '2.25.0';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,
   ...['font', 'matrix', 'geo', 'store', 'map', 'parcel', 'traffic', 'area', 'ui', 'screens', 'profile', 'rolo', 'wx', 'cal', 'fit', 'sfx', 'aux', 'main'].map(n => 'js/' + n + '.js?v=' + VERSION),
   'ref/firstaid.json?v=1', 'ref/knots.json?v=1', 'ref/convert.json?v=1', 'ref/cipher.json?v=1', 'data/tx-acs.json?v=2024b', 'data/tx-crime.json?v=2025', 'data/us-major.json?v=2024', 'data/us-states.json?v=1',
-  'icons/ros-icon-180.png', 'icons/ros-icon-192.png'
+  'icons/ros-icon-180.png', 'icons/ros-icon-192.png',
+  ...['K1-key', 'K2-jog', 'K3-mark', 'K4-file', 'K5-ok', 'K6-err', 'K7-thunk'].map(f => 'sfx/' + f + '/original.wav')
 ];
 
 self.addEventListener('install', e => {
@@ -34,9 +35,13 @@ self.addEventListener('fetch', e => {
   const font = FONT_HOSTS.includes(url.hostname);
   if (!same && !font) return;                       // tiles, search: straight to the network
 
-  // the sound list changes whenever you add a file: fresh when online (the files themselves carry ?v=)
-  if (url.pathname.endsWith('/sfx/sfx.json')) {
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; }).catch(() => caches.match(req)));
+  // sounds: fresh when online (a pushed sound.mp3 replaces the old one, a missing one stays missing); stored copy offline
+  if (url.pathname.includes('/sfx/')) {
+    e.respondWith(fetch(req).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+      else if (res.status === 404) caches.open(CACHE).then(c => c.delete(req));
+      return res;
+    }).catch(() => caches.match(req).then(r => r || new Response('', { status: 404 }))));
     return;
   }
 

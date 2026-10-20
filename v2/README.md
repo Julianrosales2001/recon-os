@@ -31,6 +31,6 @@ H health (fast · stages · train) · O calendar · G legend · D cycle LCD read
     js/screens.js  all screens
     js/fit.js      HLTH ▸ TRAIN: exercises (recon.os.moves), one-tap logging into recon.os.workouts, its calendar colours
     js/aux.js      AUX slider (the screen panel rides up to uncover SCAN + HERE), SCAN sweep, HERE readout
-    js/sfx.js      sound slots: your files from sfx/, else the parent slot, else the stock originals
-    sfx/           drop sounds here named after their slot, then run python3 v2/sfx/build.py (see sfx/README.md)
+    js/sfx.js      sounds: one folder per moment in sfx/; your sound.mp3, else the related sound, else the original
+    sfx/           K1-key, A2-aux-open …: drop sound.mp3 (or .wav / .m4a) in a folder and push (see sfx/README.txt)
     js/main.js     boot, navigation, keys, jog, touch, GPS, lamps

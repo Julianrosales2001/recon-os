@@ -44,7 +44,7 @@ window.RX = window.RX || {};
   ro.observe($('screen')); ro.observe($('lcdHost')); ro.observe($('clockHost'));
 
   // ---------- sound ----------
-  // every sound is a slot (js/sfx.js): your file from v2/sfx/ if you dropped one in, else its parent, else the stock original
+  // every sound has a folder in v2/sfx/ (js/sfx.js): your sound.mp3 if you dropped one in, else its related sound, else the original
   A.beep = function (kind, arg) {
     if (!S.v2.sound) return;
     try { RX.sfx.play(kind, arg); } catch (e) {}

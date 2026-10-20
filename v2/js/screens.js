@@ -1052,7 +1052,7 @@ window.RX = window.RX || {};
       row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', val(S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
       row('IDLE DIM', 'DIMS AFTER 60 S UNTOUCHED', tog(S.v2.idleDim), () => S.saveV2({ idleDim: !S.v2.idleDim }));
       row('KEY SOUNDS', 'CLICKS · FOLLOWS SILENT SWITCH', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); });
-      row('SOUND TEST', 'EVERY SOUND SLOT · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));
+      row('SOUND TEST', 'EVERY SOUND FOLDER · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));
 
       y = g.section('02 · PLACE NAMES', y + 2);
       row('LOOKUP', 'AREA · CITY · METRO VIA OPENSTREETMAP', tog(S.v2.placeLookup), () => { S.saveV2({ placeLookup: !S.v2.placeLookup }); if (S.v2.placeLookup && A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
@@ -2333,32 +2333,35 @@ window.RX = window.RX || {};
     jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH ▸ PLAY'],
     enter(st) { st.sel = 0; st.jog = true; },
     lcd() {
-      const X = RX.sfx, m = X.man, mine = m ? Object.keys(m.custom || {}).length : 0;
-      return { rows: [['SFX', m ? (mine + ' YOURS · ' + Object.keys(m.stock || {}).length + ' STOCK') : (X.manErr || 'LOADING')], ['ADD', 'SLOT.WAV IN V2/SFX'], ['THEN', 'RUN SFX/BUILD.PY']], tag: 'SFX' };
+      const X = RX.sfx, mine = Object.values(X.found).filter(f => f.kind === 'YOURS').length;
+      return { rows: [['SFX', X.ready ? mine + ' YOURS · ' + X.SLOTS.length + ' FOLDERS' : 'CHECKING ' + X.checked + '/' + X.SLOTS.length], ['ADD', 'SOUND.MP3 IN A FOLDER'], ['IN', 'V2/SFX · THEN PUSH']], tag: 'SFX' };
     },
     render(g, st, A) {
-      const W = g.W, X = RX.sfx, m = X.man;
-      let y = g.header('SOUND TEST', m ? Object.keys(m.custom || {}).length + ' YOURS' : (X.manErr || 'LOADING'));
+      const W = g.W, X = RX.sfx, mine = Object.values(X.found).filter(f => f.kind === 'YOURS').length;
+      let y = g.header('SOUND TEST', X.ready ? mine + ' YOURS' : 'CHECKING ' + X.checked + '/' + X.SLOTS.length);
       y = g.scrollBegin(y, footTop(g));
       if (!S.v2.sound) { g.mini('KEY SOUNDS ARE OFF IN MENU · THESE STILL PLAY', 1, y + 1, { c: C.amber, a: 0.9 }); y += 10; }
       let grp = null;
-      X.SLOTS.forEach(([slot, parent, desc, group]) => {
+      X.SLOTS.forEach(([slot, folder, parent, desc, group]) => {
         if (group !== grp) { grp = group; y = g.section(group, y + (y > 20 ? 2 : 0)); }
         const play = () => { try { RX.sfx.play(slot); } catch (e) {} st.last = slot; st.lastT = performance.now(); };
         const sel = g.row(0, y, W - 2, 18, play);
         const d = X.describe(slot), mine = /YOUR/.test(d), silent = d === 'SILENT';
         const flash = st.last === slot && performance.now() - st.lastT < 300;
-        g.text(slot.toUpperCase(), 4, y + 2, { c: flash ? C.amber : sel ? C.hot : C.ink });
-        g.miniR(d, W - 4, y + 3, { c: mine ? C.amber : C.ink, a: silent ? 0.35 : mine ? 1 : 0.7 });
-        g.mini(desc + (parent ? ' · ELSE ' + parent.toUpperCase() : ''), 4, y + 11, { a: 0.5 });
+        g.text(folder.toUpperCase(), 4, y + 2, { c: flash ? C.amber : sel ? C.hot : C.ink });
+        // 'USES K7-thunk · YOURS' splits over the two lines so long folder names never collide
+        const [d1, d2] = d.split(' · ');
+        g.miniR(d1, W - 4, y + 3, { c: mine ? C.amber : C.ink, a: silent ? 0.35 : mine ? 1 : 0.7 });
+        if (d2) g.miniR(d2, W - 4, y + 11, { c: C.amber, a: 1 });
+        g.mini(g.fit(desc, W - 8 - (d2 ? 26 : 0), 'mini'), 4, y + 11, { a: 0.5 });
         y += 19;
       });
       y += 2;
-      g.mini('ADD ONE: NAME IT AFTER THE SLOT (AUX.OPEN.WAV),', 1, y, { a: 0.55 });
-      g.mini('DROP IT IN V2/SFX, RUN PYTHON3 V2/SFX/BUILD.PY', 1, y + 7, { a: 0.55 });
+      g.mini('YOURS: SOUND.MP3 (OR .WAV .M4A) IN ITS FOLDER', 1, y, { a: 0.55 });
+      g.mini('IN V2/SFX. PUSH AND IT PLAYS. EMPTY = RELATED.', 1, y + 7, { a: 0.55 });
       y += 16;
       g.scrollEnd(y);
-      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A SLOT TO HEAR IT');
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A FOLDER TO HEAR IT');
     },
     animating: st => !!st.last && performance.now() - st.lastT < 350
   };
