@@ -322,8 +322,8 @@ window.RX = window.RX || {};
     if (a === 'place_of_worship') return 'STAR';
     return 'NONE';
   }
-  // a first guess at the category ring's pick; you still choose
-  const catFor = kind => kind === 'CIVIC' || kind === 'MISC' ? 2 : 3;   // LANDMARK : SUPPLY
+  // what a found place is, as a mark kind: its symbol, else its sweep class. The ring then only asks for a colour.
+  const kindFor = it => RX.ui.kindFromType(it.type) || (it.kind === 'CIVIC' || it.kind === 'MISC' ? 'LANDMARK' : it.kind === 'FOOD' ? 'FOOD' : it.kind === 'SHOP' ? 'SHOP' : it.kind === 'FUEL' ? 'FUEL' : 'SUPPLY');
 
   async function overpass(lat, lng, rM) {
     const q = '[out:json][timeout:20];nwr(around:' + Math.round(rM) + ',' + lat.toFixed(6) + ',' + lng.toFixed(6) + ')[name][~"^(amenity|shop|craft|office|healthcare|tourism|leisure)$"~"."];out tags center qt 1500;';
@@ -395,7 +395,7 @@ window.RX = window.RX || {};
     if (had) { A.openMark(had.id); A.say('ALREADY MARKED ▸ ' + S.markLabel(had), 2500); return; }
     A.home();
     A.follow(false); M.setView(it.lat, it.lng, Math.max(M.zoom, 17));
-    A.dropAt(it.lat, it.lng, 'SCAN', { name: it.name, type: it.type, sel: catFor(it.kind), notes: [it.tags['addr:housenumber'], it.tags['addr:street']].filter(Boolean).join(' ') });
+    A.dropAt(it.lat, it.lng, 'SCAN', { name: it.name, kind: kindFor(it), notes: [it.tags['addr:housenumber'], it.tags['addr:street']].filter(Boolean).join(' ') });
   }
 
   RX.screens.sonar = {

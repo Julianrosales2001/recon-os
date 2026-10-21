@@ -1,6 +1,6 @@
 R1-ring-pick
 
-Plays when: the category ring moves to a category.
+Plays when: the MARK ring moves to a kind or a color.
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.

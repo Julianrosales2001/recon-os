@@ -28,7 +28,7 @@ window.RX = window.RX || {};
     ['aux.keyup', 'A4-aux-keyup', 'key', 'AUX KEYS SPRING UP', 'AUX'], ['aux.lamp', 'A5-aux-lamp', null, 'AUX LAMPS FLICKER ON', 'AUX'],
     ['scan.ping', 'S1-scan-ping', null, 'SONAR PULSE', 'SCAN'], ['scan.found', 'S2-scan-found', 'ok', 'SWEEP FOUND PLACES', 'SCAN'], ['scan.empty', 'S3-scan-empty', 'key', 'SWEEP FOUND NOTHING', 'SCAN'],
     ['here.fix', 'H1-here-fix', 'ok', 'HERE TAKES A FIX', 'HERE'],
-    ['ring.pick', 'R1-ring-pick', 'jog', 'RING MOVES TO A CATEGORY', 'RING'], ['ring.file', 'R2-ring-file', 'file', 'RING FILES THE MARK', 'RING'],
+    ['ring.pick', 'R1-ring-pick', 'jog', 'RING MOVES TO A KIND OR COLOR', 'RING'], ['ring.file', 'R2-ring-file', 'file', 'RING FILES THE MARK', 'RING'],
     ['gps.lock', 'G1-gps-lock', 'ok', 'FIRST GPS LOCK', 'GPS'], ['visit', 'G2-visit', 'ok', 'VISIT LOGGED AT A MARK', 'GPS'],
     ['fit.set', 'T1-train-set', 'ok', 'ONE SET LOGGED', 'TRAIN'], ['fit.done', 'T2-train-done', 'file', 'EXERCISE DONE FOR THE DAY', 'TRAIN'], ['fit.down', 'T3-train-down', 'jog', 'SET COUNTED DOWN', 'TRAIN'],
     ['boot', 'B1-boot', null, 'STARTUP', 'BOOT']

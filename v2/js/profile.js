@@ -155,7 +155,7 @@ window.RX = window.RX || {};
     { id: 'iron', icon: 'GYM', name: 'IRON WEEKS', desc: 'TRAINING TARGET MET 4 · 12 · 26 WEEKS', t: [4, 12, 26], v: () => trainWeeks().total },
     { id: 'days', icon: 'PEAK', name: 'FIELD DAYS', desc: '100 · 365 · 1,000 DAYS ON RECORD', t: [100, 365, 1000], v: () => { const f = S.journal.length ? S.journal.reduce((m, j) => Math.min(m, j.ts), Infinity) : null; return f ? Math.floor((Date.now() - f) / DAY) : 0; } },
     { id: 'gulf', icon: 'ANCHOR', name: 'ON THE GULF', desc: 'MARKS IN 5 · 10 · 25 CITIES', t: [5, 10, 25], v: () => { const names = new Set(); S.pois.forEach(p => { if (!p.category || !p.regionId) return; const r = S.regions.find(x => x.id === p.regionId); if (r) names.add(r.name); }); return names.size; } },
-    { id: 'intel', icon: 'EYE', name: 'INTEL', desc: 'FILE 10 · 50 · 100 INTEL MARKS', t: [10, 50, 100], v: () => S.pois.filter(p => p.category === 'INTEL').length },
+    { id: 'intel', icon: 'EYE', name: 'INTEL', desc: 'FILE 10 · 50 · 100 INTEL MARKS', t: [10, 50, 100], v: () => S.pois.filter(p => p.category && RX.ui.kindOf(p) === 'INTEL').length },
     { id: 'evid', icon: 'CAMERA', name: 'EVIDENCE', desc: 'ATTACH 10 · 50 · 100 PHOTOS', t: [10, 50, 100], v: () => S.pois.filter(p => p.photo).length },
     { id: 'road', icon: 'FUEL', name: 'LONG ROAD', desc: '1,000 · 5,000 · 10,000 MI ON THE TRAIL', t: [1000, 5000, 10000], v: () => S.profile.odo || 0 },
     { id: 'outsider', icon: 'TREE', name: 'OUTSIDER', desc: 'EXPLORE 100 · 500 · 1,000 SQ MI', t: [100, 500, 1000], v: () => S.fog.size * CELL_SQMI }

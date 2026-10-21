@@ -207,8 +207,9 @@ window.RX = window.RX || {};
   A.follow = function (on) { M.follow = on; A.dirty = true; };
 
   // ---------- marks ----------
-  // A fresh pin raises the category ring around itself: tap a category, or jog to it and push.
-  // MARK again sends it to the pending queue; the drum (UNDO) takes it back.
+  // A fresh pin raises a ring of six KINDS around itself (MENU ▸ MARK RING picks which); tap one and
+  // the ring turns into the six COLOURS. Tap a colour (or push for the last one used) to file it.
+  // The hub opens every kind. MARK again sends it to the pending queue; the drum (UNDO) takes it back.
   const ASSIGN_MS = 10000;
   A.ASSIGN_MS = ASSIGN_MS;
   A.dropAt = function (lat, lng, how, pre) {
@@ -217,15 +218,18 @@ window.RX = window.RX || {};
     const region = S.regions.find(r => r.id === A.regionId) || null;
     const p = { id, lat, lng, category: null, name: pre.name || '', notes: pre.notes || '', photo: null, hva: false, tier: 2,
       regionId: region ? region.id : null, sector: null, created: Date.now() };
-    if (pre.type && pre.type !== 'NONE') p.type = pre.type;
+    // SCAN knows what a place is: it arrives with its kind and goes straight to the colours
+    const preKind = pre.kind || U.kindFromType(pre.type);
+    if (preKind) U.setKind(p, preKind);
     S.pois.push(p); S.savePOIs();
     S.log('drop', id, 'Pin dropped', how || (A.place ? A.place.area : ''));
-    const last = S.v2.lastCat;
-    A.assign = { id, until: Date.now() + ASSIGN_MS, sel: pre.sel != null ? pre.sel : (last >= 0 && last < 6 ? last : 0) };
+    const lc = S.v2.lastCat, lr = S.v2.lastRing;
+    A.assign = { id, until: Date.now() + ASSIGN_MS, step: preKind ? 'color' : 'kind', kind: preKind || null,
+      sel: lr >= 0 && lr < 6 ? lr : 0, csel: lc >= 0 && lc < 6 ? lc : 0 };
     A.filed = null;
     device.classList.add('assign');
     A.beep('mark');
-    A.say('MARK ' + id.slice(-4) + ' DROPPED' + (p.name ? ' · ' + p.name : '') + ' · PICK A CATEGORY', 5200);
+    A.say('MARK ' + id.slice(-4) + ' DROPPED' + (p.name ? ' · ' + p.name : '') + (preKind ? ' · ' + preKind + ' · PICK A COLOR' : ' · PICK A KIND'), 5200);
     A.flash = performance.now();
     // keep the ring on the screen: bring the pin in from the edge if it landed there
     if (A.mx && A.screen().map) {
@@ -257,6 +261,22 @@ window.RX = window.RX || {};
     else { lat = M.lat; lng = M.lng; how = 'AT CURSOR · NO GPS'; }
     A.dropAt(lat, lng, how);
   };
+  // the six kinds on the ring (MENU ▸ MARK RING)
+  A.ringKinds = function () {
+    const r = (S.v2.ringKinds || []).filter(k => U.kindById(k));
+    const def = ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'];
+    for (let i = 0; r.length < 6 && i < def.length; i++) if (!r.includes(def[i])) r.push(def[i]);
+    return r.slice(0, 6);
+  };
+  // step one: what it is. The ring turns into the colours.
+  A.pickKind = function (k) {
+    const a = A.assign; if (!a || !U.kindById(k)) return;
+    a.kind = k; a.step = 'color'; a.until = Date.now() + ASSIGN_MS;
+    const ri = A.ringKinds().indexOf(k); if (ri >= 0) { a.sel = ri; S.saveV2({ lastRing: ri }); }
+    const p = S.poi(a.id); if (p) { U.setKind(p, k); S.savePOIs(); }
+    A.beep('ring.pick'); A.say(k + ' ▸ PICK A COLOR · PUSH ▸ ' + (a.csel + 1), 3000); A.dirty = true;
+  };
+  // step two: the colour files it. null = MARK again: the pending queue (it keeps its kind if it has one)
   A.finishAssign = function (catIdx) {
     const a = A.assign;
     if (!a) return;
@@ -269,12 +289,12 @@ window.RX = window.RX || {};
       A.say('MARK ' + p.id.slice(-4) + ' ▸ PEND QUEUE · FILE IT LATER IN LOG', 4000);
       A.beep('ok');
     } else {
-      const cat = U.CATS[catIdx];
-      p.category = cat.id; p.type = p.type || 'NONE'; p.shape = 'ICON';
+      const cat = U.CATS[catIdx], kind = a.kind || p.kind || 'WAYPOINT';
+      p.category = cat.id; U.setKind(p, kind); p.shape = 'ICON';
       S.savePOIs(); S.saveV2({ lastCat: catIdx });
-      S.log('classify', p.id, 'Classified: ' + S.markLabel(p), cat.id);
-      A.filed = { label: cat.id, color: cat.color, until: Date.now() + 2600, id: p.id };
-      A.say('MARK ' + p.id.slice(-4) + ' ▸ ' + cat.id + (A.place ? ' · ' + A.place.area : ''), 4000);
+      S.log('classify', p.id, 'Classified: ' + S.markLabel(p), kind);
+      A.filed = { label: kind, color: cat.color, kind, until: Date.now() + 2600, id: p.id };
+      A.say('MARK ' + p.id.slice(-4) + ' ▸ ' + kind + (A.place ? ' · ' + A.place.area : ''), 4000);
       A.beep('ring.file');
     }
     A.dirty = true; updateLamps(); updateDrum();
@@ -287,15 +307,22 @@ window.RX = window.RX || {};
     A.say('MARK CANCELLED', 2500); A.beep('err'); A.dirty = true; updateLamps(); updateDrum();
     return true;
   };
-  // the ring, from the jog or the laptop's 1-6
+  // the ring, from the jog or the laptop's 1-6: kinds first, then colours
   A.ringStep = function (d) {
     const a = A.assign; if (!a) return;
-    a.sel = ((a.sel + d) % 6 + 6) % 6; a.until = Date.now() + ASSIGN_MS;
-    A.say('FILE AS ▸ ' + U.CATS[a.sel].id + ' · PUSH TO FILE', 2500); A.dirty = true;
+    a.until = Date.now() + ASSIGN_MS;
+    if (a.step === 'color') { a.csel = ((a.csel + d) % 6 + 6) % 6; A.say((a.kind || 'MARK') + ' ▸ COLOR ' + (a.csel + 1) + ' · PUSH TO FILE', 2500); }
+    else { a.sel = ((a.sel + d) % 6 + 6) % 6; A.say('KIND ▸ ' + A.ringKinds()[a.sel] + ' · PUSH TO PICK', 2500); }
+    A.dirty = true;
+  };
+  A.ringPush = function () {
+    const a = A.assign; if (!a) return;
+    if (a.step === 'color') A.finishAssign(a.csel); else A.pickKind(A.ringKinds()[a.sel]);
   };
   A.preset = function (i) {
     A.wake();
-    if (A.assign) { A.finishAssign(i); return; }
+    const a = A.assign;
+    if (a) { if (a.step === 'color') A.finishAssign(i); else A.pickKind(A.ringKinds()[i]); return; }
     A.say('NOTHING TO FILE · M DROPS A MARK', 2000);
   };
   A.openMark = function (id) { A.go('mark', { id }); };
@@ -321,7 +348,7 @@ window.RX = window.RX || {};
     el.addEventListener('click', e => { e.preventDefault(); fn(e); });
   }
   press($('markKey'), () => A.mark(), () => 'mark');
-  A.menuAction = function () { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign) A.undoDrop(); else A.back(); };
+  A.menuAction = function () { if (A.stack.length <= 1 && !A.assign) A.go('menu'); else if (A.assign && A.stack.length <= 1) A.undoDrop(); else A.back(); };
   press($('fnKey'), () => setTray(!A.trayOpen), () => A.trayOpen ? 'fn.close' : 'fn.open');
   // a tray key's sound covers its whole move: the tray stows and the drum turns without their own sounds
   document.querySelectorAll('.tool').forEach(b => press(b, () => {
@@ -459,10 +486,10 @@ window.RX = window.RX || {};
     const atHome = A.stack.length <= 1;
     const md = modeDrum();
     if (md) { const i = drumIdx(md, A.top().st), n = md.length; faceArt[face] = md[i]; faceArt[mod(face - 1, 3)] = md[mod(i + 1, n)]; faceArt[mod(face + 1, 3)] = md[mod(i - 1, n)]; }
-    else { faceArt[1] = 'near'; faceArt[2] = 'lot'; paintFace(0, A.assign ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
+    else { faceArt[1] = 'near'; faceArt[2] = 'lot'; paintFace(0, A.assign && atHome ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     const depth = A.assign ? 0 : Math.min(2, A.stack.length - 1);
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face, depth); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
-    const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
+    const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign && atHome ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
   A.updateDrum = updateDrum;
@@ -582,8 +609,8 @@ window.RX = window.RX || {};
   // ---------- NEAR: your marks nearest-first, the map glides to each ----------
   function buildNear() {
     const from = A.gps || { lat: M.lat, lng: M.lng };
-    const hidden = new Set(S.v2.hiddenCats || []);
-    const list = S.pois.filter(p => !(p.category && hidden.has(p.category)))
+    const hidden = new Set(S.v2.hiddenCats || []), hiddenK = new Set(S.v2.hiddenKinds || []);
+    const list = S.pois.filter(p => !(p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))))
       .map(p => ({ id: p.id, m: Geo.meters(from.lat, from.lng, p.lat, p.lng) }))
       .sort((a, b) => a.m - b.m).map(o => o.id);
     A.near = { list, i: 0 };
@@ -962,11 +989,15 @@ window.RX = window.RX || {};
     checkVisits(lat, lng);
     updateLamps(); A.lcdDirty = true; A.dirty = true;
   }
-  const VISIT_RULES = { WAYPOINT: [100, 60], VISTA: [200, 180], LANDMARK: [200, 120], SUPPLY: [100, 300], INTEL: [100, 180] };
+  // a visit = within [feet] for [seconds]; by kind (hazards are never visited)
+  const VISIT_RULES = { WAYPOINT: [100, 60], HOME: [100, 60], WORK: [100, 60], VISTA: [200, 180], LANDMARK: [200, 120], CAMERA: [200, 120], PARK: [200, 180],
+    SUPPLY: [100, 300], FOOD: [100, 300], SHOP: [100, 300], WRENCH: [100, 300], FUEL: [100, 300], MEDICAL: [100, 300], GYM: [100, 300], BED: [100, 300], DOLLAR: [100, 300],
+    INTEL: [100, 180], HAZARD: null };
   function checkVisits(lat, lng) {
     const now = Date.now(), seen = new Set();
     S.pois.forEach(p => {
-      const rule = VISIT_RULES[p.category];
+      if (!p.category) return;   // pending marks aren't visited
+      const k = U.kindOf(p), rule = k in VISIT_RULES ? VISIT_RULES[k] : [100, 180];
       if (!rule) return;
       const ft = Geo.meters(lat, lng, p.lat, p.lng) * 3.28084;
       if (ft > rule[0]) return;
@@ -974,7 +1005,7 @@ window.RX = window.RX || {};
       const st = visitDwell[p.id] || (visitDwell[p.id] = { since: now, logged: false });
       if (!st.logged && (now - st.since) / 1000 >= rule[1]) {
         p.visits = (p.visits || 0) + 1; p.lastVisited = now; S.savePOIs(); st.logged = true;
-        S.log('visit', p.id, 'Visited: ' + S.markLabel(p), p.category + ' · ×' + p.visits);
+        S.log('visit', p.id, 'Visited: ' + S.markLabel(p), U.kindOf(p) + ' · ×' + p.visits);
         A.say('VISIT LOGGED ▸ ' + S.markLabel(p) + ' · ×' + p.visits, 4000); A.beep('visit');
       }
     });

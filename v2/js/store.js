@@ -33,7 +33,7 @@ window.RX = window.RX || {};
     sound: true, idleDim: true, recordTrail: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'wx', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, hlthPage: 'fast', conv: {}, code: null, hicon: false
+    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, lastRing: 0, ringKinds: ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'], hiddenKinds: [], hlthPage: 'fast', conv: {}, code: null, hicon: false
   };
 
   // ---------- low level ----------
@@ -110,6 +110,7 @@ window.RX = window.RX || {};
     if (S.loadProfile) S.loadProfile();
     if (S.loadRolo) S.loadRolo();
     if (S.loadCal) S.loadCal();
+    S.migrateKinds();
   };
 
   S.isEmpty = function () {
@@ -177,6 +178,15 @@ window.RX = window.RX || {};
   S.poi = id => S.pois.find(p => p.id === id);
   S.pending = () => S.pois.filter(p => !p.category);
   S.markLabel = p => (p && p.name) ? p.name : ('MARK ' + String(p.id).slice(-4));
+  // marks from before kinds (or from v1 / the XP): give each its kind once, from its old symbol or category,
+  // so changing a mark's colour later never changes what it is
+  S.migrateKinds = function () {
+    const U = RX.ui; if (!U || !U.deriveKind) return 0;
+    let n = 0;
+    S.pois.forEach(p => { if (!p.kind) { const k = U.deriveKind(p); if (k) { p.kind = k; n++; } } });
+    if (n) S.savePOIs();
+    return n;
+  };
 
   // ---------- fasting (same rules as v1) ----------
   const FAST_GAP_DAYS = 3;
@@ -250,7 +260,7 @@ window.RX = window.RX || {};
   S.applyBackup = function (d) {
     if (!d || !Array.isArray(d.pois)) throw new Error('NOT AN R.OS BACKUP');
     S.pois = d.pois; S.pois.forEach(p => { if (typeof p.tier !== 'number') p.tier = p.hva ? 3 : 2; });
-    S.savePOIs();
+    S.savePOIs(); S.migrateKinds();
     if (Array.isArray(d.fog)) { loadFog(d.fog); safeSet(K.fog, JSON.stringify([...S.fog])); }
     if (Array.isArray(d.regions)) { S.regions = d.regions; S.saveRegions(); }
     if (Array.isArray(d.journal)) { S.journal = d.journal; S.saveJournal(); }

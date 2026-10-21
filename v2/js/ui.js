@@ -31,11 +31,33 @@ window.RX = window.RX || {};
   ];
   const catById = id => CATS.find(c => c.id === id) || null;
   const typeLabel = id => (TYPES.find(t => t.id === id) || { label: id || 'DEFAULT' }).label;
+
+  // ---- KINDS: what a mark is. One list: the old categories and the old symbols together.
+  // A mark's colour is separate: it still lives in p.category (the six colours are the old
+  // categories' colours), so v1 and the XP read the same data. p.kind holds the kind; p.type
+  // keeps the nearest old symbol for them.
+  const KINDS = [
+    { id: 'WAYPOINT', icon: 'DIAMOND' }, { id: 'VISTA', icon: 'PEAK' }, { id: 'LANDMARK', icon: 'MONUMENT' },
+    { id: 'SUPPLY', icon: 'CRATE' }, { id: 'INTEL', icon: 'EYE' }, { id: 'HAZARD', icon: 'ALERT' },
+    { id: 'HOME', icon: 'HOME' }, { id: 'WORK', icon: 'WORK' }, { id: 'FOOD', icon: 'FOOD' }, { id: 'FUEL', icon: 'FUEL' },
+    { id: 'PARKING', icon: 'PARKING' }, { id: 'SHOP', icon: 'SHOP' }, { id: 'CAMERA', icon: 'CAMERA' }, { id: 'WRENCH', icon: 'WRENCH' },
+    { id: 'BED', icon: 'BED' }, { id: 'MEDICAL', icon: 'MEDICAL' }, { id: 'GYM', icon: 'GYM' }, { id: 'PARK', icon: 'TREE' },
+    { id: 'STAR', icon: 'STAR' }, { id: 'HEART', icon: 'HEART' }, { id: 'DOLLAR', icon: 'DOLLAR' }, { id: 'ANCHOR', icon: 'ANCHOR' },
+    { id: 'WATER', icon: 'WATER' }
+  ];
+  const kindById = id => KINDS.find(k => k.id === id) || null;
+  const TYPE_TO_KIND = { TREE: 'PARK', WARNING: 'HAZARD', PEAK: 'VISTA' };
+  const KIND_TO_TYPE = { PARK: 'TREE', HAZARD: 'WARNING', VISTA: 'PEAK', WAYPOINT: 'NONE', LANDMARK: 'NONE', SUPPLY: 'NONE', INTEL: 'NONE' };
+  const kindFromType = t => !t || t === 'NONE' ? null : (TYPE_TO_KIND[t] || (kindById(t) ? t : null));
+  // an older mark with no kind yet: its symbol if it had one, else its old category
+  const deriveKind = p => kindFromType(p.type) || (kindById(p.category) ? p.category : null);
+  const kindOf = p => (p && p.kind && kindById(p.kind)) ? p.kind : (p ? deriveKind(p) : null);
+  const kindIcon = k => (kindById(k) || { icon: 'QUERY' }).icon;
+  const kindLabel = p => kindOf(p) || 'NO KIND';
+  function setKind(p, k) { p.kind = k; p.type = KIND_TO_TYPE[k] || k; }
   function iconFor(p) {
-    const cat = catById(p.category);
-    if (!cat) return 'QUERY';
-    if (p.type && p.type !== 'NONE' && RX.font.icons[p.type]) return p.type;
-    return cat.def;
+    const k = kindOf(p);
+    return k ? kindIcon(k) : 'QUERY';
   }
 
   // ---------- formatting ----------
@@ -77,6 +99,7 @@ window.RX = window.RX || {};
   // ---------- render context ----------
   const U = {
     C, CATS, TYPES, catById, typeLabel, iconFor, F, wrap,
+    KINDS, kindById, kindOf, kindIcon, kindLabel, setKind, deriveKind, kindFromType,
     hits: [], focus: [], fieldRects: {},
     activeField: null
   };
@@ -251,12 +274,21 @@ window.RX = window.RX || {};
       const cat = catById(p.category);
       this.mx.carve(cx, cy, r + 1.2);
       if (!cat) {
+        // no colour yet (pending): a dashed ring, with its kind if it has one
         this.mx.ring(cx, cy, r, o.c || C.ink, 0.95, 2);
-        this.mx.icon('QUERY', cx - 3, cy - 3, { c: o.c || C.ink, a: 0.95 });
+        this.mx.icon(p.kind ? kindIcon(p.kind) : 'QUERY', cx - 3, cy - 3, { c: o.c || C.ink, a: 0.95 });
         return;
       }
-      this.mx.disc(cx, cy, r, cat.color, o.a == null ? 1 : o.a);
+      this.mx.disc(cx, cy, r, o.color || cat.color, o.a == null ? 1 : o.a);
       if (r >= 5) this.mx.icon(iconFor(p), cx - 3, cy - 3, { punch: true });
+    },
+    // a kind's symbol in a disc of any colour (the MARK ring, the kind grids)
+    kindPin(cx, cy, k, col, o) {
+      o = o || {};
+      const r = o.r || 5;
+      this.mx.carve(cx, cy, r + 1.2);
+      this.mx.disc(cx, cy, r, col, o.a == null ? 1 : o.a);
+      if (r >= 5) this.mx.icon(kindIcon(k), cx - 3, cy - 3, { punch: true });
     },
     hex(cx, cy, c, a) {
       const pts = [[0, -4], [4, -2], [4, 2], [0, 4], [-4, 2], [-4, -2], [0, -4]];

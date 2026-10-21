@@ -13,7 +13,7 @@ pick your `recon-os-backup-*.json`.
 
 ## Keys (laptop)
 
-M mark · 1–6 file a fresh mark · P AUX slider · A SCAN · W HERE · F tools tray ·
+M mark · 1–6 pick on the MARK ring (kind, then color) · P AUX slider · A SCAN · W HERE · F tools tray ·
 Enter = jog push · Esc = back · drag = pan · scroll = zoom · L log · S search ·
 H health (fast · stages · train) · O calendar · G legend · D cycle LCD readout
 

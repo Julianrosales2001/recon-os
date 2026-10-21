@@ -48,11 +48,12 @@ window.RX = window.RX || {};
     });
 
     // marks
-    const hidden = new Set(S.v2.hiddenCats || []);
+    // LEGEND hides by colour and by kind, separately
+    const hidden = new Set(S.v2.hiddenCats || []), hiddenK = new Set(S.v2.hiddenKinds || []);
     const scanIt = !o.noHits && A.stack.length <= 1 && A.drumFace() === 'NEAR' ? A.nearItem() : null;
     const shown = [];
     for (const p of S.pois) {
-      if (p.category && hidden.has(p.category)) continue;
+      if (p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))) continue;
       const live = (A.assign && A.assign.id === p.id) || (A.filed && A.filed.id === p.id) || (scanIt && scanIt.id === p.id);
       if (M.zoom < (TIER_MIN[p.tier || 2] || 0) && !live) continue;
       const d = M.latLngToDot(p.lat, p.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
@@ -122,7 +123,7 @@ window.RX = window.RX || {};
     }
   }
 
-  // ---- the category ring: six discs around a fresh pin; tap one, or jog to it and push ----
+  // ---- the MARK ring: six kinds (amber, no colour yet), then the six colours; tap one, or jog to it and push ----
   const RING_R = 23;
   function drawRing(g, A, by) {
     const a = A.assign, p = a && S.poi(a.id); if (!p) return;
@@ -131,17 +132,31 @@ window.RX = window.RX || {};
     // keep the ring inside the screen and above the banner; a short lead goes back to the pin if it had to move
     const cx = Math.max(RING_R + 8, Math.min(W - RING_R - 8, x)), cy = Math.max(12 + RING_R + 8, Math.min(by - RING_R - 10, y));
     if (Math.hypot(cx - x, cy - y) > 3) mx.line(x, y, cx, cy, C.amber, 0.6, 2);
-    U.CATS.forEach((c, i) => {
-      const ang = -Math.PI / 2 + i * Math.PI / 3, dx = Math.round(cx + RING_R * Math.cos(ang)), dy = Math.round(cy + RING_R * Math.sin(ang));
-      const on = i === a.sel;
-      if (on) { mx.carve(dx, dy, 9.5); mx.ring(dx, dy, 8.5, c.color, 1); }
-      g.pin(dx, dy, { category: c.id }, { r: 6, a: on ? 1 : 0.5 });
-      g.mini(String(i + 1), dx + 6, dy - 9, { c: c.color, a: on ? 1 : 0.55 });
-      g.hit(dx - 8, dy - 8, 17, 17, () => A.finishAssign(i));
+    const slot = i => { const ang = -Math.PI / 2 + i * Math.PI / 3; return [Math.round(cx + RING_R * Math.cos(ang)), Math.round(cy + RING_R * Math.sin(ang))]; };
+    if (a.step === 'color') {
+      U.CATS.forEach((c, i) => {
+        const [dx, dy] = slot(i), on = i === a.csel;
+        if (on) { mx.carve(dx, dy, 9.5); mx.ring(dx, dy, 8.5, C.hot, 1); }
+        g.kindPin(dx, dy, a.kind, c.color, { r: 6, a: on ? 1 : 0.75 });
+        g.mini(String(i + 1), dx + 6, dy - 9, { c: c.color, a: on ? 1 : 0.6 });
+        g.hit(dx - 8, dy - 8, 17, 17, () => A.finishAssign(i));
+      });
+      // the hub shows the mark as it will file; tap it to go back to the kinds
+      g.kindPin(cx, cy, a.kind, U.CATS[a.csel].color, { r: 7 });
+      g.hit(cx - 7, cy - 7, 15, 15, () => { a.step = 'kind'; a.until = Date.now() + A.ASSIGN_MS; A.beep('ring.pick'); A.say('PICK A KIND', 1500); });
+      return;
+    }
+    A.ringKinds().forEach((k, i) => {
+      const [dx, dy] = slot(i), on = i === a.sel;
+      if (on) { mx.carve(dx, dy, 9.5); mx.ring(dx, dy, 8.5, C.hot, 1); }
+      g.kindPin(dx, dy, k, C.amber, { r: 6, a: on ? 1 : 0.7 });
+      g.mini(String(i + 1), dx + 6, dy - 9, { c: C.amber, a: on ? 1 : 0.6 });
+      g.hit(dx - 8, dy - 8, 17, 17, () => A.pickKind(k));
     });
-    // the pin itself, at the hub
-    if (Math.floor(g.t / 280) % 2) { mx.carve(cx, cy, 6.2); mx.ring(cx, cy, 5, C.amber, 1, 2); }
-    else g.pin(cx, cy, p, { c: C.amber });
+    // the hub: the pin itself; tap it for every kind
+    mx.carve(cx, cy, 6.2); mx.ring(cx, cy, 5, C.amber, 1, Math.floor(g.t / 280) % 2 ? 2 : 1);
+    g.mini('?', cx - 1, cy - 2, { c: C.amber, a: 1 });
+    g.hit(cx - 7, cy - 7, 15, 15, () => { a.until = Date.now() + 10 * 60000; A.go('kindpick', {}); });
   }
 
   function hud(g, A, title) {
@@ -227,7 +242,7 @@ window.RX = window.RX || {};
     animating: () => true,
     // the jog dial takes on the drum's face
     jogLabels: (st, A) => {
-      if (A.assign) return ['◂ PICK', 'PICK ▸', 'PUSH ▸ FILE · DRUM ▸ UNDO'];
+      if (A.assign) return A.assign.step === 'color' ? ['◂ COLOR', 'COLOR ▸', 'PUSH ▸ FILE · DRUM ▸ UNDO'] : ['◂ KIND', 'KIND ▸', 'PUSH ▸ PICK · DRUM ▸ UNDO'];
       const f = A.drumFace();
       if (f === 'NEAR') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
       if (f === 'LOT') return ['◂ OUT', 'IN ▸', 'DRUM ▸ READ LOT · HOLD RESET'];
@@ -241,7 +256,7 @@ window.RX = window.RX || {};
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
-    push(st, A) { if (A.assign) { A.finishAssign(A.assign.sel); return; } A.locate(); },
+    push(st, A) { if (A.assign) { A.ringPush(); return; } A.locate(); },
     back(st, A) {
       if (A.target) { A.target = null; A.say('TARGET CLEARED', 2000); return true; }
       return false;
@@ -257,7 +272,7 @@ window.RX = window.RX || {};
       hud(g, A);
       {
         const f = A.drumFace(), it = f === 'NEAR' ? A.nearItem() : null;
-        document.getElementById('jogVal').textContent = A.assign ? (A.assign.sel + 1) + '/6' : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
+        document.getElementById('jogVal').textContent = A.assign ? ((A.assign.step === 'color' ? A.assign.csel : A.assign.sel) + 1) + '/6' : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
           : 'Z' + (Math.round(M.zoom * 2) / 2);
         // the jog's labels follow the ring coming and going
         const jl = this.jogLabels(st, A), key = jl.join('|');
@@ -279,11 +294,12 @@ window.RX = window.RX || {};
       if (A.assign) {
         const bx = 4, bw = W - 8, bh = 33, by = fy - 12 - bh;
         drawRing(g, A, by);
-        const cat = U.CATS[A.assign.sel], pp = S.poi(A.assign.id);
+        const a = A.assign, pp = S.poi(a.id), colorStep = a.step === 'color';
+        const k = colorStep ? a.kind : A.ringKinds()[a.sel];
         mx.clearRect(bx, by, bw, bh); mx.frame(bx, by, bw, bh, C.amber, 1);
-        mx.disc(bx + 7, by + 7, 3, cat.color, 1);
-        g.text(g.fit('MARK ' + A.assign.id.slice(-4) + ' ▸ ' + cat.id + (pp && pp.name ? ' · ' + pp.name : ''), bw - 16), bx + 14, by + 4, { c: C.hot });
-        g.mini('TAP OR JOG ▸ PICK · PUSH ▸ FILE', bx + 4, by + 15, { a: 0.9 });
+        g.kindPin(bx + 8, by + 8, k, colorStep ? U.CATS[a.csel].color : C.amber, { r: 5 });
+        g.text(g.fit((colorStep ? k + ' ▸ PICK A COLOR' : 'MARK ' + a.id.slice(-4) + ' ▸ ' + k) + (pp && pp.name ? ' · ' + pp.name : ''), bw - 18), bx + 16, by + 4, { c: C.hot });
+        g.mini(colorStep ? 'TAP A COLOR · PUSH ▸ ' + (a.csel + 1) + ' · HUB ▸ KINDS' : 'TAP A KIND · HUB ▸ ALL KINDS', bx + 4, by + 15, { a: 0.9 });
         const left = Math.max(0, A.assign.until - Date.now());
         g.mini('MARK ▸ LATER · DRUM ▸ UNDO · ' + Math.ceil(left / 1000) + 'S', bx + 4, by + 24, { c: C.amber, a: 0.9 });
         mx.rect(bx + bw - 30, by + 25, Math.round(26 * left / A.ASSIGN_MS), 3, C.amber, 1);
@@ -291,8 +307,8 @@ window.RX = window.RX || {};
         const bx = 4, bw = W - 8, bh = 23, by = fy - 12 - bh;
         const p = S.poi(A.filed.id);
         mx.clearRect(bx, by, bw, bh); mx.frame(bx, by, bw, bh, C.ink, 1);
-        mx.disc(bx + 7, by + 7, 3, A.filed.color, 1);
-        g.text(A.filed.id.slice(-4) + ' ▸ ' + A.filed.label, bx + 14, by + 4, { c: C.hot });
+        if (A.filed.kind) g.kindPin(bx + 8, by + 8, A.filed.kind, A.filed.color, { r: 5 }); else mx.disc(bx + 7, by + 7, 3, A.filed.color, 1);
+        g.text(A.filed.id.slice(-4) + ' ▸ ' + A.filed.label, bx + 16, by + 4, { c: C.hot });
         const sub = 'FILED ' + F.hm(Date.now()) + (A.place ? ' · ' + A.place.area : '') + (p && p.name ? ' · ' + p.name : '');
         g.mini(g.fit(sub, bw - 10, 'mini'), bx + 4, by + 15, { a: 0.85 });
       }
@@ -342,7 +358,7 @@ window.RX = window.RX || {};
     let list = S.pois.filter(p => p.category || !onlyClassified);
     if (onlyClassified) list = list.filter(p => p.category);
     if (st.cat) list = list.filter(p => p.category === st.cat);
-    if (q) list = list.filter(p => RX.font.norm([p.name, p.notes, p.category, U.typeLabel(p.type)].join(' ')).includes(q));
+    if (q) list = list.filter(p => RX.font.norm([p.name, p.notes, U.kindOf(p) || ''].join(' ')).includes(q));
     const items = list.map(p => ({ p, m: distTo(A, p), b: brgTo(A, p) }));
     const sort = st.sort || 'NEAR';
     if (sort === 'NEAR') items.sort((a, b) => a.m - b.m);
@@ -376,8 +392,7 @@ window.RX = window.RX || {};
         const dw = RX.font.measure(dist, 'std');
         g.text(g.fit(S.markLabel(p), W - 18 - dw - 6), 15, y + 2, { c: sel ? C.hot : C.ink });
         g.textR(dist, W - 4, y + 2);
-        const cat = U.catById(p.category);
-        const meta = (cat ? cat.id : 'PENDING') + ' · ' + U.typeLabel(p.type) + ((p.visits || 0) ? ' · ×' + p.visits : '') + (p.tier === 3 ? ' · ★' : '');
+        const meta = (p.category ? U.kindLabel(p) : 'PENDING' + (p.kind ? ' · ' + p.kind : '')) + ((p.visits || 0) ? ' · ×' + p.visits : '') + (p.tier === 3 ? ' · ★' : '');
         g.mini(g.fit(meta, W - 18 - 22, 'mini'), 15, y + 12, { a: 0.6 });
         g.miniR(Geo.cardinal(it.b) + ' ' + String(Math.round(it.b)).padStart(3, '0') + '°', W - 4, y + 12, { a: 0.6 });
         g.mx.hline(15, y + h - 1, W - 18, C.ink, 0.12, 2);
@@ -398,9 +413,9 @@ window.RX = window.RX || {};
       U.CATS.forEach((cat, i) => {
         const x = 15 + i * 18;
         const sel = g.focusable(x, yy + 19, 17, 11, () => {
-          p.category = cat.id; p.type = p.type || 'NONE'; p.shape = 'ICON'; S.savePOIs();
-          S.log('classify', p.id, 'Classified: ' + S.markLabel(p), cat.id);
-          A.say(S.markLabel(p) + ' ▸ ' + cat.id, 3000); A.beep('file'); A.updateLamps();
+          p.category = cat.id; U.setKind(p, U.kindOf(p) || 'WAYPOINT'); p.shape = 'ICON'; S.savePOIs();
+          S.log('classify', p.id, 'Classified: ' + S.markLabel(p), U.kindOf(p));
+          A.say(S.markLabel(p) + ' ▸ ' + U.kindOf(p), 3000); A.beep('file'); A.updateLamps();
         });
         g.mx.frame(x, yy + 19, 17, 11, sel ? C.hot : C.ink, sel ? 1 : 0.3);
         g.mx.disc(x + 8, yy + 24, 3, cat.color, 1);
@@ -534,7 +549,7 @@ window.RX = window.RX || {};
       if (!p) { g.header('MARK'); g.textC('MARK NOT FOUND', W / 2, 40); g.footer('BACK TO RETURN'); return; }
       const cat = U.catById(p.category);
       const save = () => { S.savePOIs(); A.updateLamps(); };
-      let y = g.header(cat ? cat.id : 'PENDING MARK', 'MARK ' + p.id.slice(-4) + (p.tier === 3 ? ' · ★' : ''), { c: cat ? cat.color : C.ink });
+      let y = g.header(cat ? U.kindLabel(p) : 'PENDING MARK', 'MARK ' + p.id.slice(-4) + (p.tier === 3 ? ' · ★' : ''), { c: cat ? cat.color : C.ink });
       y = g.scrollBegin(y, footTop(g));
 
       // title block
@@ -559,31 +574,33 @@ window.RX = window.RX || {};
       });
       y += 10;
 
-      // category
-      y = g.section('CATEGORY', y, 'OR PRESS 1-6 AFTER MARK');
-      const bw = Math.floor((W - 2) / 3);
-      U.CATS.forEach((c, i) => {
-        const x = (i % 3) * bw, yy = y + Math.floor(i / 3) * 14;
-        const on = p.category === c.id;
-        const sel = g.focusable(x, yy, bw - 1, 13, () => { p.category = c.id; p.type = p.type || 'NONE'; p.shape = 'ICON'; save(); A.beep('file'); });
-        mx.frame(x, yy, bw - 1, 13, on ? c.color : C.ink, on ? 1 : (sel ? 0.9 : 0.3));
-        if (on) mx.rect(x + 1, yy + 1, 2, 11, c.color, 1);
-        mx.disc(x + 8, yy + 6, 3, c.color, on || !p.category ? 1 : 0.45);
-        g.text(c.short, x + 14, yy + 3, { c: on ? c.color : C.ink, a: on ? 1 : 0.7 });
-      });
-      y += 30;
-
-      // symbol
-      y = g.section('SYMBOL', y, U.typeLabel(p.type || 'NONE'));
+      // kind: what it is (one list: the old categories and symbols together)
+      const pk = U.kindOf(p), col = cat ? cat.color : C.amber;
+      y = g.section('KIND', y, pk || 'PICK ONE');
       const per = Math.max(5, Math.floor((W - 1) / 17));
-      U.TYPES.forEach((tp, i) => {
+      U.KINDS.forEach((kd, i) => {
         const x = (i % per) * 17, yy = y + Math.floor(i / per) * 16;
-        const on = (p.type || 'NONE') === tp.id;
-        const sel = g.focusable(x, yy, 16, 15, () => { p.type = tp.id; p.shape = 'ICON'; save(); });
+        const on = pk === kd.id;
+        const sel = g.focusable(x, yy, 16, 15, () => { U.setKind(p, kd.id); p.shape = 'ICON'; save(); A.beep('jog'); });
         if (on || sel) mx.frame(x, yy, 16, 15, on ? C.hot : C.ink, on ? 1 : 0.6);
-        g.pin(x + 8, yy + 7, { category: p.category || 'WAYPOINT', type: tp.id }, { a: p.category ? 1 : 0.6 });
+        g.kindPin(x + 8, yy + 7, kd.id, on ? col : C.ink, { a: on ? 1 : 0.55 });
       });
-      y += Math.ceil(U.TYPES.length / per) * 16 + 3;
+      y += Math.ceil(U.KINDS.length / per) * 16 + 3;
+
+      // colour: its own thing; means whatever you want
+      y = g.section('COLOR', y);
+      const sw = Math.floor((W - 2) / U.CATS.length);
+      U.CATS.forEach((c, i) => {
+        const x = i * sw, on = p.category === c.id;
+        const sel = g.focusable(x, y, sw - 2, 12, () => {
+          p.category = c.id; if (!p.kind) U.setKind(p, pk || 'WAYPOINT'); p.shape = 'ICON';
+          save(); S.saveV2({ lastCat: i }); A.beep('file');
+        });
+        mx.rect(x + 1, y + 1, sw - 4, 10, c.color, on || !p.category ? 1 : 0.6);
+        if (on) mx.frame(x - 1, y - 1, sw, 14, C.hot, 1);
+        else if (sel) mx.frame(x - 1, y - 1, sw, 14, C.ink, 0.7);
+      });
+      y += 17;
 
       // name / notes
       y = g.section('NAME', y);
@@ -1093,6 +1110,7 @@ window.RX = window.RX || {};
       y = g.section('02 · PLACE NAMES', y + 2);
       row('LOOKUP', 'AREA · CITY · METRO VIA OPENSTREETMAP', tog(S.v2.placeLookup), () => { S.saveV2({ placeLookup: !S.v2.placeLookup }); if (S.v2.placeLookup && A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
       row('AUTO-NAME MARKS', 'STREET ADDRESS AS DEFAULT NAME', tog(S.v2.autoName !== false), () => S.saveV2({ autoName: S.v2.autoName === false }));
+      row('MARK RING', 'THE SIX KINDS AROUND A NEW MARK', arrow, () => A.go('ringkinds'));
       row('NOW', A.place ? A.place.area + ' · ' + A.place.city + ' · ' + A.place.metro : (A.gps ? 'LOOKING UP' : 'NO FIX YET'), null, () => { if (A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
       row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', val(String(new Set(S.regions.map(r => r.name)).size)), null);
 
@@ -1150,14 +1168,23 @@ window.RX = window.RX || {};
       kv('FILED', classified.length);
       kv('PENDING', S.pending().length, S.pending().length ? C.amber : null);
       kv('HIGH TIER ★', S.pois.filter(p => p.tier === 3).length);
-      U.CATS.forEach(c => {
+      // by colour, then the kinds you file most
+      U.CATS.forEach((c, i) => {
         const n = S.pois.filter(p => p.category === c.id).length;
-        mx.disc(6, y + 4, 2, c.color, 1);
-        g.text(c.id, 12, y + 1, { a: 0.75 });
+        mx.rect(3, y + 1, 9, 6, c.color, 1);
+        g.mini('COLOR ' + (i + 1), 16, y + 2, { a: 0.7 });
         const bw = Math.round((W - 90) * n / Math.max(1, classified.length));
         mx.rect(70, y + 2, bw, 5, c.color, 0.85);
         g.textR(String(n), W - 4, y + 1);
         y += 10;
+      });
+      const kc = {}; classified.forEach(p => { const k = U.kindOf(p); if (k) kc[k] = (kc[k] || 0) + 1; });
+      Object.entries(kc).sort((a, b) => b[1] - a[1]).slice(0, 6).forEach(([k, n]) => {
+        g.kindPin(7, y + 4, k, C.ink, { a: 0.9 });
+        g.text(k, 16, y + 1, { a: 0.75 });
+        mx.rect(70, y + 2, Math.round((W - 90) * n / Math.max(1, classified.length)), 5, C.ink, 0.6);
+        g.textR(String(n), W - 4, y + 1);
+        y += 11;
       });
       y = g.section('ACTIVITY', y + 2);
       const visits = S.pois.reduce((s, p) => s + (p.visits || 0), 0);
@@ -1226,7 +1253,7 @@ window.RX = window.RX || {};
         g.mini('TO COORDINATES · + MK SAVES A PLACE AS A MARK', 1, y + 8, { a: 0.5 });
         y += 18;
       } else {
-        const items = S.pois.filter(p => RX.font.norm([p.name, p.notes, p.category, U.typeLabel(p.type)].join(' ')).includes(q))
+        const items = S.pois.filter(p => RX.font.norm([p.name, p.notes, U.kindOf(p) || ''].join(' ')).includes(q))
           .map(p => ({ p, m: distTo(A, p), b: brgTo(A, p) })).sort((a, b) => a.m - b.m).slice(0, 6);
         y = g.section('YOUR MARKS · ' + items.length, y);
         y = assetRows(g, st, A, items, y, p => A.openMark(p.id));
@@ -1293,45 +1320,106 @@ window.RX = window.RX || {};
   }
 
   // ======================================================================
+  // EVERY KIND (from the MARK ring's hub) · the MARK RING's six (from MENU)
+  // ======================================================================
+  function kindGrid(g, y, cur, onPick, col) {
+    const W = g.W, mx = g.mx, per = 3, cw = Math.floor((W - 2) / per);
+    U.KINDS.forEach((kd, i) => {
+      const x = (i % per) * cw, yy = y + Math.floor(i / per) * 15, on = cur && cur(kd.id);
+      const sel = g.focusable(x, yy, cw - 2, 14, () => onPick(kd.id));
+      mx.frame(x, yy, cw - 2, 14, on ? C.hot : sel ? C.ink : C.ink, on ? 1 : sel ? 0.9 : 0.2);
+      g.kindPin(x + 8, yy + 7, kd.id, on ? (col || C.amber) : C.ink, { a: on ? 1 : 0.8 });
+      g.mini(g.fit(kd.id, cw - 20, 'mini'), x + 16, yy + 5, { c: on ? C.hot : C.ink, a: on ? 1 : 0.8 });
+    });
+    return y + Math.ceil(U.KINDS.length / per) * 15 + 2;
+  }
+  RX.screens.kindpick = {
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH ▸ PICK'],
+    leave(st, A) { if (A.assign) A.assign.until = Date.now() + A.ASSIGN_MS; },   // back on the map, the ring's clock restarts
+    render(g, st, A) {
+      const a = A.assign;
+      if (!a) { g.header('PICK A KIND'); g.textC('NO MARK WAITING', g.W / 2, 40); g.footer('BACK TO RETURN'); return; }
+      let y = g.header('PICK A KIND', 'MARK ' + a.id.slice(-4));
+      y = g.scrollBegin(y, footTop(g));
+      y = kindGrid(g, y, k => k === (a.kind || A.ringKinds()[a.sel]), k => { A.back(); A.pickKind(k); });
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'THEN PICK ITS COLOR');
+    }
+  };
+  RX.screens.ringkinds = {
+    enter(st) { st.slot = 0; },
+    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH SELECT'],
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, ring = A.ringKinds();
+      let y = g.header('MARK RING', 'SLOT ' + (st.slot + 1) + ' · ' + ring[st.slot]);
+      y = g.scrollBegin(y, footTop(g));
+      y = g.section('THE SIX · TAP A SLOT', y);
+      const sw = Math.floor((W - 2) / 6);
+      ring.forEach((k, i) => {
+        const x = i * sw, on = i === st.slot;
+        const sel = g.focusable(x, y, sw - 2, 22, () => { st.slot = i; A.beep('jog'); });
+        mx.frame(x, y, sw - 2, 22, on ? C.hot : C.ink, on ? 1 : sel ? 0.9 : 0.3);
+        g.kindPin(x + Math.floor((sw - 2) / 2), y + 8, k, C.amber, { r: 6, a: on ? 1 : 0.75 });
+        g.mini(String(i + 1), x + 2, y + 15, { a: 0.6 });
+      });
+      y += 26;
+      y = g.section('PUT IN SLOT ' + (st.slot + 1), y);
+      y = kindGrid(g, y, k => k === ring[st.slot], k => {
+        const r = ring.slice(), j = r.indexOf(k);
+        if (j >= 0) r[j] = r[st.slot];   // already on the ring: the two swap
+        r[st.slot] = k; S.saveV2({ ringKinds: r });
+        A.say('SLOT ' + (st.slot + 1) + ' ▸ ' + k, 1800); A.beep('file');
+        st.slot = (st.slot + 1) % 6;
+      });
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A SLOT · THEN A KIND');
+    }
+  };
+
+  // ======================================================================
   // LEGEND
   // ======================================================================
   RX.screens.legend = {
     render(g, st, A) {
       const W = g.W, mx = g.mx;
-      const hidden = new Set(S.v2.hiddenCats || []);
-      let y = g.header('LEGEND', (6 - hidden.size) + ' OF 6 SHOWN');
+      const hidden = new Set(S.v2.hiddenCats || []), hiddenK = new Set(S.v2.hiddenKinds || []);
+      const toggle = (key, id, label) => {
+        const h = new Set(S.v2[key] || []), off = h.has(id);
+        off ? h.delete(id) : h.add(id);
+        S.saveV2({ [key]: [...h] });
+        A.say(label + (off ? ' SHOWN' : ' HIDDEN') + ' ON MAP', 2000); A.beep('key');
+      };
+      let y = g.header('LEGEND', 'TAP TO SHOW / HIDE');
       y = g.scrollBegin(y, footTop(g));
-      y = g.section('CATEGORIES · TAP TO HIDE ON MAP', y);
+      // colours: hide every mark of a colour, whatever it is
+      y = g.section('COLORS', y, hidden.size ? hidden.size + ' HIDDEN' : 'ALL SHOWN');
+      const sw = Math.floor((W - 2) / U.CATS.length);
       U.CATS.forEach((c, i) => {
-        const off = hidden.has(c.id);
-        const n = S.pois.filter(p => p.category === c.id).length;
-        const sel = g.row(0, y, W - 2, 18, () => {
-          const h = new Set(S.v2.hiddenCats || []);
-          off ? h.delete(c.id) : h.add(c.id);
-          S.saveV2({ hiddenCats: [...h] });
-          A.say(c.id + (off ? ' SHOWN' : ' HIDDEN') + ' ON MAP', 2000);
-        });
-        g.pin(8, y + 9, { category: c.id, type: 'NONE' }, { a: off ? 0.3 : 1 });
-        g.text(c.id, 17, y + 2, { a: off ? 0.4 : 1, c: sel ? C.hot : C.ink });
-        g.mini('PRESET ' + (i + 1) + ' · ' + F.pad2(n) + ' MARKS', 17, y + 11, { a: off ? 0.3 : 0.6 });
-        const s = off ? 'HIDE' : 'SHOW';
-        mx.disc(W - 34, y + 8, 1.5, C.ink, off ? 0.2 : 1);
-        g.text(s, W - 29, y + 5, { a: off ? 0.4 : 1 });
-        y += 19;
+        const x = i * sw, off = hidden.has(c.id), n = S.pois.filter(p => p.category === c.id).length;
+        const sel = g.focusable(x, y, sw - 2, 20, () => toggle('hiddenCats', c.id, 'COLOR ' + (i + 1)));
+        mx.rect(x + 1, y + 1, sw - 4, 10, c.color, off ? 0.18 : 1);
+        if (off) mx.line(x + 2, y + 10, x + sw - 5, y + 2, C.ink, 0.8);
+        if (sel) mx.frame(x - 1, y - 1, sw, 14, C.hot, 1);
+        g.mini(String(n), x + 2, y + 14, { a: off ? 0.35 : 0.65 });
       });
+      y += 24;
+      // kinds: hide every mark of a kind, whatever its colour
+      const cnt = {}; S.pois.forEach(p => { if (!p.category) return; const k = U.kindOf(p); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+      y = g.section('KINDS', y, hiddenK.size ? hiddenK.size + ' HIDDEN' : U.KINDS.length + ' · MOST USED FIRST');
+      const bw = Math.floor((W - 2) / 2);
+      U.KINDS.slice().sort((a, b) => (cnt[b.id] || 0) - (cnt[a.id] || 0)).forEach((kd, i) => {
+        const x = (i % 2) * bw, yy = y + Math.floor(i / 2) * 13, off = hiddenK.has(kd.id), n = cnt[kd.id] || 0;
+        const sel = g.focusable(x, yy, bw - 2, 12, () => toggle('hiddenKinds', kd.id, kd.id));
+        mx.frame(x, yy, bw - 2, 12, sel ? C.hot : C.ink, sel ? 1 : 0.2);
+        g.kindPin(x + 7, yy + 6, kd.id, C.ink, { a: off ? 0.25 : n ? 0.95 : 0.4 });
+        g.text(g.fit(kd.id, bw - 31), x + 14, yy + 3, { a: off ? 0.3 : n ? 0.95 : 0.45 });
+        g.miniR(off ? 'OFF' : String(n), x + bw - 5, yy + 4, { a: off ? 0.6 : 0.6, c: off ? C.amber : C.ink });
+      });
+      y += Math.ceil(U.KINDS.length / 2) * 13 + 4;
       g.pin(8, y + 7, { category: null }, {});
       g.text('PENDING', 17, y + 1, { a: 0.9 });
-      g.mini('UNFILED · ALWAYS SHOWN · ' + S.pending().length, 17, y + 10, { a: 0.6 });
+      g.mini('NO COLOR YET · ALWAYS SHOWN · ' + S.pending().length, 17, y + 10, { a: 0.6 });
       y += 20;
-
-      y = g.section('SYMBOLS · GO INSIDE ANY COLOR', y + 2);
-      const per = 3, cw = Math.floor((W - 2) / per);
-      U.TYPES.forEach((tp, i) => {
-        const x = (i % per) * cw, yy = y + Math.floor(i / per) * 15;
-        g.pin(x + 7, yy + 6, { category: 'SUPPLY', type: tp.id });
-        g.mini(tp.label, x + 15, yy + 4, { a: 0.75 });
-      });
-      y += Math.ceil(U.TYPES.length / per) * 15 + 4;
 
       y = g.section('MAP KEY', y);
       const key = (draw, label) => { draw(10, y + 5); g.mini(label, 24, y + 3, { a: 0.8 }); y += 12; };
@@ -1339,14 +1427,14 @@ window.RX = window.RX || {};
       key((x, yy) => mx.line(x - 7, yy + 2, x + 7, yy - 2, C.trail, 0.9, 2), "TODAY'S TRAIL");
       key((x, yy) => g.hex(x, yy, C.obj, 1), 'OBJECTIVE · RED = URGENT OR DUE');
       key((x, yy) => { mx.frame(x - 4, yy - 4, 9, 9, C.hot, 1); mx.set(x, yy, C.hot, 1); }, 'SEARCH TARGET');
-      key((x, yy) => g.brackets(x, yy, 5, C.hot, 1), 'NEAREST IN RECALLED CATEGORY');
+      key((x, yy) => g.brackets(x, yy, 5, C.hot, 1), 'NEAR DRUM · THE MARK PICKED');
       key((x, yy) => { for (let i = -7; i <= 7; i += 2) mx.set(x + i, yy, C.water, 0.6); for (let i = -6; i <= 7; i += 2) mx.set(x + i, yy + 2, C.water, 0.6); }, 'WATER');
       key((x, yy) => { mx.hline(x - 8, yy, 17, C.ink, 1); mx.hline(x - 8, yy + 3, 17, C.ink, 0.4); }, 'MAJOR · MINOR ROADS');
       key((x, yy) => { for (let i = -8; i <= 8; i++) if ((i + 8) % 5 === 0) mx.set(x + i, yy, C.fog, 0.6); mx.hline(x - 8, yy + 3, 17, C.ink, 0.2); }, 'FOG · NOT EXPLORED YET');
       g.mini('MAP ' + M.credit(), 1, y + 2, { a: 0.45 });
       y += 10;
       g.scrollEnd(y + 4);
-      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A CATEGORY TO HIDE IT');
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP ONE TO HIDE IT');
     }
   };
 
