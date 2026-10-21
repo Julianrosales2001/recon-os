@@ -7,9 +7,10 @@ RP Sound Push renames it and sends it to the phone by itself.
 (Without RP Sound Push: name it sound.mp3 yourself, then push.)
 
 Your sound is the whole slide: it starts the moment the panel moves,
-and the latch click and the landing thud step aside.
+and the grip click and the landing thud step aside. If A1-aux-grip has a
+sound of yours, that plays on the press and this one waits for the landing.
 
-No file here: the latch click (A1-aux-latch) as you tap, then a heavy landing (K7-thunk)
+No file here: the grip click (A1-aux-grip) as you tap, then a heavy landing (K7-thunk)
 as the panel lands at the top.
 
 Hear it: MENU › SOUND TEST on the RP.

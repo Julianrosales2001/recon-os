@@ -31,7 +31,7 @@ window.RX = window.RX || {};
   const KEYS = ['scan', 'here'];
   const SRC = n => 'keys/aux/' + n + '.webp';
   const X = RX.aux = { open: false, y: 0, mode: null };
-  let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, flashT = 0;
+  let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, flashT = 0, gripDown = false;
   const el = {};
   const cap = {};
   KEYS.forEach(k => { cap[k] = { up: false, popT: -1e9, press: -1e9, g: 0, gl: null, d: -1, lit: -1, pop: 1 }; });
@@ -168,9 +168,12 @@ window.RX = window.RX || {};
   }
   const reduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   // empty A2/A3: the latch click and a thud as the panel lands. Your sound there is the whole slide, from its first frame
+  // A2/A3 of yours: the whole slide, from its start — unless the grip (A1) has a sound of yours,
+  // then the grip sounds on the press and the slide's sound waits for the panel to land
+  const slideAtStart = slot => RX.sfx.mine(slot) && !RX.sfx.mine('aux.latch');
   function runOpen(y0) {
     if (hooks.closeTray) hooks.closeTray();
-    const mine = RX.sfx.mine('aux.open'); if (mine) A.beep('aux.open');
+    const mine = slideAtStart('aux.open'); if (mine) A.beep('aux.open');
     el.bar.setAttribute('aria-expanded', 'true');
     slide = { dir: 1, t0: now(), fn: reduced() ? () => [T, true] : openCurve(y0), done: () => {
       X.open = true; S.saveV2({ auxOpen: true }); relayout(true);
@@ -188,7 +191,7 @@ window.RX = window.RX || {};
   }
   function runClose(y0) {
     beginClose();
-    const mine = RX.sfx.mine('aux.close'); if (mine) A.beep('aux.close');
+    const mine = slideAtStart('aux.close'); if (mine) A.beep('aux.close');
     el.bar.setAttribute('aria-expanded', 'false');
     slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); if (!mine) A.beep('aux.close', 0.8); A.dirty = true; } };
     kick();
@@ -197,7 +200,8 @@ window.RX = window.RX || {};
     if (slide) return;
     A.wake();
     const closing = X.y > T / 2;
-    if (!RX.sfx.mine(closing ? 'aux.close' : 'aux.open')) A.beep('aux.latch');
+    if (RX.sfx.mine('aux.latch')) { if (!gripDown) A.beep('aux.latch'); gripDown = false; }   // yours: already played on the press (or now, from the P key)
+    else if (!RX.sfx.mine(closing ? 'aux.close' : 'aux.open')) A.beep('aux.latch');
     if (closing) runClose(X.y); else runOpen(X.y);
   };
   X.openNow = function () { if (!X.open && !slide) runOpen(X.y); };
@@ -209,6 +213,8 @@ window.RX = window.RX || {};
     b.addEventListener('pointerdown', e => {
       e.preventDefault(); if (!A || !A.booted || slide) return;
       A.wake(); b.classList.add('down');
+      // your grip sound (A1) plays the moment your finger goes down, tap or drag
+      gripDown = RX.sfx.mine('aux.latch'); if (gripDown) A.beep('aux.latch');
       drag = { y0: X.y, sy: e.clientY, moved: 0, live: false, wasOpen: X.open };
       try { b.setPointerCapture(e.pointerId); } catch (err) {}
       kick();
