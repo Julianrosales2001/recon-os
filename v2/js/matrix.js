@@ -226,6 +226,15 @@ window.RX = window.RX || {};
       }
     }
 
+    // shift the whole picture k rows (down when k > 0); the rows it leaves are dark
+    shiftRows(k) {
+      k = Math.round(k); if (!k) return;
+      const W = this.cols * 4, n = this.rows;
+      if (Math.abs(k) >= n) { this.buf.fill(0); return; }
+      if (k > 0) { this.buf.copyWithin(k * W, 0, (n - k) * W); this.buf.fill(0, 0, k * W); }
+      else { this.buf.copyWithin(0, -k * W, n * W); this.buf.fill(0, (n + k) * W); }
+    }
+
     // ---------- output ----------
     present() {
       this.ctx.putImageData(this.img, 0, 0);

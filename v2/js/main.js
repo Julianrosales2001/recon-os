@@ -166,8 +166,17 @@ window.RX = window.RX || {};
   // ---------- map view ----------
   A.view = function () {
     const mx = A.mx;
-    return { cols: mx.cols, rows: mx.rows, pitch: mx.pitch, cx: mx.cols / 2, cy: Math.round(mx.rows / 2) };
+    return { cols: mx.cols, rows: mx.rows, pitch: mx.pitch, cx: mx.cols / 2, cy: Math.round(mx.rows / 2 + A.viewBias) };
   };
+  // when the screen gains or loses rows (the AUX panel), the map would jump by half of them: hold it where it was,
+  // then let it glide to the new centre
+  A.viewBias = 0; let biasAnim = null;
+  A.setViewBias = function (b) { A.viewBias = b; biasAnim = b ? { from: b, t0: performance.now() + 40, dur: 420 } : null; M.dirty = true; };
+  function stepBias() {
+    const k = Math.max(0, Math.min(1, (performance.now() - biasAnim.t0) / biasAnim.dur)), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    A.viewBias = biasAnim.from * (1 - e); M.dirty = true; A.dirty = true;
+    if (k >= 1) { A.viewBias = 0; biasAnim = null; }
+  }
   A.nearest = function (catIdx) {
     const from = A.gps || { lat: M.lat, lng: M.lng };
     let best = null;
@@ -416,19 +425,22 @@ window.RX = window.RX || {};
     trayRaf = requestAnimationFrame(step);
   }
   poseTray(0, -90);
-  // fit the pocket to short bezels (iPhone SE and friends)
-  // ...and to the window you can see: with the AUX panel up, its top is under the hood, so the pocket re-centres on what's left
+  // fit the pocket to short bezels (iPhone SE and friends). The cartridge is fixed to the screen panel: it rides up and
+  // down with it and never re-seats (with the panel up, its top end is under the hood like the top of the screen)
   const fitCart = () => {
-    const bz = $('bezel'), lift = RX.aux && RX.aux.lift ? RX.aux.lift() : 0;
-    const h = bz.clientHeight - 14 - 32 - lift;
+    const bz = $('bezel');
+    const h = bz.clientHeight - 14 - 32;
     bz.style.setProperty('--cs', Math.min(1, (h - 6) / 374).toFixed(3));
-    bz.style.setProperty('--fn-dy', (lift ? lift / 2 - 24 : -17) + 'px');
+    bz.style.setProperty('--fn-dy', '-17px');
   };
   A.fitCart = fitCart;
   fitCart(); new ResizeObserver(fitCart).observe($('bezel'));
   function setTray(open, quiet) {
     if (open === A.trayOpen) return;
-    if (open && RX.aux && Math.abs(RX.aux.y) > 0.5 && !RX.aux.open) return;   // not while the panel is moving
+    if (open && RX.aux && Math.abs(RX.aux.y) > 0.5) {   // the panel is up (or moving): it drops first, then the cartridge comes out
+      if (RX.aux.open && RX.aux.closeThen) RX.aux.closeThen(() => setTray(true, quiet));
+      return;
+    }
     A.trayOpen = open;
     trayEl.classList.toggle('open', open);
     $('bay').classList.toggle('live', open);
@@ -1153,31 +1165,39 @@ window.RX = window.RX || {};
 
   // ---------- render loop ----------
   let lastFrame = 0, lastLcd = 0, lastClock = 0;
+  function drawFrame(t) {
+    const sc = A.screen();
+    lastFrame = t;
+    A.dirty = false;
+    if (A.assign && Date.now() > A.assign.until) A.finishAssign(null);
+    if (A.status.until && Date.now() > A.status.until && !A.assign) {
+      A.frameIdx++;
+      A.status = { text: RX.font.norm(rotatingStatus()), start: performance.now(), until: Date.now() + 8000, kind: 'rot' };
+    }
+    const top = A.top();
+    const g = U.begin(A.mx, Object.assign(top.st, { pal: sc.pal }), t);
+    A.mx.clear();
+    try { sc.render(g, top.st, A); }
+    catch (err) { console.error(err); renderFault(err); }
+    // while the AUX panel moves, the picture is redrawn lower/higher on the glass so it holds still on the device
+    const sh = RX.aux && RX.aux.shift ? RX.aux.shift() : 0;
+    if (sh) A.mx.shiftRows(sh);
+    A.mx.present();
+    if (U.activeField) U.placeField();
+  }
+  // draw now, in step with the panel (after a re-size the canvas is blank until it's drawn)
+  A.renderNow = function () { if (!A.booted) return; if (A.mx.resize()) M.dirty = true; drawFrame(performance.now()); };
   U.onAsync = () => { A.dirty = true; };
   function loop(t) {
     requestAnimationFrame(loop);
     if (A.glideAnim) stepGlide();
+    if (biasAnim) stepBias();
     const sc = A.screen();
     const animating = (sc.animating && sc.animating(A.top().st, A)) || !!U.activeField || (performance.now() - A.status.start < 3000);
     const dimmed = device.classList.contains('dim');
     const interval = dimmed ? 250 : (animating ? 40 : 200);
     if (A.dirty || M.dirty || t - lastFrame >= interval) {
-      if (t - lastFrame >= 33 || A.dirty) {
-        lastFrame = t;
-        A.dirty = false;
-        if (A.assign && Date.now() > A.assign.until) A.finishAssign(null);
-        if (A.status.until && Date.now() > A.status.until && !A.assign) {
-          A.frameIdx++;
-          A.status = { text: RX.font.norm(rotatingStatus()), start: performance.now(), until: Date.now() + 8000, kind: 'rot' };
-        }
-        const top = A.top();
-        const g = U.begin(A.mx, Object.assign(top.st, { pal: sc.pal }), t);
-        A.mx.clear();
-        try { sc.render(g, top.st, A); }
-        catch (err) { console.error(err); renderFault(err); }
-        A.mx.present();
-        if (U.activeField) U.placeField();
-      }
+      if (t - lastFrame >= 33 || A.dirty) drawFrame(t);
     }
     if (A.lcdDirty || t - lastLcd > 1000) {
       lastLcd = t; A.lcdDirty = false;

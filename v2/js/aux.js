@@ -38,7 +38,7 @@ window.RX = window.RX || {};
   const KEYS = ['rec', 'park'];
   const SRC = n => 'keys/aux/' + n + '.webp';
   const X = RX.aux = { open: false, y: 0 };
-  let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, flashT = 0, gripDown = false;
+  let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, gripDown = false, afterClose = null;
   const el = {};
   const cap = {};
   KEYS.forEach(k => { cap[k] = { up: false, popT: -1e9, press: -1e9, g: 0, gl: null, d: -1, lit: -1, pop: 1, art: '' }; });
@@ -71,14 +71,30 @@ window.RX = window.RX || {};
     // flicker through the screen (their layers get composited over the panel)
     const shut = y <= 0.01 && !slide && !drag;
     if (shut !== X.shut) { X.shut = shut; el.deck.classList.toggle('shut', shut); if (!shut) X.kickCmp(); }
+    reshift(false);
   }
-  // the screen lays its picture out to the window you can see (the top of the panel is under the hood)
-  let laid = false;
+  // the screen lays its picture out to the window you can see (the top of the panel is under the hood).
+  // While the panel moves the picture is redrawn row by row lower (or higher) on the glass, so on the device it holds
+  // still: the top stays put (it ends 13 px higher, eased along the travel) and the moving edge covers or uncovers the
+  // bottom. The one re-layout happens where it can't be seen: as the panel lands open, and as it starts to close.
+  let laid = false, shiftRows = 0;
+  const INSET = () => Math.max(1, T - 13);
+  function shiftFor(y) {
+    const px = laid ? -(T - y) * INSET() / T : y * INSET() / T;
+    return A && A.mx ? Math.round(px / A.mx.pitch) : 0;
+  }
+  X.shift = () => shiftRows;
+  function reshift(force) {
+    const k = shiftFor(X.y);
+    if (k !== shiftRows || force) { shiftRows = k; if (A && A.renderNow) A.renderNow(); }
+  }
   function relayout(on) {
     laid = !!on;
-    el.win.style.paddingTop = on ? Math.max(1, T - 13) + 'px' : '';
+    const r0 = A && A.mx ? A.mx.rows : 0;
+    el.win.style.paddingTop = on ? INSET() + 'px' : '';
+    if (A && A.mx && A.mx.resize() && A.setViewBias && r0) A.setViewBias(-(A.mx.rows - r0) / 2);
     if (A && A.fitCart) A.fitCart();
-    flashT = now(); kick();
+    reshift(true);
   }
   X.lift = () => laid ? T : 0;
 
@@ -143,10 +159,6 @@ window.RX = window.RX || {};
       if (stepGlow(k, t)) busy = true;
       paintKey(k, d, c.up ? 0 : 1);
     });
-    // the screen dips while it re-lays itself out
-    const fk = t - flashT;
-    if (fk < 160) { el.screen.style.opacity = [0.35, 0.75, 0.9, 1][Math.min(3, Math.floor(fk / 40))]; busy = true; }
-    else if (el.screen.style.opacity) el.screen.style.opacity = '';
     return busy || !!drag;
   }
   function paintKey(k, d, flush) {
@@ -211,7 +223,10 @@ window.RX = window.RX || {};
     beginClose();
     const mine = slideAtStart('aux.close'); if (mine) A.beep('aux.close');
     el.bar.setAttribute('aria-expanded', 'false');
-    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => { S.saveV2({ auxOpen: false }); if (!mine) A.beep('aux.close', 0.8); A.dirty = true; } };
+    slide = { dir: -1, t0: now(), fn: reduced() ? () => [0, true] : closeCurve(y0), done: () => {
+      S.saveV2({ auxOpen: false }); if (!mine) A.beep('aux.close', 0.8); A.dirty = true;
+      const f = afterClose; afterClose = null; if (f) setTimeout(f, 90);
+    } };
     kick();
   }
   X.toggle = function () {
@@ -224,6 +239,7 @@ window.RX = window.RX || {};
     if (closing) runClose(X.y); else runOpen(X.y);
   };
   X.openNow = function () { if (!X.open && !slide) runOpen(X.y); };
+  X.closeThen = function (fn) { if (slide || drag) return; if (!X.open) { fn(); return; } afterClose = fn; X.toggle(); };
   const usable = () => X.open && !slide && !drag;
 
   // ---- the grip: tap = latch; drag = move it yourself (past halfway the spring takes it) ----
@@ -317,7 +333,7 @@ window.RX = window.RX || {};
     measure();
     el.hood.style.top = el.bezel.offsetTop + 'px';
     wireBar(); wireKeys();
-    if (S.v2.auxOpen) { applyY(T); X.open = true; el.bar.setAttribute('aria-expanded', 'true'); relayout(true); flashT = -1e9; }
+    if (S.v2.auxOpen) { applyY(T); X.open = true; el.bar.setAttribute('aria-expanded', 'true'); relayout(true); }
     else applyY(0);
     paint(now());
     HD.auto();
