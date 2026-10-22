@@ -67,6 +67,10 @@ window.RX = window.RX || {};
     // the runners hang off the panel's lower edge and ride the slots with it
     const top = T - y - 2, h = clamp(T - top, 0, 15);
     el.runners.forEach(r => { r.style.top = top.toFixed(2) + 'px'; r.style.height = h.toFixed(2) + 'px'; });
+    // shut, the deck is covered: take it out of the picture. iPhone otherwise lets the keys and the turning compass
+    // flicker through the screen (their layers get composited over the panel)
+    const shut = y <= 0.01 && !slide && !drag;
+    if (shut !== X.shut) { X.shut = shut; el.deck.classList.toggle('shut', shut); if (!shut) X.kickCmp(); }
   }
   // the screen lays its picture out to the window you can see (the top of the panel is under the hood)
   let laid = false;
@@ -231,6 +235,7 @@ window.RX = window.RX || {};
       // your grip sound (A1) plays the moment your finger goes down, tap or drag
       gripDown = RX.sfx.mine('aux.latch'); if (gripDown) A.beep('aux.latch');
       drag = { y0: X.y, sy: e.clientY, moved: 0, live: false, wasOpen: X.open };
+      if (X.shut) { X.shut = false; el.deck.classList.remove('shut'); X.kickCmp(); }
       try { b.setPointerCapture(e.pointerId); } catch (err) {}
       kick();
     });
@@ -249,7 +254,7 @@ window.RX = window.RX || {};
     const end = e => {
       if (!drag) return;
       const d = drag; drag = null; b.classList.remove('down');
-      if (!d.live) { if (e.type === 'pointerup') X.toggle(); return; }
+      if (!d.live) { if (e.type === 'pointerup') X.toggle(); else applyY(X.y); return; }
       if (X.y > 0.5 * T) { HD.start(); runOpen(X.y); } else runClose(X.y);
     };
     b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
@@ -383,6 +388,7 @@ window.RX = window.RX || {};
   };
   function cmpStep() {
     CM.raf = 0;
+    if (X.shut) return;   // under the panel: nothing to turn (it catches up the moment the panel moves)
     const h = HD.heading(), hd = h == null ? 0 : h, tgt = X.target();
     const toCard = -hd, toNd = tgt != null ? tgt - hd : -hd;
     const sp = (cur, vel, to) => { const d = wrap180(to - cur); vel = vel * 0.8 + d * 0.05; return [cur + vel, vel, Math.abs(d) > 0.08 || Math.abs(vel) > 0.02]; };
