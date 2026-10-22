@@ -28,8 +28,6 @@ window.RX = window.RX || {};
   S.saveMoves = function () { try { localStorage.setItem(KM, JSON.stringify(S.moves)); } catch (e) { if (S.onWriteFail) S.onWriteFail(KM); } };
   S.K.moves = KM;
   S.loadMoves();
-  // exercises made before areas existed: guess from the name once (change it on the exercise)
-  (function () { let ch = false; S.moves.forEach(m => { if (m.area === undefined) { m.area = guessArea(m.name); ch = true; } }); if (ch) S.saveMoves(); })();
 
   // body areas: what an exercise works (PROFILE ▸ STAT shows how long since each one)
   const AREAS = ['LEGS', 'PUSH', 'PULL', 'CORE', 'CARDIO'];
@@ -41,6 +39,8 @@ window.RX = window.RX || {};
     ['PUSH', /BENCH|PRESS|PUSH|DIP|FLY|TRICEP|SHOULDER|CHEST/]
   ];
   const guessArea = name => { const n = String(name || '').toUpperCase(); for (const [a, re] of AREA_WORDS) if (re.test(n)) return a; return null; };
+  // exercises made before areas existed: guess from the name once (change it on the exercise)
+  (function () { let ch = false; S.moves.forEach(m => { if (m.area === undefined) { m.area = guessArea(m.name); ch = true; } }); if (ch) S.saveMoves(); })();
   const COLS = ['#FF8C2A', '#3D8BFF', '#6BFF8E', '#FFE45C', '#A46BFF', '#FF5A4E', '#5CC8FF', '#FF8BC4', '#F2F4EC'];
   // [name, counted by, sets, each (reps · seconds · miles), lb, area]
   const PRESETS = [

@@ -1139,6 +1139,18 @@ window.RX = window.RX || {};
     m.present();
   }
 
+  // a screen that throws: the whole message, the screen and where it broke (file:line), so a screenshot says it all
+  function renderFault(err) {
+    const m = A.mx, R = '#FF6B5E', top = A.top();
+    m.clear(); m.text('RENDER FAULT · ' + String(top ? top.name : '?').toUpperCase(), 2, 2, { c: R });
+    let y = 13;
+    U.wrap(String(err && err.message || err), Math.floor((m.cols - 4) / 4)).forEach(l => { m.text(l, 2, y, { c: R, face: 'mini' }); y += 7; });
+    y += 3;
+    String(err && err.stack || '').split('\n').map(l => { const k = l.match(/([\w.-]+\.js)[^:]*:(\d+)(?::(\d+))?/); return k ? (l.split('@')[0].split(' at ').pop().trim().split(' ')[0] || '?') + ' ' + k[1] + ':' + k[2] : null; })
+      .filter(Boolean).slice(0, 4).forEach(l => { m.text(RX.font.fit(l.toUpperCase(), m.cols - 4, 'mini'), 2, y, { c: R, face: 'mini', a: 0.8 }); y += 7; });
+    m.text('v' + RX.VERSION, 2, m.rows - 8, { c: R, face: 'mini', a: 0.6 });
+  }
+
   // ---------- render loop ----------
   let lastFrame = 0, lastLcd = 0, lastClock = 0;
   U.onAsync = () => { A.dirty = true; };
@@ -1162,14 +1174,14 @@ window.RX = window.RX || {};
         const g = U.begin(A.mx, Object.assign(top.st, { pal: sc.pal }), t);
         A.mx.clear();
         try { sc.render(g, top.st, A); }
-        catch (err) { console.error(err); A.mx.clear(); A.mx.text('RENDER FAULT', 2, 2, { c: '#FF6B5E' }); A.mx.text(RX.font.fit(String(err.message || err), A.mx.cols - 4), 2, 12, { c: '#FF6B5E', face: 'mini' }); }
+        catch (err) { console.error(err); renderFault(err); }
         A.mx.present();
         if (U.activeField) U.placeField();
       }
     }
     if (A.lcdDirty || t - lastLcd > 1000) {
       lastLcd = t; A.lcdDirty = false;
-      if (!(A.lcdFlicker && Date.now() - A.lcdFlicker < 220 && Math.floor(t / 70) % 2)) renderLcd();
+      if (!(A.lcdFlicker && Date.now() - A.lcdFlicker < 220 && Math.floor(t / 70) % 2)) { try { renderLcd(); } catch (err) { console.error(err); A.lcd.clear(); A.lcd.present(); } }
       else { A.lcd.clear(); A.lcd.present(); }
     }
     if (t - lastClock > 500) { lastClock = t; renderClock(t); }
