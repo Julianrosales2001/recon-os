@@ -239,7 +239,8 @@ window.RX = window.RX || {};
       profile: S.profile || null,
       rolo: S.rolo || [],
       events: S.events || [], goals: S.goals || [],
-      moves: S.moves || []
+      moves: S.moves || [],
+      tapes: S.tapes || []
     };
   };
   S.summarize = function (d) {
@@ -270,6 +271,7 @@ window.RX = window.RX || {};
     if (Array.isArray(d.events)) { S.events = d.events; if (S.saveEvents) S.saveEvents(); }
     if (Array.isArray(d.goals)) { S.goals = d.goals; if (S.saveGoals) S.saveGoals(); }
     if (Array.isArray(d.moves)) { S.moves = d.moves; if (S.saveMoves) S.saveMoves(); }
+    if (Array.isArray(d.tapes)) { S.tapes = d.tapes; if (S.saveTapes) S.saveTapes(); }
     if (d.profile && typeof d.profile === 'object') { safeSet('recon.os.profile', JSON.stringify(d.profile)); if (S.loadProfile) S.loadProfile(); }
     const exportedTs = d.exported ? Date.parse(d.exported) : null;
     const keep = d.v2prefs && typeof d.v2prefs === 'object' ? d.v2prefs : {};

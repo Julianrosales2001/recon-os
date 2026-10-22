@@ -28,14 +28,26 @@ window.RX = window.RX || {};
   S.saveMoves = function () { try { localStorage.setItem(KM, JSON.stringify(S.moves)); } catch (e) { if (S.onWriteFail) S.onWriteFail(KM); } };
   S.K.moves = KM;
   S.loadMoves();
+  // exercises made before areas existed: guess from the name once (change it on the exercise)
+  (function () { let ch = false; S.moves.forEach(m => { if (m.area === undefined) { m.area = guessArea(m.name); ch = true; } }); if (ch) S.saveMoves(); })();
 
+  // body areas: what an exercise works (PROFILE ▸ STAT shows how long since each one)
+  const AREAS = ['LEGS', 'PUSH', 'PULL', 'CORE', 'CARDIO'];
+  const AREA_WORDS = [
+    ['CARDIO', /STAIR|BIKE|CYCL|SPIN|SWIM|WALK|RUN|JOG|HIKE|ELLIP|CARDIO|ROWER|ERG|ROPE|SPRINT|TREAD/],
+    ['LEGS', /SQUAT|LUNGE|LEG|CALF|GLUTE|HIP THRUST|STEP-UP|STEP UP/],
+    ['CORE', /SIT-UP|SIT UP|SITUP|PLANK|CRUNCH|\bABS?\b|CORE|OBLIQUE|HOLLOW|V-UP|RUSSIAN/],
+    ['PULL', /DEADLIFT|ROW|PULL|CHIN|CURL|LAT|BICEP|SHRUG|FACE/],
+    ['PUSH', /BENCH|PRESS|PUSH|DIP|FLY|TRICEP|SHOULDER|CHEST/]
+  ];
+  const guessArea = name => { const n = String(name || '').toUpperCase(); for (const [a, re] of AREA_WORDS) if (re.test(n)) return a; return null; };
   const COLS = ['#FF8C2A', '#3D8BFF', '#6BFF8E', '#FFE45C', '#A46BFF', '#FF5A4E', '#5CC8FF', '#FF8BC4', '#F2F4EC'];
-  // [name, counted by, sets, each (reps · seconds · miles), lb]
+  // [name, counted by, sets, each (reps · seconds · miles), lb, area]
   const PRESETS = [
-    ['SQUAT', 'reps', 3, 10, 45], ['BENCH', 'reps', 3, 10, 45], ['DEADLIFT', 'reps', 3, 5, 95], ['ROW', 'reps', 3, 10, 45],
-    ['PRESS', 'reps', 3, 8, 45], ['LUNGE', 'reps', 3, 10, 0], ['CURL', 'reps', 3, 12, 20], ['PUSH-UP', 'reps', 3, 15, 0],
-    ['PULL-UP', 'reps', 3, 8, 0], ['SIT-UP', 'reps', 3, 20, 0], ['PLANK', 'time', 3, 60], ['STAIRMASTER', 'time', 1, 1200],
-    ['BIKE', 'time', 1, 1800], ['SWIM', 'time', 1, 1200], ['STRETCH', 'time', 1, 600], ['WALK', 'dist', 1, 2], ['RUN', 'dist', 1, 3]
+    ['SQUAT', 'reps', 3, 10, 45, 'LEGS'], ['BENCH', 'reps', 3, 10, 45, 'PUSH'], ['DEADLIFT', 'reps', 3, 5, 95, 'PULL'], ['ROW', 'reps', 3, 10, 45, 'PULL'],
+    ['PRESS', 'reps', 3, 8, 45, 'PUSH'], ['LUNGE', 'reps', 3, 10, 0, 'LEGS'], ['CURL', 'reps', 3, 12, 20, 'PULL'], ['PUSH-UP', 'reps', 3, 15, 0, 'PUSH'],
+    ['PULL-UP', 'reps', 3, 8, 0, 'PULL'], ['SIT-UP', 'reps', 3, 20, 0, 'CORE'], ['PLANK', 'time', 3, 60, 0, 'CORE'], ['STAIRMASTER', 'time', 1, 1200, 0, 'CARDIO'],
+    ['BIKE', 'time', 1, 1800, 0, 'CARDIO'], ['SWIM', 'time', 1, 1200, 0, 'CARDIO'], ['STRETCH', 'time', 1, 600, 0, null], ['WALK', 'dist', 1, 2, 0, 'CARDIO'], ['RUN', 'dist', 1, 3, 0, 'CARDIO']
   ];
   const KINDS = [['reps', 'SETS × REPS'], ['time', 'TIME'], ['dist', 'DISTANCE']];
 
@@ -221,8 +233,8 @@ window.RX = window.RX || {};
   // MAKE / CHANGE AN EXERCISE
   // ======================================================================
   function draftFrom(p) {
-    const [name, kind, sets, amt, lb] = p;
-    return { name, kind, sets, amt, lbs: lb || 0 };
+    const [name, kind, sets, amt, lb, area] = p;
+    return { name, kind, sets, amt, lbs: lb || 0, area: area || null };
   }
   const nextCol = () => COLS.find(c => !S.moves.some(m => m.col === c)) || COLS[S.moves.length % COLS.length];
 
@@ -230,7 +242,7 @@ window.RX = window.RX || {};
     pal: 'amber',
     enter(st, params) {
       st.id = params.id || null; st.day = params.day || sod();
-      st.d = st.id ? null : Object.assign(draftFrom(PRESETS[0]), { name: '', col: nextCol(), days: [] });
+      st.d = st.id ? null : Object.assign(draftFrom(PRESETS[0]), { name: '', col: nextCol(), days: [], area: null });
       st.preset = null; st.jk = null;
     },
     jogLabels: st => st.jk ? ['◂ LESS', 'MORE ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT'],
@@ -254,8 +266,11 @@ window.RX = window.RX || {};
         });
         y += 15;
       }
-      g.field('move-name-' + (st.id || 'new'), 0, y, W - 2, 13, { label: 'NAME', value: m.name || '', placeholder: 'OR TYPE YOUR OWN', maxLen: 16, onCommit: v => { m.name = RX.font.norm(String(v || '')).trim().slice(0, 16); st.preset = null; save(); } });
+      g.field('move-name-' + (st.id || 'new'), 0, y, W - 2, 13, { label: 'NAME', value: m.name || '', placeholder: 'OR TYPE YOUR OWN', maxLen: 16, onCommit: v => { m.name = RX.font.norm(String(v || '')).trim().slice(0, 16); st.preset = null; if (!m.area) m.area = guessArea(m.name); save(); } });
       y += 17;
+      y = g.section('WORKS', y, 'SHOWS ON PROFILE');
+      g.seg(0, y, W - 2, 12, AREAS.concat(['--']).map(a => ({ label: a, on: (m.area || '--') === a, fn: () => { m.area = a === '--' ? null : a; save(); A.beep('jog'); } })), { face: 'mini' });
+      y += 16;
       y = g.section('COUNT IT BY', y);
       g.seg(0, y, W - 2, 13, KINDS.map(([k, l]) => ({ label: l, on: m.kind === k, fn: () => {
         if (m.kind === k) return;
@@ -299,7 +314,7 @@ window.RX = window.RX || {};
         g.btn(0, y, W - 2, 15, '▸ SAVE EXERCISE', () => {
           const nm = (m.name || (st.preset != null ? PRESETS[st.preset][0] : '')).trim();
           if (!nm) { A.say('PICK ONE OR TYPE A NAME', 2500); A.beep('err'); return; }
-          const mv = { id: S.healthId('MV'), name: nm, kind: m.kind, sets: m.sets, amt: m.amt, lbs: m.lbs || 0, col: m.col, days: m.days || [], order: S.moves.length, created: Date.now() };
+          const mv = { id: S.healthId('MV'), name: nm, kind: m.kind, sets: m.sets, amt: m.amt, lbs: m.lbs || 0, col: m.col, days: m.days || [], area: m.area !== undefined ? m.area : guessArea(nm), order: S.moves.length, created: Date.now() };
           S.moves.push(mv); S.saveMoves(); A.beep('file'); A.back(); A.say(nm + ' ▸ TAP IT WHEN YOU DO IT', 3500);
         }, { solid: true, c: m.col });
         y += 19;
@@ -338,7 +353,9 @@ window.RX = window.RX || {};
   // FOR THE CALENDAR
   // ======================================================================
   RX.fit = {
-    page, lcd, logFor, doneOn, plannedOn, moveById, planLine, COLS, sorted,
+    page, lcd, logFor, doneOn, plannedOn, moveById, planLine, COLS, sorted, AREAS, guessArea, amtLong,
+    // the area a logged workout worked (its exercise's, else a guess from its name)
+    areaOf(w) { const m = moveById(w.moveId); return m ? (m.area || null) : guessArea(w.type); },
     // the tile under a point (for hold-to-change)
     tileAt(st, d) { return (st.tiles || []).find(t => d.y >= t.y && d.y < t.y + t.h); },
     // how a log reads on the calendar

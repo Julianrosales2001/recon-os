@@ -1,35 +1,39 @@
 /* =============================================================
    RECON.OS RX-90 · PROFILE
-   Four pages: STATUS · BODY · RECORD · FILE, plus the weigh-in
-   box and the portrait crop. Everything is worked out from data
-   the RP already keeps; the only new record is recon.os.profile.
+   Four pages: STAT · BODY · RECORD · FILE, plus the weigh-in box
+   and the tape measure. MAUS (js/maus.js) stands on STAT: his pose
+   and face come from what you do (training, fasting, bests, REC),
+   his build from your height and weight, eased over four weeks.
+   Body fat is the Navy method (neck, waist, height; hips too for
+   women). XP and levels are worked out from everything you log.
+   New records: recon.os.profile and recon.os.tapes.
    ============================================================= */
 window.RX = window.RX || {};
 
 (function () {
   const S = RX.store, U = RX.ui, F = U.F, C = U.C, FONT = RX.font;
-  const HOT = '#E9FFF7', AMB = '#FFB547', GRN = '#6BFF8E', YEL = '#FFE45C', ORG = '#FF9F3A', RED = '#FF5A4E', CYN = '#5CC8FF', GRY = '#6F8580';
+  const HOT = '#E9FFF7', INK = '#7DFFD6', AMB = '#FFB547', GRN = '#6BFF8E', YEL = '#FFE45C', ORG = '#FF9F3A', RED = '#FF5A4E', CYN = '#5CC8FF', GRY = '#6F8580';
   const TIER_C = [null, '#E0560E', '#D8E4E8', '#FFBC00'];
   const ROMAN = ['', 'I', 'II', 'III'];
-  const LAD = [16, 24, 36, 48, 72, 100];
-  const PAGES = ['STATUS', 'BODY', 'RECORD', 'FILE'];
+  const PAGES = ['STAT', 'BODY', 'RECORD', 'FILE'];
   const DAY = 864e5, CELL_SQMI = 22500 / 2589988;
   const MONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const md = ts => { const d = new Date(ts); return MONS[d.getMonth()] + ' ' + F.pad2(d.getDate()); };
+  const md = ts => { const d = new Date(ts); return F.pad2(d.getDate()) + ' ' + MONS[d.getMonth()]; };
   const dayKey = ts => { const d = new Date(ts); return d.getFullYear() + '-' + F.pad2(d.getMonth() + 1) + '-' + F.pad2(d.getDate()); };
   const dayStart = ts => { const d = new Date(ts == null ? Date.now() : ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const weekStart = ts => { const d = new Date(dayStart(ts)); const k = (d.getDay() + 6) % 7; return d.getTime() - k * DAY; };   // Monday
   const dayIdx = () => (new Date().getDay() + 6) % 7;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const measure = (s, face, sc) => FONT.measure(s, face, sc);
+  const comma = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
   // ======================================================================
   // DATA
   // ======================================================================
   const KEY = 'recon.os.profile';
-  const DEF = { name: 'JAR', call: 'THE RUST ORACLE', birth: null, heightIn: null, blood: '', home: 'BAYTOWN TX', units: 'US',
+  const DEF = { name: 'JAR', call: 'THE RUST ORACLE', birth: null, heightIn: null, sex: null, blood: '', home: 'BAYTOWN TX', units: 'US',
     goalLbs: null, startLbs: null, trainTarget: 2, fastGoal: 18, fieldTarget: 0,
-    photo: null, crop: null, bright: 0, contrast: 0, earned: {}, badgesInit: false, days: {}, odo: 0, cityPct: null, cityName: null };
+    photo: null, crop: null, bright: 0, contrast: 0, earned: {}, badgesInit: false, days: {}, odo: 0, cityPct: null, cityName: null, lvSeen: 0 };
   S.profile = Object.assign({}, DEF);
   let saveT = null;
   S.loadProfile = function () {
@@ -47,12 +51,22 @@ window.RX = window.RX || {};
   S.noteGround = function (cells) { const k = dayKey(Date.now()), D = S.profile.days; D[k] = (D[k] || 0) + cells; S.saveProfile(); };
   S.noteMiles = function (mi) { S.profile.odo = (S.profile.odo || 0) + mi; S.saveProfile(); };
 
+  // the tape: { id, ts, neck, waist, hips, chest, arm, thigh } in inches (null = not measured)
+  const KT = 'recon.os.tapes';
+  S.tapes = [];
+  S.loadTapes = function () { try { S.tapes = JSON.parse(localStorage.getItem(KT) || '[]') || []; } catch (e) { S.tapes = []; } };
+  S.saveTapes = function () { try { localStorage.setItem(KT, JSON.stringify(S.tapes)); } catch (e) { if (S.onWriteFail) S.onWriteFail(KT); } };
+  S.K.tapes = KT;
+  S.loadTapes();
+
   // ---------- units ----------
   const metric = () => S.profile.units === 'METRIC';
-  const wt = lbs => lbs == null ? '--' : metric() ? (lbs * 0.45359).toFixed(1) : (Math.round(lbs * 10) / 10).toString();
+  const wt = lbs => lbs == null ? '--' : metric() ? (lbs * 0.45359).toFixed(1) : (Math.round(lbs * 10) / 10).toFixed(1);
   const wtU = () => metric() ? 'KG' : 'LB';
   const wtD = lbs => { if (lbs == null) return '--'; const v = metric() ? lbs * 0.45359 : lbs; return (Math.abs(v) < 10 ? (Math.round(v * 10) / 10) : Math.round(v)).toString(); };
   const ht = inch => { if (!inch) return '--'; if (metric()) return Math.round(inch * 2.54) + ' CM'; return Math.floor(inch / 12) + "'" + Math.round(inch % 12) + '"'; };
+  const len = inch => { if (inch == null) return '--'; if (metric()) return (inch * 2.54).toFixed(1); const q = Math.round(inch * 4) / 4; return (q % 0.5 ? q.toFixed(2) : q.toFixed(1)) + '"'; };
+  const lenD = inch => (metric() ? Math.abs(inch * 2.54) : Math.abs(inch)).toFixed(1);
   function parseHeight(s) {
     s = String(s || '').trim().toUpperCase(); if (!s) return null;
     let m = s.match(/^(\d)\s*['F ]\s*(\d{1,2}(?:\.\d)?)?/); if (m) return +m[1] * 12 + (+(m[2] || 0));
@@ -69,13 +83,24 @@ window.RX = window.RX || {};
   const reroll = () => { let s; do { s = 'THE ' + ADJ[Math.floor(Math.random() * ADJ.length)] + ' ' + NOUN[Math.floor(Math.random() * NOUN.length)]; } while (s === S.profile.call || s.length > 22); return s; };
 
   // ======================================================================
-  // NUMBERS (worked out fresh each frame — the lists are small)
+  // NUMBERS
   // ======================================================================
+  // worked out again only when the data (or the minute) changes
+  function dataSig() {
+    let sets = 0; for (const w of S.workouts) { if (w.sets) for (const v of w.sets) sets += v || 0; sets += (w.lbs || 0) + 1; }
+    const P = S.profile;
+    return [S.workouts.length, sets, S.fasts.length, S.fasts.filter(f => f.endTs).length, S.weighins.length, S.tapes.length, S.journal.length,
+      (S.tracks || []).length, S.moves.map(m => m.id + (m.area || '')).join(''), Object.keys(P.days).length, P.days[dayKey(Date.now())] || 0,
+      P.heightIn, P.sex, P.goalLbs, P.trainTarget, !!S.rec, Math.floor(Date.now() / 60000)].join('|');
+  }
+  const memo = fn => { let k = null, v = null; const f = () => { const s = dataSig(); if (s !== k) { k = s; v = fn(); } return v; }; f.reset = () => { k = null; }; return f; };
+
   const wis = () => S.weighins.filter(w => w && w.lbs).slice().sort((a, b) => a.ts - b.ts);
   // anything logged today counts (HLTH ▸ TRAIN exercises or an old TRAINED entry)
   const trainedToday = () => S.workouts.filter(w => w.ts >= dayStart()).sort((a, b) => a.ts - b.ts)[0];
   // sessions = days you trained (three exercises on one day is one session)
   const sessionsIn = (a, b) => new Set(S.workouts.filter(w => w.ts >= a && w.ts < b).map(w => dayKey(w.ts))).size;
+  const lbsAt = ts => { const L = wis().filter(w => w.ts <= ts); return L.length ? L[L.length - 1].lbs : null; };
 
   function weightInfo() {
     const L = wis(), P = S.profile;
@@ -84,33 +109,20 @@ window.RX = window.RX || {};
     const days = Math.floor((Date.now() - last.ts) / DAY);
     const monthAgo = L.filter(w => w.ts <= Date.now() - 28 * DAY).pop() || L[0];
     const ch = cur - monthAgo.lbs;   // change over the month
-    let col, val, frac, sub;
-    if (goal == null) { val = wt(cur) + ' ' + wtU(); frac = 0; col = GRN; sub = 'SET A GOAL IN FILE'; }
+    let col, frac;
+    if (goal == null) { frac = 0; col = GRN; }
     else {
-      const left = cur - goal, dirDown = start >= goal;
+      const left = cur - goal, dirDown = start >= goal, toward = dirDown ? -ch : ch;
       frac = start === goal ? 1 : clamp((start - cur) / (start - goal), 0, 1);
-      val = Math.abs(left) < 0.25 ? 'AT GOAL' : (dirDown ? (left > 0 ? '-' + wtD(left) + ' TO GO' : 'PAST GOAL') : (left < 0 ? '+' + wtD(-left) + ' TO GO' : 'PAST GOAL'));
-      const toward = dirDown ? -ch : ch;
       col = Math.abs(left) < 0.25 || toward >= 1 ? GRN : toward > -0.5 ? YEL : RED;
-      sub = (ch <= -0.05 ? '▼' : ch >= 0.05 ? '▲' : '') + wtD(Math.abs(ch)) + ' ' + wtU() + ' THIS MONTH' + (col === YEL ? ' · SLOW' : '');
     }
-    if (days >= 14) { col = GRY; sub = 'LAST WEIGH-IN ' + days + ' DAYS AGO'; }
-    return { cur, col, val, frac, sub, stale: days >= 7 ? days : null, last };
+    if (days >= 14) col = GRY;
+    return { cur, col, frac, ch, stale: days >= 7 ? days : null, last };
   }
   function trainInfo() {
     const T = Math.max(1, S.profile.trainTarget || 2), done = sessionsIn(weekStart(), weekStart() + 7 * DAY), today = trainedToday();
     const need = Math.max(0, T - done), left = 7 - dayIdx();
-    const col = need === 0 ? GRN : need > left ? RED : need >= left - 1 ? ORG : YEL;
-    const dn = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][dayIdx()];
-    const sub = need === 0 ? 'TARGET MET' + (today ? ' · LOGGED ' + F.hm(today.ts) : '') : (today ? 'LOGGED ' + F.hm(today.ts) + ' · ' : dn + ' · ') + (need === 1 ? 'ONE MORE THIS WEEK' : need + ' MORE THIS WEEK');
-    return { T, done, col, sub, today };
-  }
-  function fieldInfo() {
-    const ws = weekStart(), n = S.journal.filter(j => j.ts >= ws && (j.type === 'drop' || j.type === 'visit')).length;
-    let usual = S.profile.fieldTarget;
-    if (!usual) { let tot = 0; for (let k = 1; k <= 8; k++) tot += S.journal.filter(j => j.ts >= ws - k * 7 * DAY && j.ts < ws - (k - 1) * 7 * DAY && (j.type === 'drop' || j.type === 'visit')).length; usual = Math.max(1, Math.round(tot / 8)); }
-    const pace = n / (usual * (dayIdx() + 1) / 7);
-    return { n, usual, col: n >= usual || pace >= 0.9 ? GRN : pace >= 0.6 ? YEL : ORG, auto: !S.profile.fieldTarget };
+    return { T, done, need, left, today };
   }
   const groundToday = () => S.profile.days[dayKey(Date.now())] || 0;
   function trainWeeks() {
@@ -124,7 +136,82 @@ window.RX = window.RX || {};
     return { total, best, bestEnd };
   }
 
-  // ---------- personal bests ----------
+  // ---------- the body: Navy method ----------
+  const log10 = Math.log10;
+  function navy(sex, h, neck, waist, hips) {
+    if (!sex || !h || !neck || !waist) return null;
+    let bf;
+    if (sex === 'F') { if (!hips || waist + hips - neck <= 0) return null; bf = 163.205 * log10(waist + hips - neck) - 97.684 * log10(h) - 78.387; }
+    else { if (waist - neck <= 0) return null; bf = 86.010 * log10(waist - neck) - 70.041 * log10(h) + 36.76; }
+    return isFinite(bf) ? clamp(bf, 2, 60) : null;
+  }
+  const tapeBF = t => t ? navy(S.profile.sex, S.profile.heightIn, t.neck, t.waist, t.hips) : null;
+  const tapesSorted = () => S.tapes.slice().sort((a, b) => a.ts - b.ts);
+  const lastTape = () => { const T = tapesSorted(); return T.length ? T[T.length - 1] : null; };
+  // the latest tape and the one to compare it with (about a month before)
+  function tapePair() {
+    const T = tapesSorted(); if (!T.length) return { t: null, p: null };
+    const t = T[T.length - 1], before = T.filter(x => x.ts <= t.ts - 25 * DAY);
+    return { t, p: before.length ? before[before.length - 1] : (T.length > 1 ? T[0] : null) };
+  }
+  function bodyInfo() {
+    const P = S.profile, wi = weightInfo(), { t, p } = tapePair();
+    const bf = tapeBF(t), bfP = tapeBF(p);
+    const w = wi.cur, fat = w != null && bf != null ? w * bf / 100 : null, lean = fat != null ? w - fat : null;
+    const bmi = w && P.heightIn ? 703 * w / (P.heightIn * P.heightIn) : null;
+    const goalBF = lean != null && P.goalLbs && P.goalLbs > lean ? (P.goalLbs - lean) / P.goalLbs * 100 : null;
+    const w30 = w != null ? lbsAt(Date.now() - 30 * DAY) : null;
+    return { w, bf, bfP, t, p, fat, lean, bmi, goalBF, dW: w30 != null ? w - w30 : null, dBF: bf != null && bfP != null ? bf - bfP : null,
+      whr: t && t.waist && P.heightIn ? t.waist / P.heightIn : null };
+  }
+  // his build: BMI on the four-week average, so it eases, never jumps
+  function buildNow() {
+    const P = S.profile; if (!P.heightIn) return RX.maus.buildFor(null);
+    const L = wis(); if (!L.length) return RX.maus.buildFor(null);
+    const recent = L.filter(w => w.ts >= Date.now() - 28 * DAY), use = recent.length ? recent : [L[L.length - 1]];
+    const avg = use.reduce((m, w) => m + w.lbs, 0) / use.length;
+    return RX.maus.buildFor(703 * avg / (P.heightIn * P.heightIn));
+  }
+
+  // ---------- body areas: days since each was worked ----------
+  const AREAS = ['LEGS', 'PUSH', 'PULL', 'CORE', 'CARDIO'];
+  const areaDays = memo(() => {
+    const last = {};
+    S.workouts.forEach(w => { const a = RX.fit && RX.fit.areaOf(w); if (a && (!last[a] || w.ts > last[a])) last[a] = w.ts; });
+    const out = {}; AREAS.forEach(a => { out[a] = last[a] ? Math.round((dayStart() - dayStart(last[a])) / DAY) : null; });
+    return out;
+  });
+  const recCol = d => d == null ? GRY : d <= 2 ? GRN : d <= 5 ? INK : d <= 8 ? AMB : RED;
+  const recTxt = d => d == null ? 'NEVER' : d === 0 ? 'TODAY' : d + 'D AGO';
+
+  // ---------- bests per exercise, and new bests (PRs) ----------
+  const prInfo = memo(() => {
+    const prs = [], best = [];
+    S.moves.forEach(m => {
+      const logs = S.workouts.filter(w => w.moveId === m.id && (w.sets || []).some(v => v > 0)).sort((a, b) => a.ts - b.ts);
+      let top = null;
+      logs.forEach(L => {
+        const kind = L.kind || m.kind, v = Math.max(...L.sets.filter(x => x > 0));
+        let score, text;
+        if (kind === 'reps') { score = (L.lbs || 0) * 1000 + v; text = L.lbs ? L.lbs + ' LB × ' + v : v + ' REPS'; }
+        else if (kind === 'time') { score = v; text = RX.fit.amtLong({ kind: 'time' }, v); }
+        else { score = v; text = (Math.round(v * 100) / 100) + ' MI'; }
+        if (top && score > top.score) prs.push({ ts: L.ts, name: m.name, text });
+        if (!top || score > top.score) top = { score, text, ts: L.ts };
+      });
+      if (top) best.push({ name: m.name, text: top.text, ts: top.ts });
+    });
+    // a fast longer than any before it
+    let longest = 0;
+    S.fasts.filter(f => f.endTs && f.hours).sort((a, b) => a.endTs - b.endTs).forEach(f => {
+      if (longest && f.hours > longest) prs.push({ ts: f.endTs, name: 'LONGEST FAST', text: Math.round(f.hours) + 'H' });
+      longest = Math.max(longest, f.hours);
+    });
+    prs.sort((a, b) => a.ts - b.ts);
+    return { prs, best };
+  });
+  const recentPR = ms => { const P = prInfo().prs.filter(p => p.ts >= Date.now() - ms); return P.length ? P[P.length - 1] : null; };
+
   function bests() {
     const out = [];
     const done = S.fasts.filter(f => f.endTs);
@@ -132,17 +219,86 @@ window.RX = window.RX || {};
     const act = S.activeFast(), ah = act ? (Date.now() - act.startTs) / 36e5 : 0;
     if (act && (!lf || ah > (lf.hours || 0))) out.push(['LONGEST FAST', Math.floor(ah) + 'H', 'NOW']);
     else out.push(['LONGEST FAST', lf ? Math.round(lf.hours) + 'H' : '--', lf ? md(lf.startTs) : '']);
+    prInfo().best.forEach(b => out.push([b.name, b.text, md(b.ts)]));
     const L = wis(), lw = L.reduce((m, w) => (!m || w.lbs < m.lbs) ? w : m, null);
-    out.push(['LOWEST WEIGHT', lw ? wt(lw.lbs) : '--', lw ? md(lw.ts) : '']);
+    out.push(['LOWEST WEIGHT', lw ? wt(lw.lbs) + ' ' + wtU() : '--', lw ? md(lw.ts) : '']);
+    const lt = (S.tracks || []).reduce((m, t) => (!m || t.m > m.m) ? t : m, null);
+    if (lt) out.push(['LONGEST TRACK', (lt.m / 1609.344).toFixed(1) + ' MI', md(lt.t0)]);
     out.push(['FAST STREAK', String(S.fastStreak().best || 0), '']);
     const tw = trainWeeks();
-    out.push(['TRAINING STREAK', tw.best + ' WK', tw.bestEnd ? md(tw.bestEnd) : '']);
+    out.push(['TRAIN STREAK', tw.best + ' WK', tw.bestEnd ? md(tw.bestEnd) : '']);
     let gk = null, gv = 0; Object.keys(S.profile.days).forEach(k => { if (S.profile.days[k] > gv) { gv = S.profile.days[k]; gk = k; } });
-    out.push(['MOST GROUND · DAY', gv ? (gv * CELL_SQMI).toFixed(1) + ' SQ MI' : '--', gk ? md(new Date(gk + 'T12:00').getTime()) : '']);
+    out.push(['GROUND · DAY', gv ? (gv * CELL_SQMI).toFixed(1) + ' SQ MI' : '--', gk ? md(new Date(gk + 'T12:00').getTime()) : '']);
     const byDay = {}; S.journal.forEach(j => { if (j.type === 'drop') { const k = dayKey(j.ts); byDay[k] = (byDay[k] || 0) + 1; } });
     let mk = null, mv = 0; Object.keys(byDay).forEach(k => { if (byDay[k] > mv) { mv = byDay[k]; mk = k; } });
-    out.push(['MOST MARKS · DAY', mv ? String(mv) : '--', mk ? md(new Date(mk + 'T12:00').getTime()) : '']);
+    out.push(['MARKS · DAY', mv ? String(mv) : '--', mk ? md(new Date(mk + 'T12:00').getTime()) : '']);
     return out;
+  }
+
+  // ======================================================================
+  // XP + LEVELS: everything you log earns XP; the curve is 100·(LV-1)²
+  // ======================================================================
+  const XPR = { train: 100, fastH: 5, weigh: 10, tape: 25, mark: 10, visit: 5, trackMi: 5, sqmi: 150, pr: 50 };
+  const RANKS = [[1, 'ROOKIE'], [5, 'SCOUT'], [10, 'PATHFINDER'], [15, 'TRAILBLAZER'], [20, 'RANGER'], [25, 'NAVIGATOR'], [30, 'CARTOGRAPHER'], [35, 'WARDEN'], [40, 'VETERAN'], [45, 'LEGEND'], [50, 'ORACLE']];
+  const cum = L => 100 * (L - 1) * (L - 1);
+  const levelOf = xp => Math.floor(Math.sqrt(Math.max(0, xp) / 100)) + 1;
+  const rankOf = L => RANKS.filter(r => r[0] <= L).pop()[1];
+  const nextRank = L => RANKS.find(r => r[0] > L) || null;
+  const xpInfo = memo(() => {
+    const ws = weekStart(); let tot = 0; const wk = {};
+    const add = (ts, k, xp, n) => { xp = Math.round(xp); if (xp <= 0) return; tot += xp; if (ts >= ws) { const b = wk[k] || (wk[k] = { xp: 0, n: 0 }); b.xp += xp; b.n += n == null ? 1 : n; } };
+    const firstOfDay = (list, tsOf) => { const seen = {}; list.forEach(x => { const t = tsOf(x), k = dayKey(t); if (seen[k] == null || t < seen[k]) seen[k] = t; }); return Object.values(seen); };
+    firstOfDay(S.workouts, w => w.ts).forEach(ts => add(ts, 'train', XPR.train));
+    S.fasts.forEach(f => { if (f.endTs && f.hours) add(f.endTs, 'fast', Math.floor(f.hours) * XPR.fastH, Math.floor(f.hours)); });
+    firstOfDay(S.weighins.filter(w => w && w.lbs), w => w.ts).forEach(ts => add(ts, 'weigh', XPR.weigh));
+    firstOfDay(S.tapes, t => t.ts).forEach(ts => add(ts, 'tape', XPR.tape));
+    S.journal.forEach(j => { if (j.type === 'drop') add(j.ts, 'mark', XPR.mark); else if (j.type === 'visit') add(j.ts, 'visit', XPR.visit); });
+    (S.tracks || []).forEach(t => { const mi = (t.m || 0) / 1609.344; add(t.t0, 'track', mi * XPR.trackMi, mi); });
+    Object.keys(S.profile.days).forEach(k => { const sq = S.profile.days[k] * CELL_SQMI; add(new Date(k + 'T12:00').getTime(), 'ground', sq * XPR.sqmi, sq); });
+    prInfo().prs.forEach(p => add(p.ts, 'pr', XPR.pr));
+    const lv = levelOf(tot), lo = cum(lv), hi = cum(lv + 1);
+    return { xp: tot, lv, rank: rankOf(lv), next: nextRank(lv), into: tot - lo, span: hi - lo, frac: (tot - lo) / (hi - lo), wk, wkXP: Object.values(wk).reduce((m, b) => m + b.xp, 0) };
+  });
+  const WK_LINES = [
+    ['train', b => 'TRAINED ×' + b.n, CYN], ['fast', b => 'FASTED ' + b.n + 'H', AMB], ['weigh', b => 'WEIGH-INS ×' + b.n, YEL], ['tape', b => 'TAPE ×' + b.n, YEL],
+    ['ground', b => 'GROUND · ' + b.n.toFixed(1) + ' SQ MI', GRN], ['mark', b => 'MARKS ×' + b.n, INK], ['visit', b => 'VISITS ×' + b.n, INK],
+    ['track', b => 'TRACKS · ' + b.n.toFixed(1) + ' MI', CYN], ['pr', b => 'NEW BESTS ×' + b.n, AMB]
+  ];
+
+  // ======================================================================
+  // MAUS: his state, from what you do
+  // ======================================================================
+  const STATE_COL = { SHARP: GRN, STEADY: INK, SLIPPING: RED, FOCUSED: AMB, FUMES: YEL, EATING: GRN, NEW_PR: AMB, ON_MOVE: CYN, RESTING: INK };
+  function lastTrained() { let t = 0; S.workouts.forEach(w => { if (w.ts > t) t = w.ts; }); return t || null; }
+  function lastEnded() { let f = null; S.fasts.forEach(x => { if (x.endTs && (!f || x.endTs > f.endTs)) f = x; }); return f; }
+  function mausState() {
+    const now = Date.now(), hr = new Date().getHours();
+    const f = S.activeFast(), fh = f ? (now - f.startTs) / 36e5 : 0;
+    const pr = recentPR(DAY), le = lastEnded(), tr = trainInfo(), lt = lastTrained();
+    const since = lt ? Math.round((dayStart() - dayStart(lt)) / DAY) : null;
+    const st = (key, say) => ({ key, say, col: STATE_COL[key] });
+    if (S.rec && RX.aux && RX.aux.stats) { const s = RX.aux.stats(S.rec); return st('ON_MOVE', 'REC · ' + s.mi.toFixed(2) + ' MI · ON THE MOVE'); }
+    if (pr) return st('NEW_PR', 'NEW BEST · ' + pr.name + ' ' + pr.text);
+    if (fh >= 36) return st('FUMES', 'FASTING · ' + Math.floor(fh) + 'H · RUNNING ON FUMES');
+    if (fh >= 12) return st('FOCUSED', 'FASTING · ' + Math.floor(fh) + 'H · ' + (fh >= 16 ? 'BURNING FAT' : 'LOCKED IN'));
+    if (!f && le && le.hours >= 16 && now - le.endTs < 3 * 36e5) return st('EATING', 'BROKE A ' + Math.round(le.hours) + 'H FAST · REFUEL');
+    if (lt && (since >= 5 || tr.need > tr.left)) return st('SLIPPING', since >= 5 ? since + ' DAYS SINCE YOU TRAINED' : 'WEEK TARGET OUT OF REACH');
+    if (hr >= 23 || hr < 5) return st('RESTING', 'LATE · GET SOME SLEEP');
+    if (tr.today) return st('SHARP', 'TRAINED TODAY · ' + (tr.done >= tr.T ? 'WEEK TARGET MET' : tr.done + '/' + tr.T + ' THIS WEEK'));
+    if (tr.done >= tr.T) return st('SHARP', 'ON PLAN THIS WEEK');
+    if (since === 1 && !(RX.fit && S.moves.some(m => RX.fit.plannedOn(m, dayStart())))) return st('RESTING', 'REST DAY · EARNED IT');
+    return st('STEADY', lt ? 'HOLDING STEADY · ' + tr.done + '/' + tr.T + ' THIS WEEK' : 'LOG A WORKOUT ON TRAIN');
+  }
+  // the three bars
+  function bars() {
+    const P = S.profile, wi = weightInfo(), tr = trainInfo(), f = S.activeFast(), le = lastEnded(), now = Date.now();
+    const cond = P.goalLbs && wi.cur != null ? { frac: wi.frac, val: Math.round(wi.frac * 100) + '%', col: wi.col === GRY ? GRY : GRN } : { frac: 0, val: wi.cur == null ? 'WEIGH IN' : 'SET GOAL', col: GRY };
+    let fuel;
+    if (f) { const h = (now - f.startTs) / 36e5; fuel = { frac: clamp(1 - h / 48, 0.04, 1), val: Math.floor(h) + 'H FAST', col: AMB }; }
+    else if (le) { const h = (now - le.endTs) / 36e5; fuel = { frac: clamp(1 - h / 24, 0.4, 1), val: 'FED ' + (h < 48 ? Math.floor(h) + 'H' : Math.floor(h / 24) + 'D'), col: AMB }; }
+    else fuel = { frac: 0.6, val: 'NO FASTS', col: AMB };
+    const drive = { frac: clamp(tr.done / tr.T, 0, 1), val: tr.done + ' / ' + tr.T, col: tr.done >= tr.T ? GRN : (tr.need > tr.left ? RED : CYN) };
+    return { cond, fuel, drive };
   }
 
   // ---------- badges ----------
@@ -166,13 +322,17 @@ window.RX = window.RX || {};
     const frac = tier >= 3 ? 1 : clamp((v - lo) / Math.max(1e-9, hi - lo), 0, 1);
     return { v, tier, frac };
   }
-  // a new tier: a beep and a line on the strip (the first check just records what's already earned)
+  // a new tier or a new level: a beep and a line on the strip (the first check just records what's already there)
   function checkBadges(A) {
     const P = S.profile; let fresh = null, changed = false;
     BADGES.forEach(b => { const s = badgeState(b); if (s.tier > (P.earned[b.id] || 0)) { P.earned[b.id] = s.tier; changed = true; if (P.badgesInit) fresh = { b, tier: s.tier }; } });
     if (!P.badgesInit) { P.badgesInit = true; changed = true; }
+    const X = xpInfo(); let up = null;
+    if (X.lv > (P.lvSeen || 0)) { if (P.lvSeen) up = X; P.lvSeen = X.lv; changed = true; }
     if (changed) S.saveProfile();
-    if (fresh && A) { A.beep('file'); A.say('BADGE ▸ ' + fresh.b.name + ' · ' + ROMAN[fresh.tier], 6000); A.lcdMsg = null; A.lcdDirty = true; }
+    if (!A) return;
+    if (up) { A.beep('file'); A.say('MAUS ▸ LEVEL UP · LV ' + up.lv + (rankOf(up.lv) !== rankOf(up.lv - 1) ? ' · ' + up.rank : ''), 6000); A.lcdMsg = null; A.lcdDirty = true; }
+    else if (fresh) { A.beep('file'); A.say('BADGE ▸ ' + fresh.b.name + ' · ' + ROMAN[fresh.tier], 6000); A.lcdMsg = null; A.lcdDirty = true; }
   }
   RX.profileCheck = checkBadges;
 
@@ -189,7 +349,7 @@ window.RX = window.RX || {};
   }
 
   // ======================================================================
-  // PORTRAIT: photo → dots (crop, sharpen, auto-levels, gamma 2.3, 6 steps)
+  // PHOTOS → DOTS (ROLO cards use it)
   // ======================================================================
   const imgCache = {};
   function photoImg(src) {
@@ -198,8 +358,6 @@ window.RX = window.RX || {};
     if (!e) { const im = new Image(); e = imgCache[src] = { im, ok: false }; im.onload = () => { e.ok = true; if (U.onAsync) U.onAsync(); }; im.src = src; }
     return e.ok ? e.im : null;
   }
-  const PW = 46, PH = 58;
-  function defaultCrop(im) { const w = Math.min(im.width, im.height * PW / PH) * 0.8, h = w * PH / PW; return [(im.width - w) / 2, Math.max(0, (im.height - h) * 0.35), w, h]; }
   const cellCache = {};
   function cells(im, crop, w, h, o) {
     const key = im.src.length + ':' + im.src.slice(-40) + ':' + crop.map(v => Math.round(v)).join(',') + ':' + w + 'x' + h + ':' + (o.bright || 0) + ':' + (o.contrast || 0) + ':' + (o.gamma || 0);
@@ -223,100 +381,22 @@ window.RX = window.RX || {};
     const ks = Object.keys(cellCache); if (ks.length > 24) delete cellCache[ks[0]];
     return (cellCache[key] = out);
   }
-  function blit(mx, x0, y0, w, h, L, c, mask) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { let a = L[j * w + i]; if (!a) continue; if (mask) a *= mask(i, j); if (a > 0.02) mx.set(x0 + i, y0 + j, c, a); } }
-  function corners(mx, x, y, w, h) {
-    mx.frame(x - 2, y - 2, w + 4, h + 4, C.ink, 0.5);
-    [[x - 2, y - 2], [x + w + 1, y - 2], [x - 2, y + h + 1], [x + w + 1, y + h + 1]].forEach(([a, b]) => mx.rect(a - 1, b - 1, 3, 3, HOT, 1));
-  }
-  // any photo as dots (ROLO cards use it): centred crop at the box's shape
+  function blit(mx, x0, y0, w, h, L, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const a = L[j * w + i]; if (a > 0.02) mx.set(x0 + i, y0 + j, c, a); } }
   RX.dotPhoto = function (g, src, x, y, w, h) {
     const im = photoImg(src); if (!im) return false;
     const cw = Math.min(im.width, im.height * w / h) * 0.92, ch = cw * h / w;
     blit(g.mx, x, y, w, h, cells(im, [(im.width - cw) / 2, Math.max(0, (im.height - ch) * 0.3), cw, ch], w, h, {}), C.ink);
     return true;
   };
-  function drawPortrait(g, x, y) {
-    const P = S.profile, im = photoImg(P.photo), mx = g.mx;
-    if (im) blit(mx, x, y, PW, PH, cells(im, P.crop || defaultCrop(im), PW, PH, P), C.ink);
-    else if (!P.photo) {
-      // empty frame: a faint head-and-shoulders outline
-      mx.ring(x + 23, y + 22, 10, C.ink, 0.25, 2);
-      for (let i = -20; i <= 20; i++) { const yy = y + 56 - Math.round(Math.sqrt(Math.max(0, 400 - i * i)) * 0.7); mx.set(x + 23 + i, yy, C.ink, 0.25); }
-      g.mini('NO PHOTO', x + 7, y + 40, { a: 0.5 });
-    }
-    corners(mx, x, y, PW, PH);
-  }
-
-  // ======================================================================
-  // BODY FIGURE: a smooth body of capsules, ray-marched into dots
-  // ======================================================================
-  function sdCap(px, py, pz, a, b, r) {
-    const pax = px - a[0], pay = py - a[1], paz = pz - a[2], bax = b[0] - a[0], bay = b[1] - a[1], baz = b[2] - a[2];
-    const h = clamp((pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz), 0, 1);
-    const dx = pax - bax * h, dy = pay - bay * h, dz = paz - baz * h;
-    return Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-  }
-  function sdEll(px, py, pz, c, r) {
-    const qx = (px - c[0]) / r[0], qy = (py - c[1]) / r[1], qz = (pz - c[2]) / r[2];
-    const k0 = Math.sqrt(qx * qx + qy * qy + qz * qz), k1 = Math.sqrt(qx * qx / (r[0] * r[0]) + qy * qy / (r[1] * r[1]) + qz * qz / (r[2] * r[2]));
-    return k0 * (k0 - 1) / Math.max(1e-6, k1);
-  }
-  const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
-  function bodyFn(B) {
-    return function (x, y, z) {
-      let d = sdEll(x, y, z, [0, 0.915, 0], [0.056, 0.068, 0.062]);
-      d = smin(d, sdCap(x, y, z, [0, 0.81, 0], [0, 0.87, 0.005], 0.032), 0.03);
-      d = smin(d, sdEll(x, y, z, [0, 0.715, 0], [0.14 * B, 0.1, 0.085 * B]), 0.05);
-      d = smin(d, sdEll(x, y, z, [0, 0.6, 0], [0.118 * B, 0.1, 0.08 * B]), 0.06);
-      d = smin(d, sdEll(x, y, z, [0, 0.52, 0], [0.115 * B, 0.07, 0.078 * B]), 0.05);
-      for (let s = -1; s <= 1; s += 2) {
-        d = smin(d, sdEll(x, y, z, [s * 0.15 * B, 0.765, 0], [0.045, 0.04, 0.045]), 0.04);
-        d = smin(d, sdCap(x, y, z, [s * 0.158 * B, 0.75, 0], [s * 0.175 * B, 0.6, -0.005], 0.034 * B), 0.025);
-        d = smin(d, sdCap(x, y, z, [s * 0.175 * B, 0.6, -0.005], [s * 0.185 * B, 0.46, 0.015], 0.028 * B), 0.02);
-        d = smin(d, sdEll(x, y, z, [s * 0.188 * B, 0.42, 0.018], [0.02, 0.038, 0.015]), 0.02);
-        d = smin(d, sdCap(x, y, z, [s * 0.065 * B, 0.47, 0], [s * 0.07 * B, 0.27, 0.008], 0.056 * B), 0.035);
-        d = smin(d, sdCap(x, y, z, [s * 0.07 * B, 0.27, 0.008], [s * 0.066, 0.055, -0.005], 0.04 * B), 0.025);
-        d = smin(d, sdCap(x, y, z, [s * 0.066, 0.03, -0.012], [s * 0.07, 0.022, 0.06], 0.023), 0.02);
-      }
-      return d;
-    };
-  }
-  const NFR = 48, FW = 64, FH = 124;
-  let figKey = null, frames = [];
-  function figureFrame(B, k) {
-    const key = B.toFixed(3);
-    if (key !== figKey) { figKey = key; frames = []; }
-    if (frames[k]) return frames[k];
-    const body = bodyFn(B), ang = k / NFR * Math.PI * 2, ca = Math.cos(ang), sa = Math.sin(ang), sc = 1 / FH;
-    const out = new Float32Array(FW * FH), lim = 0.3 * B;
-    for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
-      const X = (i - FW / 2 + 0.5) * sc, Y = 1 - (j + 0.5) * sc;
-      if (Math.abs(X) > lim) continue;
-      let z = -0.5, hit = false, px = 0, py = Y, pz = 0;
-      for (let s = 0; s < 48; s++) { px = X * ca + z * sa; pz = -X * sa + z * ca; const d = body(px, py, pz); if (d < 0.0015) { hit = true; break; } z += d * 0.9; if (z > 0.5) break; }
-      if (!hit) continue;
-      const e = 0.004;
-      let nx = body(px + e, py, pz) - body(px - e, py, pz), ny = body(px, py + e, pz) - body(px, py - e, pz), nz = body(px, py, pz + e) - body(px, py, pz - e);
-      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
-      const vx = nx * ca - nz * sa, vz = nx * sa + nz * ca;
-      const lam = Math.max(0, -0.5 * vx + 0.45 * ny - 0.74 * vz), rim = Math.pow(1 - Math.abs(vz), 3);
-      let v = 0.1 + 0.8 * Math.pow(lam, 1.3) + 0.45 * rim; if (j % 3 === 2) v *= 0.55;
-      out[j * FW + i] = Math.min(1, Math.round(v * 5) / 5);
-    }
-    return (frames[k] = out);
-  }
-  const bmiOf = (lbs, inch) => lbs && inch ? 703 * lbs / (inch * inch) : null;
-  const buildOf = bmi => bmi == null ? 1.08 : clamp(0.86 + (bmi - 21) * 0.035, 0.85, 1.45);
-  const frameName = bmi => bmi == null ? 'SET HEIGHT' : bmi < 18.5 ? 'LEAN FRAME' : bmi < 25 ? 'MEDIUM FRAME' : bmi < 30 ? 'SOLID FRAME' : 'HEAVY FRAME';
-  const bmiRange = b => b < 18.5 ? 'UNDER 18.5' : b < 25 ? 'RANGE 18.5-25' : b < 30 ? 'RANGE 25-30' : 'OVER 30';
 
   // ======================================================================
   // SHARED BITS
   // ======================================================================
-  function seg(mx, x, y, w, f, col, mark) { const n = Math.floor(w / 3); for (let i = 0; i < n; i++) mx.rect(x + i * 3, y, 2, 5, col, i < Math.round(f * n) ? 1 : 0.13); if (mark != null) mx.vline(x + Math.round(mark * n) * 3 - 1, y - 1, 7, HOT, 1); }
-  function pips(mx, x, y, w, done, target, col) { const gw = Math.floor((w - (target - 1) * 2) / target); for (let i = 0; i < target; i++) mx.rect(x + i * (gw + 2), y, gw, 5, col, i < done ? 1 : 0.13); }
-  function header(g, st, A) {
-    g.header('PROFILE · ' + PAGES[st.pg], (st.pg + 1) + '/4');
+  const segBar = (mx, x, y, w, frac, col, n) => { n = n || 10; const sw = (w - (n - 1)) / n; for (let i = 0; i < n; i++) { const on = (i + 0.5) / n <= frac; mx.rect(Math.round(x + i * (sw + 1)), y, Math.max(1, Math.round(sw)), 5, col, on ? 1 : 0.16); } };
+  function header(g, st) {
+    const X = xpInfo();
+    const right = st.pg === 0 ? 'LV ' + X.lv + ' · ' + X.rank : st.pg === 1 ? 'COMPOSITION' + (S.tapes.length ? ' · ' + md(lastTape().ts) : '') : st.pg === 2 ? comma(X.xp) + ' XP' : 'SETTINGS';
+    g.header(PAGES[st.pg], right);
     return 13;
   }
   function turn(st, A, pg) {
@@ -326,74 +406,87 @@ window.RX = window.RX || {};
     A.dirty = true;
     if (st.pg === 2) checkBadges(A);
   }
+  const POKE_MS = 520;
+  function poke(st, A, ms) {
+    st.pokeAt = performance.now(); A.beep('key');
+    A.say('MAUS · ' + ms.key.replace('_', ' ') + ' · ' + ms.say, 3000);
+  }
 
   // ======================================================================
-  // PAGE 1 · STATUS
+  // PAGE 1 · STAT
   // ======================================================================
-  function pageStatus(g, st, A, still) {
-    const W = g.W, H = g.H, mx = g.mx, P = S.profile;
-    drawPortrait(g, 4, 16);
-    const tx = PW + 10;
-    let y = 16;
-    g.text(FONT.fit(P.name || 'NAME?', W - tx - 2, 'std', 2), tx, y, { s: 2, c: P.name ? HOT : C.ink, a: P.name ? 1 : 0.4 }); y += 16;
-    g.mini(FONT.fit(P.call || '', W - tx - 2, 'mini'), tx, y, { c: AMB, a: 1 }); y += 9;
-    const wi = weightInfo(), a = age();
-    [['AGE', a == null ? '--' : String(a)], ['HEIGHT', ht(P.heightIn)], ['WEIGHT', wi.cur == null ? '--' : wt(wi.cur) + ' ' + wtU()], ['BLOOD', P.blood || '--']].forEach(r => {
-      g.mini(r[0], tx, y + 1, { a: 0.6 }); g.textR(r[1], W - 2, y, { c: r[1] === '--' ? C.ink : HOT, a: r[1] === '--' ? 0.35 : 1 }); y += 10;
+  function pageStat(g, st, A, still) {
+    const W = g.W, H = g.H, mx = g.mx, P = S.profile, X = xpInfo();
+    const ms = st.force ? { key: st.force, say: 'PREVIEW', col: STATE_COL[st.force] } : mausState();
+    // who
+    const nw = g.text(FONT.fit(P.name || 'NAME?', 44), 1, 14, { c: P.name ? HOT : C.ink, a: P.name ? 1 : 0.4 });
+    g.mini(FONT.fit(P.call || '', W - nw - 6, 'mini'), nw + 4, 15, { c: AMB, a: 1 });
+    // him
+    const figH = clamp(H - 128, 62, 122), top = 25, cx = Math.round(W / 2), s = figH / 100, B = buildNow();
+    const pk = st.pokeAt ? (performance.now() - st.pokeAt) / POKE_MS : 0;
+    RX.maus.draw(mx, cx, top, figH, ms.key, { t: g.t, build: B, poke: pk });
+    if (!still) g.hit(Math.round(cx - 22 * s), top, Math.round(44 * s), figH, () => poke(st, A, ms));
+    // body areas, like limb condition: how long since you worked each one
+    const AD = areaDays(), lastY = { L: -99, R: -99 };
+    [['PUSH', 'L', 44, 7], ['CORE', 'L', 56, 8], ['LEGS', 'L', 78, 5], ['PULL', 'R', 44, 7], ['CARDIO', 'R', 56, 8]].forEach(([lab, side, v, hx]) => {
+      const d = AD[lab], col = recCol(d), y = Math.max(Math.round(top + v * s), lastY[side] + 16); lastY[side] = y;
+      const bx = Math.round(cx + (side === 'L' ? -1 : 1) * hx * (lab === 'LEGS' ? 1 : B.w) * s);
+      if (side === 'L') { g.mini(lab, 1, y - 7, { c: col, a: 1 }); g.mini(recTxt(d), 1, y, { a: 0.7 }); }
+      else { g.miniR(lab, W - 2, y - 7, { c: col, a: 1 }); g.miniR(recTxt(d), W - 2, y, { a: 0.7 }); }
+      const lx0 = side === 'L' ? 31 : W - 32;
+      mx.line(lx0, y - 2, bx, y - 2, col, 0.5, 2); mx.disc(bx, y - 2, 1.4, col, 1);
+      if (!still) g.hit(side === 'L' ? 0 : W - 31, y - 8, 31, 14, () => A.go('fast', { page: 'train' }));
     });
-    y = Math.max(y, 16 + PH + 2) + 2;
-    mx.hline(0, y, W, C.ink, 0.3, 2); y += 4;
-    const row = (label, draw, val, col, sub) => { g.mini(label, 1, y + 1, { a: 0.7 }); draw(); g.textR(val, W - 2, y, { c: col }); if (sub) g.mini(FONT.fit(sub, W - 32, 'mini'), 30, y + 8, { c: col, a: 0.8 }); y += 18; };
-    const BW = Math.min(66, W - 96);
-    row('WEIGHT', () => seg(mx, 30, y + 1, BW, wi.frac, wi.col), wi.val, wi.col, wi.sub);
-    const tr = trainInfo();
-    row('TRAIN', () => pips(mx, 30, y + 1, BW, Math.min(tr.done, tr.T), tr.T, tr.col), tr.done + ' / ' + tr.T, tr.col, tr.sub);
-    // fast: amber, a ladder of rungs from 16 to 100 hours
-    const f = S.activeFast(), fs = S.fastStreak();
-    g.mini('FAST', 1, y + 1, { a: 0.7 });
-    if (!f) {
-      seg(mx, 30, y + 1, BW, 0, AMB); g.textR('READY', W - 2, y, { c: AMB });
-      const last = S.fasts.filter(x => x.endTs).sort((a, b) => b.endTs - a.endTs)[0], best = S.fasts.reduce((m, x) => Math.max(m, x.hours || 0), 0);
-      g.mini(FONT.fit(last ? 'LAST ' + Math.round(last.hours) + 'H · ' + Math.max(0, Math.round((Date.now() - last.endTs) / DAY)) + ' DAYS AGO · BEST ' + Math.round(best) + 'H' : 'START ONE FROM FAST', W - 32, 'mini'), 30, y + 8, { c: AMB, a: 0.8 });
-    } else {
-      const h = (Date.now() - f.startTs) / 36e5, nx = LAD.find(m => h < m), pv = [0].concat(LAD).filter(m => m <= h).pop();
-      seg(mx, 30, y + 1, BW, nx ? (h - pv) / (nx - pv) : 1, AMB); g.textR(Math.floor(h) + 'H', W - 2, y, { c: AMB });
-      let sx = 30; LAD.forEach(m => { const on = h >= m, t = String(m); g.mini(t, sx, y + 8, { c: on ? HOT : (m === P.fastGoal ? HOT : AMB), a: on ? 1 : (m === P.fastGoal ? 0.6 : 0.35) }); sx += measure(t, 'mini') + 4; });
-      g.mini(nx ? Math.ceil(nx - h) + 'H TO ' + nx : 'PAST 100', sx + 2, y + 8, { c: AMB, a: 0.8 });
-    }
+    let y = top + figH + 6;
+    // the state, in a word
+    const word = ms.key.replace('_', ' ');
+    mx.rect(0, y, W, 11, ms.col, 0.14); mx.frame(0, y, W, 11, ms.col, 0.7);
+    const ww = g.text(word, 3, y + 2, { c: ms.col });
+    g.miniR(g.fit(ms.say, W - ww - 12, 'mini'), W - 3, y + 3, { c: HOT, a: 0.95 });
+    if (!still) g.hit(0, y, W, 11, () => poke(st, A, ms));
+    y += 15;
+    // the three bars (jog walks them; push opens what feeds them)
+    const BR = bars();
+    const bar = (lab, b, fn) => {
+      const r = { x: 0, y: y - 2, w: W - 1, h: 11 };
+      if (!still) g.row(r.x, r.y, r.w, r.h, fn);
+      g.mini(lab, 2, y + 1, { a: 0.75 }); segBar(mx, 42, y, W - 42 - 44, b.frac, b.col); g.textR(b.val, W - 3, y - 1, { c: b.col });
+      y += 11; return r;
+    };
+    bar('CONDITION', BR.cond, () => turn(st, A, 1));
+    bar('FUEL', BR.fuel, () => A.go('fast'));
+    st.trainRect = bar('DRIVE', BR.drive, () => A.go('fast', { page: 'train' }));
+    y += 1;
+    // level
+    mx.hline(0, y, W, C.ink, 0.3, 2); y += 3;
+    if (!still) g.row(0, y - 1, W - 1, 17, () => turn(st, A, 2));
+    const lw = g.text('LV ' + X.lv, 2, y + 1, { c: HOT });
+    g.mini(g.fit(X.rank, 74 - lw - 6, 'mini'), lw + 5, y + 2, { c: AMB, a: 1 });
+    const bx = 76, bw = W - bx - 3;
+    mx.frame(bx, y + 1, bw, 6, C.ink, 0.6); mx.rect(bx + 1, y + 2, Math.round((bw - 2) * X.frac), 4, AMB, 0.9);
+    g.miniR(comma(X.into) + ' / ' + comma(X.span) + ' XP', W - 3, y + 9, { a: 0.7 });
     y += 18;
-    const fi = fieldInfo();
-    row('FIELD', () => seg(mx, 30, y + 1, BW, Math.min(1, fi.n / fi.usual), fi.col), fi.n + ' / ' + fi.usual, fi.col, 'MARKS + VISITS · ' + (fi.auto ? 'AVG ' + fi.usual + '/WK' : 'TARGET ' + fi.usual + '/WK'));
-    y += 1; mx.hline(0, y, W, C.ink, 0.3, 2); y += 4;
-
-    // status tags
+    // tags: what's going on right now
+    const f = S.activeFast(), fs = S.fastStreak(), tr = trainInfo(), wi = weightInfo(), pr = recentPR(7 * DAY);
     const tags = [];
-    if (f) tags.push(['FASTING ' + Math.floor((Date.now() - f.startTs) / 36e5) + 'H', CYN]);
+    if (f) tags.push(['FAST ' + Math.floor((Date.now() - f.startTs) / 36e5) + 'H', AMB]);
     if (fs.current >= 2) tags.push(['STREAK ' + fs.current, CYN]);
-    if (f) { const h = (Date.now() - f.startTs) / 36e5, r = LAD.filter(m => m <= h).pop(); if (r) tags.push([r + 'H RUNG', CYN]); }
-    if (groundToday() > 0) tags.push(['NEW GROUND', CYN]);
+    if (pr) tags.push(['PR · ' + pr.name, GRN]);
     if (tr.today) tags.push(['TRAINED TODAY', CYN]);
+    if (groundToday() > 0) tags.push(['NEW GROUND', GRN]);
+    if (S.rec) tags.push(['REC', RED]);
     const pend = S.pending().length; if (pend) tags.push([pend + ' PENDING', ORG]);
     if (!S.v2.lastBackup || Date.now() - S.v2.lastBackup > 7 * DAY) tags.push(['BACKUP DUE', ORG]);
     if (S.missions.some(m => m.status === 'active' && m.deadline && m.deadline < Date.now())) tags.push(['OBJECTIVE OVERDUE', ORG]);
-    if (wi.stale) tags.push(['LAST WEIGH-IN ' + wi.stale + 'D', GRY]);
-    const keyTop = H - 11, maxY = keyTop - 13;
-    let x = 1;
+    if (wi.stale) tags.push(['WEIGH-IN ' + wi.stale + 'D AGO', GRY]);
+    if (S.tapes.length && Date.now() - lastTape().ts > 30 * DAY) tags.push(['TAPE DUE', GRY]);
+    let x = 0;
     for (const t of tags) {
-      const w = measure(t[0], 'mini') + 6;
-      if (x + w > W) { x = 1; y += 11; }
-      if (y > maxY) break;
-      mx.frame(x, y, w, 9, t[1], 1); g.mini(t[0], x + 3, y + 2, { c: t[1], a: 1 }); x += w + 3;
+      const w = measure(t[0], 'mini') + 5;
+      if (x + w > W) { x = 0; y += 11; }
+      if (y + 9 > H - 12) break;
+      mx.frame(x, y, w, 9, t[1], 0.7); g.mini(t[0], x + 3, y + 2, { c: t[1], a: 1 }); x += w + 3;
     }
-    if (still) return;
-    // the two log keys
-    mx.clearRect(0, keyTop - 2, W, 13);
-    mx.hline(0, keyTop - 2, W, C.ink, 0.3, 2);
-    const bw = Math.floor((W - 4) / 2);
-    g.btn(1, keyTop, bw, 10, '+ WEIGH IN', () => A.go('weighin'), { c: YEL });
-    st.trainRect = { x: 3 + bw, y: keyTop, w: bw, h: 10 };
-    // training is logged by exercise now: this key opens HLTH ▸ TRAIN
-    g.btn(3 + bw, keyTop, bw, 10, tr.today ? 'TRAINED ✓' : 'TRAINED ▸', () => A.go('fast', { page: 'train' }), { c: tr.today ? GRN : ORG, on: !!tr.today });
   }
   // an old one-tap TRAINED entry from today can still be held away
   const oldTrained = () => S.workouts.find(w => w.type === 'TRAINED' && !w.moveId && w.ts >= dayStart());
@@ -406,54 +499,104 @@ window.RX = window.RX || {};
   // ======================================================================
   // PAGE 2 · BODY
   // ======================================================================
-  function pageBody(g, st, A) {
-    const W = g.W, H = g.H, mx = g.mx, P = S.profile, wi = weightInfo();
-    const fx = 12, fy = 17, fw = FW, fh = FH;
-    for (let f = 0; f <= 7; f++) { const y = fy + fh - Math.round(f * 12 / 70 * fh); if (y < fy - 2) break; mx.hline(2, y, 6, C.ink, 0.6); g.mini(f + "'", 1, y - 6, { a: 0.45 }); }
-    mx.vline(4, fy, fh, C.ink, 0.3, 2);
-    const bmi = bmiOf(wi.cur, P.heightIn), B = buildOf(bmi);
-    const auto = Date.now() - (st.spunAt || 0) > 4000;
-    if (auto) st.ang = ((st.ang || 0) + 1 / 7) % NFR;
-    const k = Math.floor(st.ang || 0) % NFR;
-    blit(mx, fx, fy, fw, fh, figureFrame(B, (k + NFR) % NFR), CYN);
-    // turntable
-    const rx = fw * 0.45, ry = fw * 0.1, cy = fy + fh - 1, ang = k / NFR * Math.PI * 2;
-    for (let t = 0; t < 120; t++) { const a = t / 120 * Math.PI * 2; mx.set(fx + fw / 2 + Math.cos(a) * rx, cy + Math.sin(a) * ry, CYN, Math.sin(a) > 0 ? 0.6 : 0.25); }
-    for (let t = 0; t < 12; t++) { const a = t / 12 * Math.PI * 2 + ang; mx.set(fx + fw / 2 + Math.cos(a) * rx, cy + Math.sin(a) * ry, HOT, Math.sin(a) > 0 ? 1 : 0.4); }
-    // callouts
-    const cx = 88; let y = 18;
-    const call = (lab, val, sub, ty, c) => { g.mini(lab, cx, y, { a: 0.6 }); g.text(FONT.fit(val, W - cx - 1), cx, y + 7, { c: c || HOT }); if (sub) g.mini(FONT.fit(sub, W - cx - 1, 'mini'), cx, y + 16, { c: c || C.ink, a: 0.75 }); mx.line(cx - 3, y + 10, fx + fw - 6, ty, CYN, 0.45, 2); mx.set(fx + fw - 6, ty, HOT, 1); y += sub ? 27 : 20; };
-    call('HEIGHT', ht(P.heightIn), P.heightIn ? (metric() ? Math.floor(P.heightIn / 12) + "'" + Math.round(P.heightIn % 12) + '"' : Math.round(P.heightIn * 2.54) + ' CM') : 'SET IN FILE', fy + 4);
-    call('WEIGHT', wi.cur == null ? '--' : wt(wi.cur) + ' ' + wtU(), P.goalLbs ? 'GOAL ' + wt(P.goalLbs) : 'NO GOAL SET', fy + 48, wi.cur == null ? null : YEL);
-    call('BUILD', frameName(bmi), 'FROM HT + WT', fy + 40);
-    call('BMI', bmi ? bmi.toFixed(1) : '--', bmi ? bmiRange(bmi) : 'NEEDS HT + WT', fy + 60, bmi ? (bmi >= 25 ? YEL : GRN) : null);
-    // weight · 90 days
-    const gx = 2, gw = W - 4, gh = 18, gy = Math.max(fy + fh + 12, H - 12 - gh - 6);
-    const L = wis().filter(w => w.ts >= Date.now() - 90 * DAY);
-    g.mini('WEIGHT · 90 DAYS', gx, gy - 8, { a: 0.6 });
-    mx.frame(gx, gy - 1, gw, gh + 2, C.ink, 0.25);
-    if (L.length < 2) { g.mini('WEIGH IN A FEW TIMES TO DRAW THIS', gx + 4, gy + 6, { a: 0.45 }); return; }
-    const d = L[L.length - 1].lbs - L[0].lbs;
-    g.miniR((d <= 0 ? '▼' : '▲') + wtD(Math.abs(d)) + ' ' + wtU(), W - 2, gy - 8, { c: d <= 0 ? GRN : YEL, a: 1 });
-    let lo = Math.min(...L.map(w => w.lbs)), hi = Math.max(...L.map(w => w.lbs));
-    if (P.goalLbs) { lo = Math.min(lo, P.goalLbs); hi = Math.max(hi, P.goalLbs); }
-    lo -= 1; hi += 1;
-    const t0 = Date.now() - 90 * DAY, X = ts => gx + 2 + (ts - t0) / (90 * DAY) * (gw - 4), Y = v => gy + gh - (v - lo) / (hi - lo) * gh;
-    if (P.goalLbs) { const yy = Math.round(Y(P.goalLbs)); mx.hline(gx + 1, yy, gw - 2, AMB, 0.7, 3); g.miniR(wt(P.goalLbs), W - 4, yy - 6, { c: AMB, a: 1 }); }
-    for (let i = 1; i < L.length; i++) mx.line(X(L[i - 1].ts), Y(L[i - 1].lbs), X(L[i].ts), Y(L[i].lbs), YEL, 1);
+  const RANGES = [['30D', 30], ['90D', 90], ['1Y', 365]];
+  function pageBody(g, st, A, still) {
+    const W = g.W, H = g.H, mx = g.mx, P = S.profile, bi = bodyInfo(), B = buildNow();
+    let y = g.scrollBegin(13, H - 12);
+    // him, with the tape on him
+    const top = y + 3, figH = clamp(H - 158, 62, 96), cx = 34, s = figH / 100;
+    RX.maus.draw(mx, cx, top, figH, 'STEADY', { t: g.t, build: B });
+    const T = bi.t, Tp = bi.p;
+    const tape = [['NECK', 'neck', 35, [-4, 4], false], ['CHEST', 'chest', 44, [-11, 11], true], ['ARM', 'arm', 49, [11, 15], true], ['WAIST', 'waist', 52, [-11, 11], true], ['HIPS', 'hips', 58, [-11, 11], true], ['THIGH', 'thigh', 67, [2, 8], false]];
+    let lastY = -99;
+    tape.forEach(([lab, k, v, half, byW]) => {
+      const yb = Math.round(top + v * s), yy = Math.max(yb, lastY + 9); lastY = yy;
+      const h0 = half[0] * (byW ? B.w : 1), h1 = half[1] * (byW ? B.w : 1), val = T ? T[k] : null;
+      mx.line(cx + Math.round(h0 * s), yb, cx + Math.round(h1 * s), yb, AMB, val ? 0.85 : 0.3, 2);
+      mx.line(cx + Math.round(h1 * s), yb, 66, yy, AMB, 0.35, 2); mx.hline(66, yy, 4, AMB, 0.35);
+      g.mini(lab, 72, yy - 2, { a: 0.7 });
+      g.textR(len(val), W - 26, yy - 3, { c: val ? HOT : C.ink, a: val ? 1 : 0.35 });
+      const pv = Tp ? Tp[k] : null;
+      if (val && pv) { const dl = val - pv; g.miniR((dl < -0.05 ? '▼' : dl > 0.05 ? '▲' : '·') + (Math.abs(dl) >= 0.05 ? lenD(dl) : ''), W - 2, yy - 2, { c: dl < -0.05 ? GRN : dl > 0.05 ? YEL : C.ink, a: 1 }); }
+    });
+    const gap = T && Tp ? Math.round((T.ts - Tp.ts) / DAY) + 'D' : '';
+    g.mini(T ? 'TAPE ' + md(T.ts) + (gap ? ' · VS ' + gap : '') : 'NO TAPE YET', 72, lastY + 8, { a: 0.5 });
+    y = Math.max(top + figH + 8, lastY + 20);
+    // weight and body fat
+    mx.hline(0, y - 3, W, C.ink, 0.3, 2);
+    const big = (lab, val, unit, dlt, dc, x) => {
+      g.mini(lab, x, y, { a: 0.6 });
+      const w = g.text(val, x, y + 7, { s: 2, c: val === '--' ? C.ink : HOT, a: val === '--' ? 0.35 : 1 });
+      if (val !== '--') g.text(unit, x + w + 2, y + 14, { a: 0.8 });
+      if (dlt) g.mini(dlt, x, y + 24, { c: dc, a: 1 });
+    };
+    const dW = bi.dW, dB = bi.dBF;
+    big('WEIGHT', bi.w == null ? '--' : wt(bi.w), wtU(), dW == null ? (bi.w == null ? 'WEIGH IN TO START' : '') : (dW <= -0.05 ? '▼ ' : dW >= 0.05 ? '▲ ' : '') + wtD(Math.abs(dW)) + ' ' + wtU() + ' · 30D', dW != null && dW > 0.05 ? YEL : GRN, 1);
+    big('BODY FAT', bi.bf == null ? '--' : bi.bf.toFixed(1), '%', bi.bf == null ? (!P.sex || !P.heightIn ? 'SET SEX + HEIGHT' : 'TAPE TO START') : dB == null ? 'NAVY METHOD' : (dB <= -0.05 ? '▼ ' : dB >= 0.05 ? '▲ ' : '') + Math.abs(dB).toFixed(1) + ' PT · ' + gap, dB != null && dB > 0.05 ? YEL : GRN, 84);
+    y += 33;
+    // lean and fat as one bar
+    if (bi.lean != null) {
+      const lw = clamp(Math.round((W - 2) * bi.lean / bi.w), 30, W - 32);
+      mx.rect(1, y, lw, 7, CYN, 0.8); mx.rect(1 + lw, y, W - 2 - lw, 7, AMB, 0.8);
+      g.mini('LEAN ' + wt(bi.lean), 3, y + 1, { c: '#04120C', a: 1 }); g.miniR('FAT ' + wt(bi.fat), W - 3, y + 1, { c: '#04120C', a: 1 });
+      y += 11;
+    }
+    const kv = (k, v, c, x) => { g.mini(k, x, y + 1, { a: 0.6 }); g.textR(v, x + (x > 1 ? 77 : W - 84), y, { c: v === '--' ? C.ink : (c || HOT), a: v === '--' ? 0.35 : 1 }); };
+    const whrC = bi.whr == null ? null : bi.whr < 0.5 ? GRN : bi.whr < 0.6 ? YEL : RED;
+    const x2 = W - 79;
+    kv('BMI', bi.bmi ? bi.bmi.toFixed(1) : '--', bi.bmi ? (bi.bmi < 25 ? GRN : YEL) : null, 1); kv('WAIST / HT', bi.whr ? bi.whr.toFixed(2) : '--', whrC, x2); y += 10;
+    kv('GOAL', P.goalLbs ? wt(P.goalLbs) + ' ' + wtU() : '--', AMB, 1); kv('AT GOAL BF', bi.goalBF != null ? '~' + Math.round(bi.goalBF) + '%' : '--', AMB, x2); y += 12;
+    // the trend: weight and body fat on one strip
+    st.rng = st.rng == null ? 1 : st.rng;
+    g.seg(0, y, 80, 10, RANGES.map((r, i) => ({ label: r[0], on: st.rng === i, fn: () => { st.rng = i; A.beep('jog'); } })), { face: 'mini' });
+    g.miniR('WT', W - 22, y + 2, { c: YEL, a: 1 }); g.miniR('BF%', W - 2, y + 2, { c: CYN, a: 1 });
+    y += 12;
+    const gh = 26, gx = 1, gw = W - 2, days = RANGES[st.rng][1], t0 = Date.now() - days * DAY;
+    mx.frame(gx, y, gw, gh, C.ink, 0.25);
+    const plot = (pts, col) => {
+      if (pts.length < 2) return false;
+      let lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[1])); if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
+      const Xf = ts => gx + 2 + (ts - t0) / (days * DAY) * (gw - 4), Yf = v => y + gh - 3 - (v - lo) / (hi - lo) * (gh - 6);
+      for (let i = 1; i < pts.length; i++) mx.line(Math.round(Xf(pts[i - 1][0])), Math.round(Yf(pts[i - 1][1])), Math.round(Xf(pts[i][0])), Math.round(Yf(pts[i][1])), col, 1);
+      pts.forEach(p => mx.set(Math.round(Xf(p[0])), Math.round(Yf(p[1])), HOT, 0.9));
+      return true;
+    };
+    const a = plot(wis().filter(w => w.ts >= t0).map(w => [w.ts, w.lbs]), YEL);
+    const b = plot(tapesSorted().filter(t => t.ts >= t0).map(t => [t.ts, tapeBF(t)]).filter(p => p[1] != null), CYN);
+    if (!a && !b) g.mini('WEIGH IN + TAPE A FEW TIMES TO DRAW THIS', gx + 4, y + 10, { a: 0.45 });
+    y += gh + 3;
+    const b2 = Math.floor((W - 3) / 2);
+    if (!still) {
+      g.btn(0, y, b2, 12, '+ WEIGH IN', () => A.go('weighin', { from: 1 }), { face: 'mini', c: YEL });
+      g.btn(b2 + 3, y, W - b2 - 3, 12, 'TAPE MEASURE', () => A.go('tape'), { face: 'mini', c: AMB });
+    }
+    y += 15;
+    g.scrollEnd(y);
   }
 
   // ======================================================================
   // PAGE 3 · RECORD
   // ======================================================================
   function pageRecord(g, st, A) {
-    const W = g.W, mx = g.mx;
-    let y = 15;
-    y = g.section('PERSONAL BESTS', y - 1) - 1;
-    bests().forEach(r => { g.mini(r[0], 1, y + 1, { a: 0.75 }); if (r[2]) g.miniR(r[2], 98, y + 1, { a: 0.45 }); g.textR(r[1], W - 2, y, { c: r[1] === '--' ? C.ink : HOT, a: r[1] === '--' ? 0.35 : 1 }); mx.hline(1, y + 9, W - 3, C.ink, 0.08, 2); y += 11; });
+    const W = g.W, H = g.H, mx = g.mx, X = xpInfo();
+    let y = g.scrollBegin(13, H - 12) + 2;
+    // the level, big
+    mx.frame(0, y, 46, 30, AMB, 0.9); g.mini('LEVEL', 4, y + 3, { c: AMB, a: 1 }); g.text(String(X.lv), 6, y + 11, { s: 2, c: HOT });
+    g.text(X.rank, 50, y + 1, { c: AMB });
+    g.mini(g.fit(X.next ? 'NEXT ▸ ' + X.next[1] + ' AT LV ' + X.next[0] : 'TOP RANK', W - 52, 'mini'), 50, y + 11, { a: 0.7 });
+    mx.frame(50, y + 19, W - 51, 7, C.ink, 0.6); mx.rect(51, y + 20, Math.round((W - 53) * X.frac), 5, AMB, 0.9);
+    g.miniR(comma(X.into) + ' / ' + comma(X.span) + ' XP TO LV ' + (X.lv + 1), W - 2, y + 28, { a: 0.7 });
+    y += 40;
+    y = g.section('THIS WEEK', y, '+' + comma(X.wkXP) + ' XP');
+    const lines = WK_LINES.filter(([k]) => X.wk[k]);
+    if (!lines.length) { g.mini('NOTHING LOGGED YET THIS WEEK', 2, y + 1, { a: 0.5 }); y += 9; }
+    lines.forEach(([k, lab, c]) => { const b = X.wk[k]; mx.disc(4, y + 3, 1.6, c, 1); g.text(g.fit(lab(b), W - 40), 9, y); g.textR('+' + comma(b.xp), W - 2, y, { c }); y += 9; });
+    y += 3;
+    y = g.section('PERSONAL BESTS', y);
+    bests().forEach(r => { g.mini(g.fit(r[0], 58, 'mini'), 1, y + 1, { a: 0.65 }); g.text(g.fit(r[1], W - 92), 60, y, { c: r[1] === '--' ? C.ink : HOT, a: r[1] === '--' ? 0.35 : 1 }); if (r[2]) g.miniR(r[2], W - 2, y + 1, { a: 0.5 }); y += 9; });
     y += 3;
     const SB = BADGES.map(badgeState), earned = SB.filter(s => s.tier).length;
-    y = g.section('BADGES', y - 1, earned + ' OF ' + BADGES.length + ' EARNED') - 1;
+    y = g.section('BADGES', y, earned + ' OF ' + BADGES.length + ' EARNED');
     const cols = 6, tw = Math.min(26, Math.floor((W - 1) / cols) - 1), th = 24;
     st.badge = clamp(st.badge || 0, 0, BADGES.length - 1);
     BADGES.forEach((b, i) => {
@@ -471,19 +614,22 @@ window.RX = window.RX || {};
     g.mini(FONT.fit(b.desc, W - 18, 'mini'), 14, y + 13, { a: 0.8 });
     g.miniR(t === 3 ? 'MAXED' : Math.floor(s.frac * 100) + '% TO ' + ROMAN[t + 1], W - 4, y + 5, { c: AMB, a: 1 });
     if (b.id === 'native') g.mini(FONT.fit(S.profile.cityName ? S.profile.cityName.toUpperCase() + ' ' + Math.round(S.profile.cityPct || 0) + '%' : 'READING YOUR CITY...', W - 18, 'mini'), 14, y + 19, { a: 0.5 });
+    y += 30;
+    g.scrollEnd(y);
   }
 
   // ======================================================================
   // PAGE 4 · FILE
   // ======================================================================
   const BLOODS = ['', 'O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
+  const SEXES = [null, 'M', 'F'];
   const FASTG = [16, 18, 20, 24, 36, 48, 72, 100];
   const FIELDT = [0, 5, 8, 10, 15, 20, 30];
   function pageFile(g, st, A) {
-    const W = g.W, mx = g.mx, P = S.profile;
+    const W = g.W, P = S.profile;
     if (st.edit && !(U.activeField && U.activeField.key === 'pf-' + st.edit)) st.edit = null;
     let y = g.scrollBegin(13, g.H - 12) + 2;
-    const sect = (t) => { y = g.section(t, y) ; };
+    const sect = (t) => { y = g.section(t, y); };
     // a row: label left, value right; tap = act. kind:'text'|'number'|'date' rows turn into a field while editing
     const row = (label, val, col, act, o) => {
       o = o || {};
@@ -522,13 +668,13 @@ window.RX = window.RX || {};
     row('BIRTHDAY', P.birth ? 'AGE ' + age() : '', HOT, () => { st.edit = 'birth'; U.fieldRects['pf-birth'] = { x: 62, y: 0, w: W - 64, h: 11 }; U.openField('pf-birth', Object.assign({ value: P.birth }, fBirth.field)); }, Object.assign(fBirth, { hint: P.birth ? md(P.birth) : '' }));
     const fH = fld('height', P.heightIn ? (metric() ? Math.round(P.heightIn * 2.54) : Math.floor(P.heightIn / 12) + "'" + Math.round(P.heightIn % 12)) : '', 'text', v => { const n = parseHeight(v); if (n && n > 36 && n < 96) P.heightIn = Math.round(n * 10) / 10; else if (v) A.say(metric() ? 'HEIGHT IN CM · e.g. 178' : "HEIGHT · e.g. 5'10", 3000); }, { placeholder: metric() ? 'CM' : "5'10" });
     row('HEIGHT', P.heightIn ? ht(P.heightIn) : '', HOT, edit('height', fH.raw, fH.field), fH);
+    row('SEX', P.sex === 'M' ? 'MALE' : P.sex === 'F' ? 'FEMALE' : '', HOT, () => { P.sex = SEXES[(SEXES.indexOf(P.sex || null) + 1) % SEXES.length]; S.saveProfile(); A.beep('jog'); }, { hint: 'FOR BODY FAT' });
     row('BLOOD', P.blood, HOT, () => { P.blood = BLOODS[(BLOODS.indexOf(P.blood) + 1) % BLOODS.length]; S.saveProfile(); A.beep('jog'); }, { hint: 'TAP TO STEP' });
     const fHome = fld('home', P.home, 'text', v => { P.home = String(v || '').trim().toUpperCase().slice(0, 20); });
     row('HOME', P.home, HOT, edit('home', P.home, fHome.field), fHome);
-    row('PORTRAIT', P.photo ? 'CROP ▸' : 'ADD ▸', CYN, () => { if (P.photo) A.go('portrait'); else A.pickPortrait(url => { P.photo = url; P.crop = null; S.saveProfile(true); A.go('portrait'); }); });
     y += 3; sect('GOALS');
     const toLbs = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? (metric() ? n / 0.45359 : n) : null; };
-    const fGoal = fld('goal', P.goalLbs ? wt(P.goalLbs) : '', 'number', v => { const n = toLbs(v); if (n && n > 60 && n < 600) P.goalLbs = Math.round(n * 10) / 10; else if (v === '' ) P.goalLbs = null; });
+    const fGoal = fld('goal', P.goalLbs ? wt(P.goalLbs) : '', 'number', v => { const n = toLbs(v); if (n && n > 60 && n < 600) P.goalLbs = Math.round(n * 10) / 10; else if (v === '') P.goalLbs = null; });
     row('GOAL WEIGHT', P.goalLbs ? wt(P.goalLbs) + ' ' + wtU() : '', YEL, edit('goal', fGoal.raw, fGoal.field), fGoal);
     const fStart = fld('start', P.startLbs ? wt(P.startLbs) : '', 'number', v => { const n = toLbs(v); if (n && n > 60 && n < 600) P.startLbs = Math.round(n * 10) / 10; else if (v === '') P.startLbs = null; }, { placeholder: 'FIRST WEIGH-IN' });
     const L = wis();
@@ -537,7 +683,7 @@ window.RX = window.RX || {};
     row('FAST GOAL', P.fastGoal + 'H', AMB, () => { P.fastGoal = FASTG[(FASTG.indexOf(P.fastGoal) + 1) % FASTG.length]; S.saveProfile(); A.beep('jog'); });
     row('FIELD', P.fieldTarget ? P.fieldTarget + ' / WK' : 'AUTO', GRN, () => { P.fieldTarget = FIELDT[(FIELDT.indexOf(P.fieldTarget) + 1) % FIELDT.length]; S.saveProfile(); A.beep('jog'); }, { hint: P.fieldTarget ? '' : 'YOUR USUAL WEEK' });
     y += 3; sect('UNITS');
-    row('WEIGHT · HEIGHT', metric() ? 'KG · CM' : 'LB · FT', HOT, () => { P.units = metric() ? 'US' : 'METRIC'; S.saveProfile(); A.beep('jog'); });
+    row('WEIGHT · HEIGHT', metric() ? 'KG · CM' : 'LB · IN', HOT, () => { P.units = metric() ? 'US' : 'METRIC'; S.saveProfile(); A.beep('jog'); });
     y += 4;
     g.scrollEnd(y);
   }
@@ -545,45 +691,54 @@ window.RX = window.RX || {};
   // ======================================================================
   // THE SCREEN
   // ======================================================================
-  const JOGS = [['◂ UP', 'DOWN ▸', 'PUSH SELECT · DRUM = PAGE'], ['◂ TURN', 'TURN ▸', 'ROLL THE DRUM FOR PAGES'], ['◂ BADGE', 'BADGE ▸', 'ROLL THE DRUM FOR PAGES'], ['◂ UP', 'DOWN ▸', 'PUSH EDIT · DRUM = PAGE']];
+  const JOGS = [['◂ UP', 'DOWN ▸', 'PUSH OPENS · TAP MAUS'], ['◂ UP', 'DOWN ▸', 'PUSH SELECT · DRUM = PAGE'], ['◂ BADGE', 'BADGE ▸', 'ROLL THE DRUM FOR PAGES'], ['◂ UP', 'DOWN ▸', 'PUSH EDIT · DRUM = PAGE']];
+  const FOOT = ['TAP MAUS · DRUM ▸ BODY · RECORD · FILE', 'BODY FAT FROM THE TAPE · NAVY METHOD', 'XP: EVERYTHING YOU LOG · NEW RANK EVERY 5 LV', 'TAP A ROW TO CHANGE IT'];
   const DRUM_IDS = ['status', 'body', 'record', 'file'];
   RX.screens.profile = {
     drum: DRUM_IDS,
-    enter(st, params, A) { st.pg = params.page != null ? params.page : (S.v2.profPage || 0); st.page = DRUM_IDS[st.pg]; st.ang = 0; st.badge = 0; checkBadges(A); refreshCity(A); },
+    enter(st, params, A) { st.pg = params.page != null ? params.page : (S.v2.profPage || 0); st.page = DRUM_IDS[st.pg]; st.badge = 0; st.force = params.state || null; checkBadges(A); refreshCity(A); },
     onPage(pg, st, A) { turn(st, A, Math.max(0, DRUM_IDS.indexOf(pg))); },
     resume(st, A) { checkBadges(A); },
-    animating: st => st.pg === 1 || !!S.activeFast(),
+    animating: st => !!st.pokeAt && performance.now() - st.pokeAt < POKE_MS + 80,
     jogLabels: st => JOGS[st.pg || 0],
     jog(d, st, A) {
-      if (st.pg === 1) { st.ang = ((st.ang || 0) + d * 2 + NFR) % NFR; st.spunAt = Date.now(); return; }
       if (st.pg === 2) { st.badge = clamp((st.badge || 0) + d, 0, BADGES.length - 1); return; }
       A.focusJog(d);
     },
-    push(st, A) { if (st.pg === 1 || st.pg === 2) return; A.focusPush(); },
+    push(st, A) { if (st.pg === 2) return; A.focusPush(); },
     longPress(d, st, A) {
       const r = st.trainRect;
       if (st.pg === 0 && r && d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h && oldTrained()) undoTrained(A);
     },
     render(g, st, A) {
-      header(g, st, A);
-      if (st.pg === 0) pageStatus(g, st, A);
+      header(g, st);
+      if (st.pg === 0) pageStat(g, st, A);
       else if (st.pg === 1) pageBody(g, st, A);
       else if (st.pg === 2) pageRecord(g, st, A);
       else pageFile(g, st, A);
-      if (st.pg !== 0) g.footer(A.sayActive() ? A.statusShown(g.t) : ['', 'JOG TURNS · SPINS ON ITS OWN', '◂ ▸ PICK A BADGE', 'TAP A ROW TO CHANGE IT'][st.pg]);
-      else if (A.sayActive()) { const y = g.H - 23; g.mx.clearRect(0, y, g.W, 9); g.mini(FONT.fit(A.statusShown(g.t), g.W - 4, 'mini'), 2, y + 2, { c: HOT, a: 1 }); }
+      g.footer(A.sayActive() ? A.statusShown(g.t) : FOOT[st.pg]);
     },
     lcd() {
-      const wi = weightInfo(), f = S.activeFast(), tr = trainInfo();
-      return { rows: [['WT', wi.cur == null ? '--' : wt(wi.cur) + ' ' + wtU() + (S.profile.goalLbs ? ' ▸ ' + wt(S.profile.goalLbs) : '')], ['TRN', tr.done + '/' + tr.T + ' THIS WEEK'], ['FST', f ? Math.floor((Date.now() - f.startTs) / 36e5) + 'H RUNNING' : 'READY · STRK ' + S.fastStreak().current]], tag: 'PRF' };
+      const X = xpInfo(), m = mausState(), wi = weightInfo(), bi = bodyInfo();
+      return { rows: [['MAUS', m.key.replace('_', ' ')], ['LV', X.lv + ' · ' + X.rank], ['WT', wi.cur == null ? '--' : wt(wi.cur) + ' ' + wtU() + (bi.bf != null ? ' · ' + bi.bf.toFixed(1) + '%' : '')]], tag: 'PRF' };
     }
   };
 
   // ======================================================================
-  // WEIGH-IN BOX (over STATUS)
+  // WEIGH-IN BOX (over STAT or BODY)
   // ======================================================================
+  function behind(g, st, A) {
+    const bg = { pg: st.from === 1 ? 1 : 0 };
+    st.scroll = st.from === 1 ? st.bgScroll || 0 : 0;   // the page's scroll region reads the box's state
+    header(g, bg); (bg.pg === 1 ? pageBody : pageStat)(g, bg, A, true);
+    U.hits.length = 0; U.focus.length = 0; g.focusIdx = 0; g.selRect = null;
+    g.mx.dimRect(0, 11, g.W, g.H - 11, 0.25);
+  }
   RX.screens.weighin = {
-    enter(st) { const L = wis(); st.lbs = L.length ? L[L.length - 1].lbs : (S.profile.startLbs || 180); st.prev = L.length ? L[L.length - 1] : null; st.mode = 'jog'; st.str = ''; },
+    enter(st, params, A) {
+      const L = wis(); st.lbs = L.length ? L[L.length - 1].lbs : (S.profile.startLbs || 180); st.prev = L.length ? L[L.length - 1] : null; st.mode = 'jog'; st.str = '';
+      st.from = params && params.from; const t = A && A.stack[A.stack.length - 2]; st.bgScroll = t && t.st ? t.st.scroll || 0 : 0;
+    },
     jogLabels: st => st.mode === 'jog' ? ['◂ -' + (metric() ? '0.1' : '0.2'), '+' + (metric() ? '0.1' : '0.2') + ' ▸', 'PUSH SAVE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT'],
     jog(d, st, A) {
       if (st.mode === 'jog') { const step = metric() ? 0.1 / 0.45359 : 0.2; st.lbs = Math.round(clamp(st.lbs + d * step, 60, 600) * 100) / 100; return; }
@@ -592,11 +747,7 @@ window.RX = window.RX || {};
     push(st, A) { if (st.mode === 'jog') { save(st, A); return; } A.focusPush(); },
     render(g, st, A) {
       const W = g.W, mx = g.mx;
-      // STATUS sits behind, dimmed, and can't be touched
-      const bg = { page: 0 };
-      g.header('PROFILE · STATUS', '1/4'); pageStatus(g, bg, A, true);
-      U.hits.length = 0; U.focus.length = 0; g.focusIdx = 0; g.selRect = null;
-      mx.dimRect(0, 11, W, g.H - 11, 0.25);
+      behind(g, st, A);
       const pad = st.mode === 'pad', bx = 8, by = 24, bw = W - 16, bh = pad ? 150 : 96;
       mx.clearRect(bx, by, bw, bh); mx.frame(bx, by, bw, bh, YEL, 1); mx.rect(bx + 1, by + 1, bw - 2, 10, YEL, 0.15);
       g.text('WEIGH IN', bx + 5, by + 3, { c: YEL }); g.miniR(md(Date.now()), bx + bw - 4, by + 4, { a: 0.7 });
@@ -651,70 +802,87 @@ window.RX = window.RX || {};
   }
 
   // ======================================================================
-  // PORTRAIT CROP
+  // TAPE MEASURE: neck + waist (+ hips) give body fat; the rest is optional
   // ======================================================================
-  RX.screens.portrait = {
-    enter(st) { const P = S.profile; st.crop = P.crop ? P.crop.slice() : null; st.bright = P.bright || 0; st.contrast = P.contrast || 0; },
-    jogLabels: () => ['◂ WIDER', 'CLOSER ▸', 'PUSH SAVE'],
-    jog(d, st, A) { zoomBy(st, d > 0 ? 1.08 : 1 / 1.08); },
-    push(st, A) { savePortrait(st, A); },
-    drag(dx, dy, st) {
-      const im = photoImg(S.profile.photo); if (!im || !st.view) return;
-      const c = st.crop || (st.crop = defaultCrop(im));
-      c[0] = clamp(c[0] + dx / st.view.k, 0, im.width - c[2]); c[1] = clamp(c[1] + dy / st.view.k, 0, im.height - c[3]);
+  const TAPE_ROWS = [['neck', 'NECK'], ['waist', 'WAIST'], ['hips', 'HIPS'], ['chest', 'CHEST'], ['arm', 'ARM'], ['thigh', 'THIGH']];
+  const TAPE_DEF = { neck: 15.5, waist: 36, hips: 40, chest: 42, arm: 14, thigh: 23 };
+  const needs = k => k === 'neck' || k === 'waist' || (k === 'hips' && S.profile.sex === 'F');
+  const tStep = () => metric() ? 0.5 / 2.54 : 0.25;
+  function bumpTape(st, k, d) {
+    const v = st.v[k] == null ? (st.last && st.last[k]) || TAPE_DEF[k] : st.v[k];
+    st.v[k] = clamp(Math.round((v + d * tStep()) * 1000) / 1000, 6, 80);
+  }
+  RX.screens.tape = {
+    pal: 'amber',
+    enter(st) {
+      const L = lastTape(); st.last = L; st.v = {}; st.jk = null;
+      TAPE_ROWS.forEach(([k]) => { st.v[k] = L && L[k] ? L[k] : (needs(k) ? TAPE_DEF[k] : null); });
     },
-    pinch(f, st) { zoomBy(st, f); },
+    jogLabels: st => st.jk ? ['◂ -' + (metric() ? '0.5' : '¼'), '+' + (metric() ? '0.5' : '¼') + ' ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT'],
+    jog(d, st, A) { if (st.jk) { bumpTape(st, st.jk, d); A.beep('jog'); return; } A.focusJog(d); },
+    push(st, A) { if (st.jk) { st.jk = null; A.refreshChrome(); return; } A.focusPush(); },
+    back(st, A) { if (st.jk) { st.jk = null; A.refreshChrome(); return true; } return false; },
     render(g, st, A) {
-      const W = g.W, H = g.H, mx = g.mx, P = S.profile, im = photoImg(P.photo);
-      g.header('PROFILE · PORTRAIT', '4/4');
-      if (!im) { g.textC(P.photo ? 'LOADING...' : 'NO PHOTO', W / 2, 60, { a: 0.6 }); g.btn(20, 80, W - 40, 13, 'PICK A PHOTO', () => pick(st, A)); g.footer('THE PHOTO STAYS ON THIS PHONE'); return; }
-      const c = st.crop || (st.crop = defaultCrop(im));
-      // the whole photo, dim outside the box
-      const sw = Math.min(W - 26, Math.round((H - 100) * im.width / im.height)), sh = Math.round(sw * im.height / im.width), sx = Math.round((W - sw) / 2), sy = 14, k = sw / im.width;
-      st.view = { k };
-      const bx = Math.round(c[0] * k), by = Math.round(c[1] * k), bw = Math.round(c[2] * k), bh = Math.round(c[3] * k);
-      blit(mx, sx, sy, sw, sh, cells(im, [0, 0, im.width, im.height], sw, sh, { sharp: 0.3, gamma: 1.6, floor: 0.05 }), C.ink, (i, j) => (i >= bx && i < bx + bw && j >= by && j < by + bh) ? 1 : 0.28);
-      mx.frame(sx - 1, sy - 1, sw + 2, sh + 2, C.ink, 0.3);
-      mx.frame(sx + bx, sy + by, bw, bh, HOT, 1);
-      [[0, 0], [bw - 3, 0], [0, bh - 3], [bw - 3, bh - 3]].forEach(([a, b]) => mx.rect(sx + bx + a, sy + by + b, 3, 3, HOT, 1));
-      for (let t = 1; t < 3; t++) { mx.hline(sx + bx + 1, sy + by + Math.round(bh * t / 3), bw - 2, HOT, 0.25, 2); mx.vline(sx + bx + Math.round(bw * t / 3), sy + by + 1, bh - 2, HOT, 0.25, 2); }
-      // live preview at the size STATUS shows it
-      let y = sy + sh + 6; mx.hline(0, y - 3, W, C.ink, 0.3, 2);
-      g.mini('PREVIEW', 4, y, { a: 0.6 });
-      const px = 4, py = y + 8;
-      blit(mx, px, py, PW, PH, cells(im, c, PW, PH, { bright: st.bright, contrast: st.contrast }), C.ink);
-      corners(mx, px, py, PW, PH);
-      // sliders: tap along them
-      const cx = 58, sw2 = W - cx - 2; let cy = y;
-      const maxW = Math.min(im.width, im.height * PW / PH), zoom = maxW / c[2];
-      const slider = (lab, f, val, set) => {
-        g.mini(lab, cx, cy + 1, { a: 0.7 }); g.textR(val, W - 2, cy, { c: HOT });
-        const n = Math.floor(sw2 / 3); for (let i = 0; i < n; i++) mx.rect(cx + i * 3, cy + 9, 2, 4, CYN, i < Math.round(f * n) ? 1 : 0.13);
-        g.hit(cx - 2, cy + 6, sw2 + 4, 10, p => { set(clamp((p.x - cx) / sw2, 0, 1)); A.beep('jog'); });
-        cy += 18;
-      };
-      slider('ZOOM', (zoom - 1) / 3, zoom.toFixed(1) + 'X', f => zoomTo(st, 1 + f * 3));
-      slider('BRIGHT', (st.bright + 4) / 8, (st.bright > 0 ? '+' : '') + st.bright, f => { st.bright = Math.round(f * 8) - 4; });
-      slider('CONTRAST', (st.contrast + 4) / 8, (st.contrast > 0 ? '+' : '') + st.contrast, f => { st.contrast = Math.round(f * 8) - 4; });
-      const b2 = Math.floor((sw2 - 3) / 2);
-      g.btn(cx, cy + 2, b2, 11, 'PHOTO', () => pick(st, A));
-      g.btn(cx + b2 + 3, cy + 2, sw2 - b2 - 3, 11, 'SAVE', () => savePortrait(st, A), { c: GRN, on: true });
-      g.footer(A.sayActive() ? A.statusShown(g.t) : 'DRAG BOX · PINCH ZOOM');
+      const W = g.W, H = g.H, mx = g.mx, P = S.profile;
+      let y = g.header('TAPE MEASURE', md(Date.now()), { c: AMB });
+      y = g.scrollBegin(y, H - 12);
+      // who it's for: the formula differs
+      g.mini('SEX', 2, y + 3, { a: 0.7 });
+      g.seg(30, y, W - 32, 12, [['M', 'MALE'], ['F', 'FEMALE']].map(([k, l]) => ({ label: l, on: P.sex === k, fn: () => { P.sex = k; if (k === 'F' && st.v.hips == null) st.v.hips = (st.last && st.last.hips) || TAPE_DEF.hips; S.saveProfile(); A.beep('jog'); } })), { face: 'mini' });
+      y += 15;
+      g.mini('HEIGHT', 2, y + 3, { a: 0.7 });
+      if (P.heightIn) g.textR(ht(P.heightIn), W - 4, y + 2, { c: HOT });
+      g.btn(30, y, P.heightIn ? 40 : W - 32, 11, P.heightIn ? 'CHANGE' : 'SET IT IN FILE ▸', () => { A.back(); const t = A.top(); if (t.name === 'profile') turn(t.st, A, 3); }, { face: 'mini' });
+      y += 15;
+      y = g.section('MEASURE', y, metric() ? 'CM' : 'INCHES');
+      TAPE_ROWS.forEach(([k, lab]) => {
+        const v = st.v[k], on = st.jk === k, need = needs(k);
+        // optional rows: tap the name to add or skip them
+        const sel = g.focusable(0, y, W - 104, 14, () => { if (need) { st.jk = on ? null : k; A.refreshChrome(); return; } if (v == null) { st.v[k] = (st.last && st.last[k]) || TAPE_DEF[k]; st.jk = k; } else { st.v[k] = null; if (on) st.jk = null; } A.refreshChrome(); A.beep('jog'); });
+        if (sel) mx.frame(0, y, W - 104, 14, HOT, 0.8);
+        const lw = g.text(lab, 3, y + 4, { c: v == null ? C.amber : HOT, a: v == null ? 0.4 : 1 });
+        if (need) g.mini('BF', 6 + lw, y + 5, { c: AMB, a: 0.85 });
+        g.btn(W - 102, y, 22, 14, '-', () => { bumpTape(st, k, -1); st.jk = k; A.beep('jog'); });
+        const s2 = g.focusable(W - 78, y, 54, 14, () => { if (v == null) st.v[k] = (st.last && st.last[k]) || TAPE_DEF[k]; st.jk = on ? null : k; A.refreshChrome(); A.beep('key'); });
+        if (on) { mx.rect(W - 77, y + 1, 52, 12, AMB, 0.22); mx.frame(W - 78, y, 54, 14, AMB, 1); }
+        else mx.frame(W - 78, y, 54, 14, C.amber, s2 ? 1 : 0.25);
+        g.textC(len(v), W - 51, y + 4, { c: on ? HOT : C.amber, a: v == null ? 0.4 : 1 });
+        g.btn(W - 22, y, 20, 14, '+', () => { bumpTape(st, k, 1); st.jk = k; A.beep('jog'); });
+        y += 17;
+      });
+      // the answer, live
+      const bf = navy(P.sex, P.heightIn, st.v.neck, st.v.waist, st.v.hips);
+      mx.hline(0, y, W, C.amber, 0.3, 2); y += 4;
+      g.mini('BODY FAT · NAVY', 2, y + 2, { a: 0.7 });
+      if (bf != null) {
+        g.textR(bf.toFixed(1), W - 12, y, { s: 2, c: HOT }); g.text('%', W - 10, y + 7, { c: AMB });
+        const prev = tapeBF(st.last);
+        if (prev != null) { const d = bf - prev; g.mini((d <= -0.05 ? '▼ ' : d >= 0.05 ? '▲ ' : '') + Math.abs(d).toFixed(1) + ' PT VS ' + md(st.last.ts), 2, y + 10, { c: d > 0.05 ? YEL : GRN, a: 1 }); }
+      } else g.mini(!P.sex ? 'PICK MALE OR FEMALE' : !P.heightIn ? 'NEEDS YOUR HEIGHT' : 'WAIST MUST BE OVER NECK', 2, y + 10, { c: ORG, a: 1 });
+      y += 20;
+      g.btn(0, y, W - 2, 15, '▸ SAVE TAPE', () => saveTape(st, A), { solid: true, c: AMB });
+      y += 19;
+      g.scrollEnd(y);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : st.jk ? 'JOG ▸ CHANGE · PUSH ▸ OK' : 'TAP A NAME TO ADD OR SKIP IT');
     }
   };
-  function zoomTo(st, z) {
-    const im = photoImg(S.profile.photo); if (!im) return;
-    const c = st.crop || (st.crop = defaultCrop(im)), maxW = Math.min(im.width, im.height * PW / PH);
-    const w = clamp(maxW / clamp(z, 1, 4), maxW / 4, maxW), h = w * PH / PW, mx = c[0] + c[2] / 2, my = c[1] + c[3] / 2;
-    st.crop = [clamp(mx - w / 2, 0, im.width - w), clamp(my - h / 2, 0, im.height - h), w, h];
-  }
-  function zoomBy(st, f) { const im = photoImg(S.profile.photo); if (!im) return; const c = st.crop || defaultCrop(im), maxW = Math.min(im.width, im.height * PW / PH); zoomTo(st, maxW / c[2] * f); }
-  function pick(st, A) { A.pickPortrait(url => { S.profile.photo = url; S.profile.crop = null; st.crop = null; S.saveProfile(true); A.dirty = true; }); }
-  function savePortrait(st, A) {
-    const P = S.profile; P.crop = st.crop ? st.crop.map(v => Math.round(v * 10) / 10) : null; P.bright = st.bright; P.contrast = st.contrast;
-    S.saveProfile(true); A.beep('ok'); A.back(); A.say('PORTRAIT SAVED', 2500);
+  function saveTape(st, A) {
+    const v = st.v;
+    if (!v.neck || !v.waist) { A.say('NECK AND WAIST, AT LEAST', 2500); A.beep('err'); return; }
+    if (v.waist <= v.neck) { A.say('WAIST MUST BE OVER NECK', 2500); A.beep('err'); return; }
+    const t = { id: S.healthId('TP'), ts: Date.now() };
+    TAPE_ROWS.forEach(([k]) => { t[k] = v[k] != null ? Math.round(v[k] * 100) / 100 : null; });
+    // one tape a day: a second one today replaces the first
+    S.tapes = S.tapes.filter(x => x.ts < dayStart()); S.tapes.push(t); S.saveTapes();
+    const bf = tapeBF(t);
+    A.back(); A.beep('ok');
+    A.say('TAPE SAVED' + (bf != null ? ' · BODY FAT ' + bf.toFixed(1) + '%' : ''), 3500);
+    checkBadges(A);
   }
 
-  // badges keep counting while the RP is on, even with PROFILE closed
+  // for tests and the calendar
+  RX.profile = { navy, tapeBF, bodyInfo, mausState, xpInfo, areaDays, prInfo, buildNow, levelOf, cum, bars };
+
+  // badges and levels keep counting while the RP is on, even with PROFILE closed
   setInterval(() => { if (RX.app && RX.app.booted) checkBadges(RX.app); }, 120000);
 })();
