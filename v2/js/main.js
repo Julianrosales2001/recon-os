@@ -1038,8 +1038,9 @@ window.RX = window.RX || {};
   A.placeLookup = placeLookup;
 
   // ---------- lamps ----------
-  function lamp(id, on, cls) {
+  function lamp(id, on, cls) {   // the status-lamp row is gone (2.29.2); kept so a lamp can come back by markup alone
     const el = document.querySelector('.lamp[data-lamp="' + id + '"] .led');
+    if (!el) return;
     el.classList.toggle('on', !!on);
     el.classList.toggle('blink', cls === 'blink');
     el.classList.toggle('pulse', cls === 'pulse');
