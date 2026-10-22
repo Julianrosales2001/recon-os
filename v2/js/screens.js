@@ -369,19 +369,6 @@ window.RX = window.RX || {};
     else items.sort((a, b) => S.markLabel(a.p).localeCompare(S.markLabel(b.p)));
     return items;
   }
-  function assetFilters(g, st, y, A) {
-    const W = g.W;
-    g.btn(0, y, 21, 11, 'ALL', () => { st.cat = null; st.scroll = 0; }, { on: !st.cat, face: 'mini' });
-    U.CATS.forEach((cat, i) => {
-      const x = 23 + i * 15, on = st.cat === cat.id;
-      const sel = g.focusable(x, y, 14, 11, () => { st.cat = on ? null : cat.id; st.scroll = 0; });
-      g.mx.frame(x, y, 14, 11, on ? cat.color : C.ink, on || sel ? 1 : 0.3);
-      g.mx.disc(x + 7, y + 5, 3, cat.color, !st.cat || on ? 1 : 0.3);
-    });
-    const sx = 23 + 6 * 15 + 2;
-    g.btn(sx, y, W - sx, 11, (st.sort || 'NEAR') + ' ▸', () => { st.sort = SORTS[(SORTS.indexOf(st.sort || 'NEAR') + 1) % SORTS.length]; S.saveV2({ logSort: st.sort }); st.scroll = 0; }, { face: 'mini' });
-    return y + 14;
-  }
   function assetRows(g, st, A, items, y, onTap) {
     const W = g.W, top = g.sTop, bot = g.sBottom;
     items.forEach(it => {
@@ -429,6 +416,140 @@ window.RX = window.RX || {};
     return yy;
   }
 
+  // ---- ASSETS as a cabinet: a drawer per kind (count + its colour mix), ALL, PENDING, FIND ----
+  const filedMarks = () => S.pois.filter(p => p.category);
+  const kindKey = p => U.kindOf(p) || 'WAYPOINT';
+  function drawers() {
+    const m = {};
+    filedMarks().forEach(p => { const k = kindKey(p); (m[k] = m[k] || []).push(p); });
+    return Object.entries(m).map(([k, ps]) => ({ k, ps })).sort((a, b) => b.ps.length - a.ps.length || a.k.localeCompare(b.k));
+  }
+  function mixBar(g, x, y, w, ps) {   // the colours in a drawer, as one thin bar
+    const n = ps.length; let xx = x;
+    U.CATS.forEach(c => { const k = ps.filter(p => p.category === c.id).length; if (!k || xx >= x + w) return; const ww = Math.max(1, Math.round(w * k / n)); g.mx.rect(xx, y, Math.min(ww, x + w - xx), 2, c.color, 0.95); xx += ww; });
+  }
+  const magnifier = (mx, x, y, c, a) => { mx.ring(x + 3, y + 3, 2.6, c, a); mx.line(x + 5, y + 5, x + 7, y + 7, c, a); };
+  function openFind(A) {   // FIND: everything, with the search line open (inside the tap, so the keyboard comes up)
+    A.go('drawer', { k: 'ALL', find: true });
+    const st2 = A.top().st;
+    U.openField('drw-find', { value: '', onInput: v => { st2.q = v; st2.scroll = 0; st2.sel = 0; }, onCommit: v => { st2.q = v; } });
+  }
+  function cabinet(g, st, A, y, bottom) {
+    const W = g.W, mx = g.mx, D = drawers(), pend = S.pending().length, all = filedMarks().length;
+    // the top shelf
+    const w3 = Math.floor((W - 4 - 22) / 2);
+    g.btn(0, y, w3, 13, 'ALL ' + all, () => A.go('drawer', { k: 'ALL' }));
+    g.btn(w3 + 2, y, w3, 13, 'PENDING ' + pend, () => { if (pend) A.go('drawer', { k: 'PEND' }); else { A.say('NOTHING PENDING · ALL FILED', 2000); A.beep('key'); } }, { c: pend ? C.amber : C.ink, dim: !pend });
+    const fx = w3 * 2 + 4, fw = W - fx, fsel = g.focusable(fx, y, fw, 13, () => openFind(A));
+    mx.frame(fx, y, fw, 13, C.ink, fsel ? 1 : 0.55); if (fsel) mx.frame(fx + 2, y + 2, fw - 4, 9, C.ink, 0.45, 2);
+    magnifier(mx, fx + Math.floor(fw / 2) - 4, y + 3, fsel ? C.hot : C.ink, 1);
+    y += 16;
+    // the drawers, three across
+    const cw = Math.floor((W - 4) / 3), ch = 27;
+    let yy = g.scrollBegin(y, bottom);
+    if (!st.jog) st.sel = g.focusIdx;   // the jog's first click lands on the first drawer
+    D.forEach((d, i) => {
+      const x = (i % 3) * (cw + 2), ty = yy + Math.floor(i / 3) * (ch + 2);
+      const sel = g.focusable(x, ty, cw, ch, () => A.go('drawer', { k: d.k }));
+      mx.frame(x, ty, cw, ch, sel ? C.hot : C.ink, sel ? 1 : 0.4);
+      if (sel) mx.frame(x + 2, ty + 2, cw - 4, ch - 4, C.hot, 0.35, 2);
+      g.kindPin(x + 8, ty + 8, d.k, C.amber, { r: 5 });
+      g.textR(String(d.ps.length), x + cw - 3, ty + 3, { c: sel ? C.hot : C.ink });
+      g.mini(g.fit(d.k, cw - 6, 'mini'), x + 3, ty + 16, { a: sel ? 1 : 0.75, c: sel ? C.hot : C.ink });
+      mixBar(g, x + 3, ty + 23, cw - 6, d.ps);
+    });
+    yy += Math.ceil(D.length / 3) * (ch + 2);
+    if (!D.length) { g.textC('NO MARKS FILED YET', W / 2, yy + 10, { a: 0.5 }); yy += 24; }
+    g.scrollEnd(yy);
+    return D.length + ' DRAWERS · TAP ONE · JOG PICKS · PUSH OPENS';
+  }
+
+  // one drawer: a line a mark, nearest first; colour chips narrow it; the jog's pick opens up to show more
+  RX.screens.drawer = {
+    enter(st, params) { st.k = params.k || 'ALL'; st.sort = S.v2.logSort || 'NEAR'; st.c = null; st.q = ''; st.find = !!params.find; },
+    lcd(st, A) {
+      const it = st._first;
+      return { rows: [['DRWR', st.k === 'PEND' ? 'PENDING' : st.k], ['SHOWN', String(st._n || 0)], ['NEAR', it ? S.markLabel(it.p) + ' · ' + Geo.fmtDist(it.m) : '--']], tag: 'LOG' };
+    },
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, bottom = footTop(g);
+      if (st.k === 'PEND') {
+        const list = S.pending().slice().sort((a, b) => (b.created || 0) - (a.created || 0));
+        g.header('ASSETS ▸ PENDING', list.length + ' WAITING', { c: C.amber });
+        let yy = g.scrollBegin(13, bottom);
+        yy = pendRows(g, A, list, yy);
+        if (!list.length) { g.textC('ALL FILED ✓', W / 2, yy + 12, { c: C.hot }); yy += 26; }
+        g.scrollEnd(yy);
+        g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP A COLOR TO FILE IT · NAME ▸ TO OPEN');
+        return;
+      }
+      const all = st.k === 'ALL';
+      const base = (all ? filedMarks() : filedMarks().filter(p => kindKey(p) === st.k)).map(p => ({ p, m: distTo(A, p), b: brgTo(A, p) }));
+      let items = st.c ? base.filter(it => it.p.category === st.c) : base;
+      const q = RX.font.norm(st.q || '').trim();
+      if (q) items = items.filter(it => RX.font.norm([it.p.name, it.p.notes, kindKey(it.p)].join(' ')).includes(q));
+      const sort = st.sort || 'NEAR';
+      if (sort === 'NEAR') items.sort((a, b) => a.m - b.m);
+      else if (sort === 'VISITS') items.sort((a, b) => (b.p.visits || 0) - (a.p.visits || 0) || a.m - b.m);
+      else if (sort === 'NEW') items.sort((a, b) => (b.p.created || 0) - (a.p.created || 0));
+      else items.sort((a, b) => S.markLabel(a.p).localeCompare(S.markLabel(b.p)));
+      st._n = items.length; st._first = items[0];
+      const SORTNAME = { NEAR: 'NEAREST', VISITS: 'MOST VISITED', NEW: 'NEWEST', 'A-Z': 'A-Z' };
+      const y0 = 13, yFind = y0 + 14, showFind = !!(st.find || q), yChips = yFind + (showFind ? 15 : 0), yList = yChips + 13;
+      // a line a mark; the one the jog is on opens up. Drawn first so the jog walks the marks before the buttons
+      if (!st.jog) st.sel = 0;
+      let yy = g.scrollBegin(yList, bottom);
+      const top = g.sTop, bot = g.sBottom;
+      items.forEach(it => {
+        const p = it.p, sel = !!st.jog && st.sel === g.focusIdx, h = sel ? 19 : 10;
+        g.row(0, yy, W - 2, h, () => A.openMark(p.id));
+        if (yy + h >= top && yy <= bot) {
+          const col = (U.catById(p.category) || { color: C.ink }).color;
+          if (all || st.c) mx.icon(U.kindIcon(kindKey(p)), 2, yy + 1, { c: col, a: 1 });
+          else mx.disc(5, yy + 4, 2, col, 1);
+          const right = sort === 'VISITS' ? '×' + (p.visits || 0) : Geo.fmtDist(it.m), rw = RX.font.measure(right);
+          g.text(g.fit(S.markLabel(p), W - rw - 17), 11, yy + 1, { c: sel ? C.hot : C.ink });
+          g.textR(right, W - 4, yy + 1, { a: sel ? 1 : 0.8 });
+          if (sel) {
+            const meta = [all ? kindKey(p) : null, Geo.cardinal(it.b) + ' ' + String(Math.round(it.b)).padStart(3, '0') + '°', sort === 'VISITS' ? Geo.fmtDist(it.m) : null,
+              (p.visits || 0) ? '×' + p.visits + ' · LAST ' + F.ago(p.lastVisited || p.created) : 'NOT VISITED YET', p.tier === 3 ? '★' : null].filter(Boolean).join(' · ');
+            g.mini(g.fit(meta, W - 16, 'mini'), 11, yy + 11, { a: 0.75 });
+          }
+        }
+        yy += h;
+      });
+      if (!items.length) { g.textC(q ? 'NOTHING MATCHES' : 'EMPTY', W / 2, yy + 10, { a: 0.5 }); yy += 24; }
+      g.scrollEnd(yy);
+      // the top: the drawer's label, how it's sorted, find, then its colours
+      mx.clearRect(0, 0, W, yList);
+      g.header('ASSETS ▸ ' + (all ? 'ALL' : st.k), base.length + ' · ' + SORTNAME[sort]);
+      let y = y0;
+      if (all) { mx.ring(7, y + 6, 4.5, C.amber, 1); mx.disc(7, y + 6, 1.5, C.amber, 1); } else g.kindPin(7, y + 6, st.k, C.amber, { r: 5 });
+      g.text(all ? 'EVERYTHING' : st.k, 16, y + 2, { c: C.hot });
+      const sw = 36, mxw = 13;
+      g.btn(W - sw - mxw - 2, y, sw, 11, sort + ' ▸', () => { st.sort = SORTS[(SORTS.indexOf(sort) + 1) % SORTS.length]; S.saveV2({ logSort: st.sort }); st.scroll = 0; st.sel = 0; }, { face: 'mini' });
+      const fsel = g.focusable(W - mxw, y, mxw, 11, () => { st.find = !st.find; if (!st.find) st.q = ''; else U.openField('drw-find', { value: st.q || '', onInput: v => { st.q = v; st.scroll = 0; st.sel = 0; }, onCommit: v => { st.q = v; } }); });
+      mx.frame(W - mxw, y, mxw, 11, st.find ? C.hot : C.ink, fsel || st.find ? 1 : 0.55); magnifier(mx, W - mxw + 2, y + 2, st.find ? C.hot : C.ink, 1);
+      if (showFind) g.field('drw-find', 0, yFind, W, 13, { label: 'FIND', value: st.q || '', placeholder: 'NAME, NOTES, KIND', onInput: v => { st.q = v; st.scroll = 0; st.sel = 0; }, onCommit: v => { st.q = v; } });
+      // the colours in this drawer: tap one to see only it
+      y = yChips;
+      let x = 0;
+      const chip = (label, col, on, fn) => {
+        const w = RX.font.measure(label, 'mini') + (col ? 10 : 6);
+        if (x + w > W) return;
+        const sel = g.focusable(x, y - 1, w, 11, fn);
+        if (on) mx.rect(x, y, w, 9, col || C.ink, 0.85); else mx.frame(x, y, w, 9, col || C.ink, sel ? 1 : 0.5);
+        if (col) mx.disc(x + 4, y + 4, 2, on ? '#04120C' : col, 1);
+        g.mini(label, x + (col ? 8 : 3), y + 2, { c: on ? '#04120C' : (col || C.ink), a: 1 });
+        x += w + 2;
+      };
+      chip('ALL ' + base.length, null, !st.c, () => { st.c = null; st.scroll = 0; st.sel = 0; });
+      U.CATS.forEach(c => { const n = base.filter(it => it.p.category === c.id).length; if (n) chip(String(n), c.color, st.c === c.id, () => { st.c = st.c === c.id ? null : c.id; st.scroll = 0; st.sel = 0; }); });
+      mx.hline(0, yChips + 11, W, C.ink, 0.25, 2);
+      g.footer(A.sayActive() ? A.statusShown(g.t) : items.length + ' SHOWN · TAP ONE · JOG PICKS · PUSH OPENS');
+    }
+  };
+
   RX.screens.log = {
     enter(st, params) {
       st.tab = params.tab || st.tab || 'assets';
@@ -454,23 +575,7 @@ window.RX = window.RX || {};
       const bottom = footTop(g);
       let foot = '';
       if (st.tab === 'assets') {
-        y = assetFilters(g, st, y, A);
-        g.field('log-find', 0, y, W, 13, { label: 'FIND', value: st.q || '', placeholder: 'NAME, NOTES, SYMBOL', onInput: v => { st.q = v; st.scroll = 0; }, onCommit: v => { st.q = v; } });
-        y += 15;
-        // unfiled marks ride on top until they're filed: knock them out first
-        const showPend = pend.length && !st.cat && !(st.q || '').trim();
-        const items = assetItems(A, st, !!showPend);
-        let yy = g.scrollBegin(y, bottom);
-        if (showPend) {
-          yy = g.section('PENDING · FILE THESE FIRST', yy, String(pend.length));
-          const list = pend.slice().sort((a, b) => (b.created || 0) - (a.created || 0));
-          yy = pendRows(g, A, list, yy);
-          yy = g.section('FILED', yy + 2, String(items.length));
-        }
-        yy = assetRows(g, st, A, items, yy, p => A.openMark(p.id));
-        if (!items.length) { g.textC('NO MATCHES', W / 2, yy + 10, { a: 0.5 }); yy += 24; }
-        g.scrollEnd(yy);
-        foot = (showPend ? pend.length + ' PENDING · ' : '') + items.length + ' SHOWN · TAP TO OPEN';
+        foot = cabinet(g, st, A, y, bottom);
       } else if (st.tab === 'rolo') {
         foot = RX.roloTab(g, st, A, y, bottom);
       } else {
