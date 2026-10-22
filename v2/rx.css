@@ -261,27 +261,38 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .deck { --aux-t: 96px; position: absolute; left: 6px; right: 6px; bottom: 6px; height: var(--aux-t); z-index: 1; border-radius: 10px;
   background: linear-gradient(180deg, #0b1314 0%, #122021 40%, #162526 100%);
   box-shadow: inset 0 4px 8px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.06); }
-.deck .rail { position: absolute; top: 4px; bottom: 4px; width: 5px; border-radius: 2px;
-  background: linear-gradient(90deg, #4b5558 0%, #c9d0d4 35%, #eef2f4 50%, #9aa3a8 70%, #3b4447 100%);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 2px 3px rgba(0,0,0,0.5); }
-.deck .rail.l { left: 3px; } .deck .rail.r { right: 3px; }
-.deck .rail::before, .deck .rail::after { content: ''; position: absolute; left: -2px; right: -2px; height: 5px; border-radius: 1px; background: linear-gradient(180deg, #8e979b, #3f484b); box-shadow: 0 1px 1px rgba(0,0,0,0.6); }
-.deck .rail::before { top: -1px; } .deck .rail::after { bottom: -1px; }
+/* the guide slots: a slot cut down each wall of the deck, running on into the body below; the panel's two steel
+   runners hang off its lower edge and ride them (aux.js moves them with the panel) */
+.deck { overflow: hidden; }
+.deck .rail { position: absolute; top: -3px; bottom: -3px; width: 5px; background: linear-gradient(90deg, #010202 0%, #050909 55%, #0e1616 100%);
+  box-shadow: -1px 0 0 rgba(0,0,0,0.9), 1px 0 0 rgba(255,255,255,0.09); }
+.deck .rail.l { left: 3px; } .deck .rail.r { right: 3px; transform: scaleX(-1); }
+.deck .runner { position: absolute; z-index: 1; top: 0; width: 3px; height: 15px; border-radius: 0 0 1px 1px; pointer-events: none;
+  background: linear-gradient(90deg, #3e474c 0%, #c3cacd 40%, #e9eef0 55%, #8d979c 80%, #3a4348 100%);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 4px 4px rgba(0,0,0,0.55); }
+.deck .runner.l { left: 4px; } .deck .runner.r { right: 4px; }
 .dscrew { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #9aa5a6, #3d4849); box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
 .dscrew::after { content: ''; position: absolute; left: 1px; right: 1px; top: 3px; height: 1px; background: #1b2324; transform: rotate(35deg); }
-.aux-key { position: absolute; top: 50%; width: 68px; height: 70.3px; margin: -36px 0 0 -34px; padding: 0; border: 0; background: none; transform-origin: 50% 48%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+/* the tape keys: frosted caps with the legend printed in, lit from inside */
+.aux-key { position: absolute; top: 50%; width: 99px; height: 55.7px; margin: -28px 0 0 -49.5px; padding: 0; border: 0; background: none; transform-origin: 50% 48%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .aux-key img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .aux-key img.on { opacity: 0; }
-.aux-key .halo { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; opacity: 0; mix-blend-mode: screen; pointer-events: none; }
-#auxScan { left: 36%; } #auxHere { left: 64%; }
-#auxScan .halo { background: radial-gradient(circle, rgba(25,230,174,0.55) 0%, rgba(0,0,0,0) 62%); }
-#auxHere .halo { background: radial-gradient(circle, rgba(255,148,20,0.55) 0%, rgba(0,0,0,0) 62%); }
-.aux-key:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -6px; border-radius: 50%; }
-.aux-lbl { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; font-weight: 700; letter-spacing: 0.22em; color: var(--sage); transition: color 0.15s, text-shadow 0.15s; pointer-events: none; }
-.aux-lbl small { display: block; font-size: 9px; letter-spacing: 0.05em; opacity: 0.75; margin-top: 2px; }
-.aux-lbl.l { left: 26px; } .aux-lbl.r { right: 26px; text-align: right; }
-#auxLblScan.lit { color: #7DFFD6; text-shadow: 0 0 6px rgba(125,255,214,0.55); }
-#auxLblHere.lit { color: #FFB547; text-shadow: 0 0 6px rgba(255,181,71,0.55); }
+.aux-key .halo { position: absolute; left: 50%; top: 50%; width: 150px; height: 96px; margin: -48px 0 0 -75px; border-radius: 50%; opacity: 0; mix-blend-mode: screen; pointer-events: none; }
+#auxRec { left: 21%; } #auxPark { left: 79%; }
+#auxRec .halo { background: radial-gradient(closest-side, rgba(255,45,31,0.5) 0%, rgba(0,0,0,0) 100%); }
+#auxPark .halo { background: radial-gradient(closest-side, rgba(255,148,20,0.5) 0%, rgba(0,0,0,0) 100%); }
+.aux-key:focus-visible, .aux-cmp:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -4px; border-radius: 6px; }
+/* the compass: the card, the car pip and the needle turn (aux.js); the chrome ring and its glass sit over them */
+.aux-cmp { position: absolute; left: 50%; top: 50%; width: 77px; height: 77px; margin: -38.5px 0 0 -38.5px; padding: 0; border: 0; background: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s; }
+.aux-cmp.down { transform: scale(0.975); }
+.aux-cmp img { display: block; width: 100%; height: 100%; pointer-events: none; }
+.aux-cmp .cmp-card, .aux-cmp .cmp-pip, .aux-cmp .cmp-lub, .aux-cmp .cmp-nd { position: absolute; left: 8.5px; top: 11.27px; width: 60px; height: 60px; }
+.aux-cmp .cmp-card, .aux-cmp .cmp-pip, .aux-cmp .cmp-lub { transform: scaleY(0.9272); }
+.aux-cmp .cmp-card { border-radius: 50%; }
+.aux-cmp .cmp-pip { opacity: 0; transition: opacity .3s; }
+.aux-cmp .cmp-nd { top: 10.7px; filter: drop-shadow(0.5px 1.6px 0.9px rgba(0,0,0,0.75)); }
+.aux-cmp .cmp-ndi { position: absolute; inset: 0; transform: scaleY(0.9272); }
+.aux-cmp .cmp-top { position: absolute; inset: 0; }
 /* the panel's lower edge throws a shadow on the deck; the hood throws one on the panel */
 .slab-shadow { position: absolute; left: 6px; right: 6px; height: 14px; z-index: 1; pointer-events: none; border-radius: 10px; opacity: 0;
   background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 100%); }

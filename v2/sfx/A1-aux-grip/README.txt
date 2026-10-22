@@ -1,7 +1,7 @@
 A1-aux-grip
 
 Plays when: you press the AUX grip, the bar on the screen's bottom edge that slides the
-screen up to reveal SCAN and HERE (a tap, or the start of a drag, opening or closing).
+screen up to reveal REC, the compass and PARK (a tap, or the start of a drag, opening or closing).
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.

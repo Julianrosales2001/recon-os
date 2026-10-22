@@ -9,7 +9,7 @@ window.RX = window.RX || {};
 (function () {
   const K = {
     pois: 'recon.os.pois', missions: 'recon.os.missions', fog: 'recon.os.fog',
-    regions: 'recon.os.regions', journal: 'recon.os.journal', trail: 'recon.os.trail',
+    regions: 'recon.os.regions', journal: 'recon.os.journal', tracks: 'recon.os.tracks', rec: 'recon.os.rec',
     prefs: 'recon.os.prefs', fasts: 'recon.os.fasts', weighins: 'recon.os.weighins',
     meals: 'recon.os.meals', workouts: 'recon.os.workouts', healthTab: 'recon.os.healthTab',
     healthSeeded: 'recon.os.healthSeeded', supplySeeded: 'recon.os.supplyPOIsSeeded',
@@ -21,7 +21,7 @@ window.RX = window.RX || {};
 
   const S = {
     K, FOG_CELL_DEG,
-    pois: [], missions: [], fog: new Set(), regions: [], journal: [], trail: [],
+    pois: [], missions: [], fog: new Set(), regions: [], journal: [], tracks: [], rec: null,
     fasts: [], weighins: [], meals: [], workouts: [], healthTab: 'fast',
     prefsV1: {},
     v2: {},
@@ -30,10 +30,10 @@ window.RX = window.RX || {};
   };
 
   const V2_DEFAULTS = {
-    sound: true, idleDim: true, recordTrail: true, brightness: 'MED',
+    sound: true, idleDim: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'wx', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, scanR: 600, lastCat: 0, lastRing: 0, ringKinds: ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'], hiddenKinds: [], hlthPage: 'fast', conv: {}, code: null, hicon: false
+    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, park: null, lastCat: 0, lastRing: 0, ringKinds: ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'], hiddenKinds: [], hlthPage: 'fast', conv: {}, code: null, hicon: false
   };
 
   // ---------- low level ----------
@@ -98,8 +98,9 @@ window.RX = window.RX || {};
     if (loadFog(readJSON(K.fog, []))) S.saveFog();
     S.regions = readJSON(K.regions, []);
     S.journal = readJSON(K.journal, []);
-    S.trail = (readJSON(K.trail, []) || []).map(pt => Array.isArray(pt) ? { lat: pt[0], lng: pt[1], ts: pt[2] * 1000 } : pt);
-    S.pruneTrail();
+    S.tracks = readJSON(K.tracks, []) || [];
+    S.rec = readJSON(K.rec, null);
+    try { localStorage.removeItem('recon.os.trail'); } catch (e) {}   // the old daily trail (gone in 2.29)
     S.prefsV1 = readJSON(K.prefs, {}) || {};
     S.fasts = readJSON(K.fasts, []);
     S.weighins = readJSON(K.weighins, []);
@@ -128,10 +129,11 @@ window.RX = window.RX || {};
   S.saveFasts = () => safeSet(K.fasts, JSON.stringify(S.fasts));
   S.saveWeighins = () => safeSet(K.weighins, JSON.stringify(S.weighins));
   S.saveWorkouts = () => safeSet(K.workouts, JSON.stringify(S.workouts));
-  S.saveTrail = function () {
-    later('trail', 2000, () => safeSet(K.trail, JSON.stringify(S.trail.map(pt => [
-      Math.round(pt.lat * 1e5) / 1e5, Math.round(pt.lng * 1e5) / 1e5, Math.floor(pt.ts / 1000)
-    ]))));
+  S.saveTracks = () => safeSet(K.tracks, JSON.stringify(S.tracks));
+  // the live recording: written often so a reload (or iOS killing the app) never loses it
+  S.saveRec = function (now) {
+    const go = () => { if (S.rec) safeSet(K.rec, JSON.stringify(S.rec)); else { try { localStorage.removeItem(K.rec); } catch (e) {} } };
+    if (now) { clearTimeout(timers.rec); go(); } else later('rec', 1500, go);
   };
   S.savePrefsV1 = function (patch) {
     Object.assign(S.prefsV1, patch || {});
@@ -148,31 +150,20 @@ window.RX = window.RX || {};
     S.saveJournal();
   };
 
-  // ---------- trail ----------
-  S.pruneTrail = function () {
-    const d = new Date();
-    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    const before = S.trail.length;
-    S.trail = S.trail.filter(pt => pt && pt.ts >= start);
-    if (S.trail.length !== before) S.saveTrail();
+  // ---------- the odometer (LONG ROAD): every 15 m you move, recorded or not ----------
+  let odoLast = null;
+  S.odoStep = function (lat, lng) {
+    if (!odoLast) { odoLast = { lat, lng }; return; }
+    const step = RX.geo.meters(odoLast.lat, odoLast.lng, lat, lng);
+    if (step < 15) return;
+    if (step < 2000 && S.noteMiles) S.noteMiles(step / 1609.344);
+    odoLast = { lat, lng };
   };
-  S.recordTrail = function (lat, lng) {
-    if (!S.v2.recordTrail) return false;
-    S.pruneTrail();
-    const last = S.trail[S.trail.length - 1];
-    const step = last ? RX.geo.meters(last.lat, last.lng, lat, lng) : 0;
-    if (last && step < 15) return false;
-    if (last && step < 2000 && S.noteMiles) S.noteMiles(step / 1609.344);
-    S.trail.push({ lat, lng, ts: Date.now() });
-    if (S.trail.length > 5000) S.trail = S.trail.slice(-5000);
-    S.saveTrail();
-    return true;
-  };
-  S.trailMiles = function () {
-    let m = 0;
-    for (let i = 1; i < S.trail.length; i++) m += RX.geo.meters(S.trail[i - 1].lat, S.trail[i - 1].lng, S.trail[i].lat, S.trail[i].lng);
-    return m / 1609.344;
-  };
+
+  // ---------- tracks (REC) ----------
+  // a track: { id, n (its number), name, t0, t1, m (metres), pts: [[lat, lng, sec, alt|null, speed|null], ...], from, to }
+  S.track = id => S.tracks.find(t => t.id === id);
+  S.trackNo = () => S.tracks.reduce((m, t) => Math.max(m, t.n || 0), 0) + 1;
 
   // ---------- marks ----------
   S.poi = id => S.pois.find(p => p.id === id);
@@ -236,7 +227,8 @@ window.RX = window.RX || {};
       fog: [...S.fog],
       regions: S.regions,
       journal: S.journal,
-      trail: S.trail,
+      trail: [],
+      tracks: S.tracks,
       missions: S.missions,
       fasts: S.fasts, weighins: S.weighins, meals: S.meals, workouts: S.workouts,
       healthTab: S.healthTab,
@@ -264,10 +256,7 @@ window.RX = window.RX || {};
     if (Array.isArray(d.fog)) { loadFog(d.fog); safeSet(K.fog, JSON.stringify([...S.fog])); }
     if (Array.isArray(d.regions)) { S.regions = d.regions; S.saveRegions(); }
     if (Array.isArray(d.journal)) { S.journal = d.journal; S.saveJournal(); }
-    if (Array.isArray(d.trail)) {
-      S.trail = d.trail.map(pt => Array.isArray(pt) ? { lat: pt[0], lng: pt[1], ts: pt[2] * 1000 } : pt);
-      S.pruneTrail(); S.saveTrail();
-    }
+    if (Array.isArray(d.tracks)) { S.tracks = d.tracks; S.saveTracks(); }
     if (Array.isArray(d.missions)) { S.missions = d.missions; S.saveMissions(); }
     if (Array.isArray(d.fasts)) { S.fasts = d.fasts; S.saveFasts(); }
     if (Array.isArray(d.weighins)) { S.weighins = d.weighins; S.saveWeighins(); }

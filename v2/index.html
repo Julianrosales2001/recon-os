@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="rx.css?v=2.28.1">
+<link rel="stylesheet" href="rx.css?v=2.29.0">
 </head>
 <body>
 <div id="desk">
@@ -30,7 +30,7 @@
 
     <div class="lamps" role="status" aria-label="Status lamps">
       <div class="lamp" data-lamp="fix" title="GPS fix quality"><span class="led"></span><span class="lbl">FIX</span></div>
-      <div class="lamp" data-lamp="rec" title="Trail recording"><span class="led red"></span><span class="lbl">REC</span></div>
+      <div class="lamp" data-lamp="rec" title="Recording a track"><span class="led red"></span><span class="lbl">REC</span></div>
       <div class="lamp" data-lamp="near" title="Within ~800 ft of a saved mark"><span class="led"></span><span class="lbl">NEAR</span></div>
       <div class="lamp" data-lamp="pend" title="Unfiled marks waiting"><span class="led amber"></span><span class="lbl">PEND</span></div>
       <div class="lamp" data-lamp="bkup" title="Backup overdue"><span class="led amber"></span><span class="lbl">BKUP</span></div>
@@ -88,17 +88,22 @@
       </div>
 
       <!-- the screen block is a slider: its lip carries the grip; tap or drag it to run the panel up under the readouts -->
-      <div class="lip" id="auxLip"><i class="lip-line l"></i><button type="button" class="aux-bar" id="auxBar" aria-label="AUX: slide the screen up for SCAN and HERE" aria-expanded="false"></button><i class="lip-line r"></i></div>
+      <div class="lip" id="auxLip"><i class="lip-line l"></i><button type="button" class="aux-bar" id="auxBar" aria-label="AUX: slide the screen up for REC, the compass and PARK" aria-expanded="false"></button><i class="lip-line r"></i></div>
     </div>
 
     <!-- AUX deck: under the screen panel; uncovered when it slides up -->
     <div class="deck" id="deck" aria-label="AUX keys">
-      <i class="rail l"></i><i class="rail r"></i>
+      <i class="rail l"></i><i class="runner l"></i><i class="rail r"></i><i class="runner r"></i>
       <i class="dscrew" style="left:14px;top:8px"></i><i class="dscrew" style="right:14px;top:8px"></i><i class="dscrew" style="left:14px;bottom:8px"></i><i class="dscrew" style="right:14px;bottom:8px"></i>
-      <span class="aux-lbl l" id="auxLblScan">SCAN<small class="jp">探査</small></span>
-      <button type="button" class="aux-key" id="auxScan" data-k="scan" aria-label="SCAN: sweep for places around you"><i class="halo"></i><img class="off" alt=""><img class="on" alt=""></button>
-      <button type="button" class="aux-key" id="auxHere" data-k="here" aria-label="HERE: exactly where you are"><i class="halo"></i><img class="off" alt=""><img class="on" alt=""></button>
-      <span class="aux-lbl r" id="auxLblHere">HERE<small class="jp">現在地</small></span>
+      <button type="button" class="aux-key" id="auxRec" data-k="rec" aria-label="REC: record a track; again to stop"><i class="halo"></i><img class="off" alt=""><img class="on" alt=""></button>
+      <button type="button" class="aux-cmp" id="auxCmp" aria-label="COMPASS: heading and a bearing to hold">
+        <span class="cmp-card"><img src="keys/aux/cmp-card.webp" alt=""></span>
+        <span class="cmp-pip"><img src="keys/aux/cmp-pip.webp" alt=""></span>
+        <img class="cmp-lub" src="keys/aux/cmp-lubber.webp" alt="">
+        <span class="cmp-nd"><span class="cmp-ndi"><img src="keys/aux/cmp-needle.webp" alt=""></span></span>
+        <img class="cmp-top" src="keys/aux/cmp-top.webp" alt="">
+      </button>
+      <button type="button" class="aux-key" id="auxPark" data-k="park" aria-label="PARK: save where the car is. Then RETURN: the way back; hold to clear"><i class="halo"></i><img class="off" alt=""><img class="on" alt=""></button>
     </div>
     <div class="slab-shadow" id="slabShadow" aria-hidden="true"></div>
     <div class="hood" id="hood" aria-hidden="true"></div>
@@ -139,28 +144,28 @@
     <div class="molded" aria-hidden="true"><span>MADE IN USA</span><span>&gt;PC+ABS&lt;</span></div>
 
   </div>
-  <div class="desk-hint" aria-hidden="true">M MARK · 1–6 RING · P AUX · A SCAN · W HERE · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H HLTH · O OBJ · R REF · G LEGEND · D DISPLAY</div>
+  <div class="desk-hint" aria-hidden="true">M MARK · 1–6 RING · P AUX · A REC · Q COMPASS · W PARK · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H HLTH · O OBJ · R REF · G LEGEND · D DISPLAY</div>
 </div>
 
-<script>window.RX = window.RX || {}; RX.VERSION = '2.28.1';</script>
-<script src="js/font.js?v=2.28.1"></script>
-<script src="js/matrix.js?v=2.28.1"></script>
-<script src="js/geo.js?v=2.28.1"></script>
-<script src="js/store.js?v=2.28.1"></script>
-<script src="js/map.js?v=2.28.1"></script>
-<script src="js/parcel.js?v=2.28.1"></script>
-<script src="js/traffic.js?v=2.28.1"></script>
-<script src="js/area.js?v=2.28.1"></script>
-<script src="js/ui.js?v=2.28.1"></script>
-<script src="js/screens.js?v=2.28.1"></script>
-<script src="js/profile.js?v=2.28.1"></script>
-<script src="js/rolo.js?v=2.28.1"></script>
-<script src="js/wx.js?v=2.28.1"></script>
-<script src="js/cal.js?v=2.28.1"></script>
-<script src="js/fit.js?v=2.28.1"></script>
-<script src="js/sfx.js?v=2.28.1"></script>
-<script src="js/aux.js?v=2.28.1"></script>
-<script src="js/main.js?v=2.28.1"></script>
+<script>window.RX = window.RX || {}; RX.VERSION = '2.29.0';</script>
+<script src="js/font.js?v=2.29.0"></script>
+<script src="js/matrix.js?v=2.29.0"></script>
+<script src="js/geo.js?v=2.29.0"></script>
+<script src="js/store.js?v=2.29.0"></script>
+<script src="js/map.js?v=2.29.0"></script>
+<script src="js/parcel.js?v=2.29.0"></script>
+<script src="js/traffic.js?v=2.29.0"></script>
+<script src="js/area.js?v=2.29.0"></script>
+<script src="js/ui.js?v=2.29.0"></script>
+<script src="js/screens.js?v=2.29.0"></script>
+<script src="js/profile.js?v=2.29.0"></script>
+<script src="js/rolo.js?v=2.29.0"></script>
+<script src="js/wx.js?v=2.29.0"></script>
+<script src="js/cal.js?v=2.29.0"></script>
+<script src="js/fit.js?v=2.29.0"></script>
+<script src="js/sfx.js?v=2.29.0"></script>
+<script src="js/aux.js?v=2.29.0"></script>
+<script src="js/main.js?v=2.29.0"></script>
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
 </html>

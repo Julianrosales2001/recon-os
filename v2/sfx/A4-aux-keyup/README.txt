@@ -1,6 +1,6 @@
 A4-aux-keyup
 
-Plays when: the SCAN and HERE keys spring up.
+Plays when: the REC and PARK keys spring up as the panel clears them.
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.

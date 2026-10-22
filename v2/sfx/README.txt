@@ -12,7 +12,7 @@ Without it: name the file sound.mp3 (or .wav / .m4a) yourself, then commit and p
   original.wav   the RP's own sound, in the K folders only. Keep these.
 
 A folder with no sound of yours plays its related sound, and its README.txt says which
-(A2-aux-open plays K7-thunk). A5-aux-lamp, S1-scan-ping, B1-boot stay silent until you fill them.
+(A2-aux-open plays K7-thunk). A5-aux-lamp and B1-boot stay silent until you fill them.
 Each folder's README.txt says when it plays.
 
 The FN tray keys: F3-tools sets one sound for all eight; F4-tool-srch through F11-tool-prfl

@@ -1,6 +1,6 @@
 A5-aux-lamp
 
-Plays when: their lamps flicker on.
+Plays when: the REC and PARK lamps flicker on.
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.

@@ -1,16 +1,18 @@
 /* =============================================================
    RECON.OS RX-90 · AUX
    The screen block is a slider. Tap the grip on its lip (or drag
-   it) and a latch lets go: a spring runs the panel up its rails
-   under the readout hood, uncovering the AUX deck. Its two frosted
-   keys were held flush by the panel; once the panel's edge clears
-   them they spring up and their lamps catch. Pull the grip down
-   and the panel rides home, its lip pressing the keys back into
-   their wells.
-   SCAN · one sonar sweep per press: named places around you from
-          OpenStreetMap, radius on the drum, nearest twelve shown.
-   HERE · exactly where you are: coordinates, address, county,
-          elevation, plus code, the lot.
+   it) and a latch lets go: a spring runs the panel up under the
+   readout hood, its two steel runners riding down slots cut in the
+   deck's walls, uncovering the AUX deck: two frosted tape keys and
+   a compass between them. The keys were held flush by the panel;
+   once its edge clears them they spring up and their lamps catch.
+   Pull the grip down and the panel rides home, its lip pressing the
+   keys back into their wells.
+   REC     · records a track: red tape on the map, the LCD becomes a
+             tape counter. REC again stops it and files it.
+   COMPASS · tap the dial: heading, a bearing to hold, where you are.
+   PARK    · saves where you left the car; the key becomes RETURN,
+             which points you back. The drum (or a hold) clears it.
    ============================================================= */
 window.RX = window.RX || {};
 
@@ -21,24 +23,34 @@ window.RX = window.RX || {};
   const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
   const ein = t => { t = clamp(t, 0, 1); return t * t * t; };
   const now = () => performance.now();
+  const norm = a => ((a % 360) + 360) % 360;
+  const wrap180 = a => ((a % 360) + 540) % 360 - 180;
+  const deg = b => String(Math.round(norm(b)) % 360).padStart(3, '0') + '°';
+  const card8 = b => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(norm(b) / 45) % 8];
+  const RED = '#FF6B5E';
 
   // ======================================================================
   // HARDWARE
   // ======================================================================
-  const STANDBY = 0.32;
-  const FLICK = { scan: [0, .55, .05, .2, .7, .15, .45, .25], here: [0, .35, .1, .6, .05, .5, .3, .2] };   // the lamps catching
+  const STANDBY = 0.1;
+  const FLICK = { rec: [0, .55, .05, .2, .7, .15, .45, .25], park: [0, .35, .1, .6, .05, .5, .3, .2] };   // the lamps catching
   const HIT = [1, .45, 1, .7, 1];                                                                         // a press landing
-  const KEYS = ['scan', 'here'];
+  const KEYS = ['rec', 'park'];
   const SRC = n => 'keys/aux/' + n + '.webp';
-  const X = RX.aux = { open: false, y: 0, mode: null };
+  const X = RX.aux = { open: false, y: 0 };
   let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, flashT = 0, gripDown = false;
   const el = {};
   const cap = {};
-  KEYS.forEach(k => { cap[k] = { up: false, popT: -1e9, press: -1e9, g: 0, gl: null, d: -1, lit: -1, pop: 1 }; });
+  KEYS.forEach(k => { cap[k] = { up: false, popT: -1e9, press: -1e9, g: 0, gl: null, d: -1, lit: -1, pop: 1, art: '' }; });
+
+  X.recording = () => !!S.rec;
+  X.parked = () => S.v2.park || null;
+  const art = k => k === 'rec' ? 'rec' : (X.parked() ? 'ret' : 'park');
+  const rest = k => (k === 'rec' && X.recording() ? 2 : 0);   // REC latches down while it records
 
   // the panel's travel is the deck's height (CSS sets it per screen size)
   function measure() { T = Math.round(el.deck.offsetHeight) || 96; }
-  const CLEAR = () => T / 2 + 33;   // the panel's edge is past the caps
+  const CLEAR = () => T / 2 + 30;   // the panel's edge is past the caps
   const CENTER = () => T / 2;
 
   function applyY(y) {
@@ -52,6 +64,9 @@ window.RX = window.RX || {};
     el.hood.style.opacity = clamp(y / 12, 0, 1).toFixed(3);
     el.shadow.style.top = (b.offsetTop + b.offsetHeight - y).toFixed(1) + 'px';
     el.shadow.style.opacity = clamp(y / 8, 0, 1).toFixed(3);
+    // the runners hang off the panel's lower edge and ride the slots with it
+    const top = T - y - 2, h = clamp(T - top, 0, 15);
+    el.runners.forEach(r => { r.style.top = top.toFixed(2) + 'px'; r.style.height = h.toFixed(2) + 'px'; });
   }
   // the screen lays its picture out to the window you can see (the top of the panel is under the hood)
   let laid = false;
@@ -64,7 +79,7 @@ window.RX = window.RX || {};
   X.lift = () => laid ? T : 0;
 
   // ---- the lamps ----
-  function glowTarget(k) { const c = cap[k]; if (!X.open || !c.up) return 0; return X.mode === k ? 1 : STANDBY; }
+  function glowTarget(k) { const c = cap[k]; if (!X.open || !c.up) return 0; return (k === 'rec' ? X.recording() : !!X.parked()) ? 1 : STANDBY; }
   function glowSeq(k, steps, end, dt, delay) { cap[k].gl = { steps, end, dt: dt || 50, t0: now() + (delay || 0) }; kick(); }
   function glowFade(k, to, dur) { cap[k].gl = { from: cap[k].g, end: to, dur: dur || 220, t0: now() }; kick(); }
   function stepGlow(k, t) {
@@ -79,12 +94,12 @@ window.RX = window.RX || {};
     if (k2 < 1) { c.g = gl.from + (gl.end - gl.from) * ease(k2); return true; }
     c.g = gl.end; c.gl = null; return false;
   }
-  X.setMode = function (k) {
-    const was = X.mode; if (was === k) return;
-    X.mode = k;
-    if (was && cap[was].up && X.open) glowFade(was, STANDBY, 250);
-    if (k && cap[k].up && X.open) glowSeq(k, HIT, 1, 40);
-  };
+  // REC or PARK changed: the lamp lands on its new level (a hit when it comes on)
+  function relamp(k) {
+    const c = cap[k]; if (!c.up || !X.open) { kick(); return; }
+    const to = glowTarget(k);
+    if (to >= 1) glowSeq(k, HIT, 1, 40); else glowFade(k, to, 220);
+  }
 
   // ---- one frame of the mechanism ----
   function pressDepth(dt) {   // a key press: down fast, hold, back up
@@ -111,12 +126,12 @@ window.RX = window.RX || {};
           c.up = true; c.popT = t;
           if (A && A.booted) { A.beep('aux.keyup'); glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 220 + i * 60); if (!i) setTimeout(() => A.beep('aux.lamp'), 220); }
         }
-        const kk = t - c.popT; base = kk < 75 ? 3 - Math.floor(kk / 25) : 0;
+        const kk = t - c.popT; base = Math.max(kk < 75 ? 3 - Math.floor(kk / 25) : 0, rest(k));
         c.pop = kk >= 0 && kk < 200 ? 1 + 0.05 * Math.max(0, 1 - Math.abs(kk - 100) / 60) : 1;
         if (kk < 200) busy = true;
       } else {
         if (y <= ce && c.up) { c.up = false; c.gl = null; c.g = 0; }
-        base = c.up ? Math.round(3 * clamp((cl - y) / (cl - ce), 0, 1)) : 3;
+        base = c.up ? Math.max(rest(k), Math.round(3 * clamp((cl - y) / (cl - ce), 0, 1))) : 3;
         c.pop = 1;
       }
       const pd = pressDepth(t - c.press); if (t - c.press <= 370) busy = true;
@@ -131,13 +146,13 @@ window.RX = window.RX || {};
     return busy || !!drag;
   }
   function paintKey(k, d, flush) {
-    const c = cap[k], b = el[k];
-    if (c.d !== d) { c.d = d; b.off.src = SRC(k + '-' + d); b.on.src = SRC(k + '-lit-' + d); }
+    const c = cap[k], b = el[k], a = art(k);
+    if (c.d !== d || c.art !== a) { c.d = d; c.art = a; b.off.src = SRC(a + '-' + d); b.on.src = SRC(a + '-lit-' + d); }
     const g = +c.g.toFixed(3);
-    if (c.lit !== g) { c.lit = g; b.on.style.opacity = g; b.halo.style.opacity = (Math.max(0, (g - 0.3) / 0.7) * 0.9).toFixed(3); b.lbl.classList.toggle('lit', g > 0.6); }
-    b.btn.style.transform = 'scale(' + ((1 - 0.022 * d) * c.pop).toFixed(4) + ') translateY(' + (0.6 * d).toFixed(2) + 'px)';
+    if (c.lit !== g) { c.lit = g; b.on.style.opacity = g; b.halo.style.opacity = (Math.max(0, (g - 0.3) / 0.7) * 0.9).toFixed(3); }
+    b.btn.style.transform = 'scale(' + ((1 - 0.012 * d) * c.pop).toFixed(4) + ') translateY(' + (0.5 * d).toFixed(2) + 'px)';
     const sh = Math.max(0.3, 3.5 - (flush ? 3 : d));
-    b.btn.style.filter = 'brightness(' + (1 - 0.07 * d - (flush ? 0.12 : 0)).toFixed(3) + ') drop-shadow(0 ' + sh.toFixed(2) + 'px ' + sh.toFixed(2) + 'px rgba(0,0,0,.55))';
+    b.btn.style.filter = 'brightness(' + (1 - 0.06 * d - (flush ? 0.12 : 0)).toFixed(3) + ') drop-shadow(0 ' + sh.toFixed(2) + 'px ' + sh.toFixed(2) + 'px rgba(0,0,0,.55))';
   }
   function loop(t) { raf = 0; if (paint(t)) kick(); }
   function kick() { if (!raf) raf = requestAnimationFrame(loop); }
@@ -178,7 +193,7 @@ window.RX = window.RX || {};
     slide = { dir: 1, t0: now(), fn: reduced() ? () => [T, true] : openCurve(y0), done: () => {
       X.open = true; S.saveV2({ auxOpen: true }); relayout(true);
       KEYS.forEach(k => { if (cap[k].up && !cap[k].gl) glowFade(k, glowTarget(k), 120); });
-      if (!mine) A.beep('aux.open', 0.6); A.dirty = true;
+      if (!mine) A.beep('aux.open', 0.6); A.dirty = true; X.kickCmp();
     } };
     kick();
   }
@@ -187,7 +202,6 @@ window.RX = window.RX || {};
     X.open = false;
     KEYS.forEach(k => glowFade(k, 0, 120));
     relayout(false);
-    if (A.stack.length > 1 && (A.top().name === 'sonar' || A.top().name === 'here')) A.home();
   }
   function runClose(y0) {
     beginClose();
@@ -200,6 +214,7 @@ window.RX = window.RX || {};
     if (slide) return;
     A.wake();
     const closing = X.y > T / 2;
+    if (!closing) HD.start();   // opening the deck is the moment to switch the compass on (iPhone asks once)
     if (RX.sfx.mine('aux.latch')) { if (!gripDown) A.beep('aux.latch'); gripDown = false; }   // yours: already played on the press (or now, from the P key)
     else if (!RX.sfx.mine(closing ? 'aux.close' : 'aux.open')) A.beep('aux.latch');
     if (closing) runClose(X.y); else runOpen(X.y);
@@ -227,7 +242,7 @@ window.RX = window.RX || {};
       const y = clamp(drag.y0 + dy * 0.9, 0, T);
       applyY(y);
       // past halfway the spring takes over
-      if (!drag.wasOpen && y > 0.5 * T) { drag = null; b.classList.remove('down'); runOpen(y); }
+      if (!drag.wasOpen && y > 0.5 * T) { drag = null; b.classList.remove('down'); HD.start(); runOpen(y); }
       else if (drag.wasOpen && y < 0.6 * T) { drag = null; b.classList.remove('down'); runClose(y); }
       kick();
     });
@@ -235,7 +250,7 @@ window.RX = window.RX || {};
       if (!drag) return;
       const d = drag; drag = null; b.classList.remove('down');
       if (!d.live) { if (e.type === 'pointerup') X.toggle(); return; }
-      if (X.y > 0.5 * T) runOpen(X.y); else runClose(X.y);
+      if (X.y > 0.5 * T) { HD.start(); runOpen(X.y); } else runClose(X.y);
     };
     b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
     b.addEventListener('click', e => e.preventDefault());
@@ -248,35 +263,61 @@ window.RX = window.RX || {};
     if (A.assign) { A.say('FILE THE MARK FIRST', 2000); A.beep('err'); return; }
     if (!X.open) { X.pendingKey = k; X.openNow(); A.say('AUX ▸ OPENING', 1200); return; }
     if (!usable()) return;
-    A.beep('key'); cap[k].press = now(); kick();
-    const scr = k === 'scan' ? 'sonar' : 'here';
-    if (A.top().name === scr) RX.screens[scr].again(A.top().st, A);
-    else { if (A.stack.length > 1) A.home(); A.go(scr); }
+    if (k === 'cmp') { cmpPress(); return; }
+    HD.start();
+    cap[k].press = now(); kick();
+    if (k === 'rec') { if (X.recording()) X.recStop(); else X.recStart(); return; }
+    // PARK, or RETURN once parked
+    if (!X.parked()) X.parkHere();
+    else if (A.top().name !== 'ret') { if (A.stack.length > 1) A.home(); A.go('ret'); A.beep('key'); }
+    else { A.home(); A.beep('key'); }
   };
   function wireKeys() {
-    KEYS.forEach(k => {
-      const b = el[k].btn;
-      b.addEventListener('pointerdown', e => { e.preventDefault(); if (usable()) { cap[k].press = now(); kick(); } });
-      b.addEventListener('click', e => { e.preventDefault(); if (usable()) { const t = cap[k].press; X.key(k); cap[k].press = t; } });
+    el.rec.btn.addEventListener('pointerdown', e => { e.preventDefault(); if (usable()) { cap.rec.press = now(); kick(); } });
+    el.rec.btn.addEventListener('click', e => { e.preventDefault(); if (usable()) { const t = cap.rec.press; X.key('rec'); cap.rec.press = t; } });
+    // RETURN: tap = the way back; hold = clear the spot
+    let holdT = 0, held = false;
+    const pb = el.park.btn;
+    pb.addEventListener('pointerdown', e => {
+      e.preventDefault(); if (!usable()) return;
+      cap.park.press = now(); kick(); held = false; clearTimeout(holdT);
+      if (X.parked()) holdT = setTimeout(() => { held = true; cap.park.press = now(); kick(); X.parkClear('HOLD'); }, 700);
     });
+    const up = () => clearTimeout(holdT);
+    pb.addEventListener('pointerup', up); pb.addEventListener('pointercancel', up); pb.addEventListener('pointerleave', up);
+    pb.addEventListener('click', e => { e.preventDefault(); if (held) { held = false; return; } if (usable()) { const t = cap.park.press; X.key('park'); cap.park.press = t; } });
+    // the compass dial
+    const cb = el.cmp.btn;
+    cb.addEventListener('pointerdown', e => { e.preventDefault(); if (usable()) { cb.classList.add('down'); } });
+    const cup = () => cb.classList.remove('down');
+    cb.addEventListener('pointerup', cup); cb.addEventListener('pointercancel', cup); cb.addEventListener('pointerleave', cup);
+    cb.addEventListener('click', e => { e.preventDefault(); X.key('cmp'); });
+    // any tap on the deck can switch the compass on (iPhone wants a tap before it hands over the heading)
+    el.deck.addEventListener('pointerup', () => HD.start());
   }
 
   X.wire = function (app, h) {
     A = app; hooks = h || {};
     el.bezel = $('bezel'); el.win = $('window'); el.screen = $('screen'); el.bar = $('auxBar'); el.deck = $('deck');
     el.hood = $('hood'); el.shadow = $('slabShadow');
+    el.runners = [...el.deck.querySelectorAll('.runner')];
     KEYS.forEach(k => {
-      const btn = $(k === 'scan' ? 'auxScan' : 'auxHere');
-      el[k] = { btn, off: btn.querySelector('.off'), on: btn.querySelector('.on'), halo: btn.querySelector('.halo'), lbl: $(k === 'scan' ? 'auxLblScan' : 'auxLblHere') };
+      const btn = $(k === 'rec' ? 'auxRec' : 'auxPark');
+      el[k] = { btn, off: btn.querySelector('.off'), on: btn.querySelector('.on'), halo: btn.querySelector('.halo') };
     });
+    const cb = $('auxCmp');
+    el.cmp = { btn: cb, card: cb.querySelector('.cmp-card'), pip: cb.querySelector('.cmp-pip'), nd: cb.querySelector('.cmp-ndi') };
     // keep the art warm so the first press doesn't flash
-    KEYS.forEach(k => [0, 1, 2, 3].forEach(d => { new Image().src = SRC(k + '-' + d); new Image().src = SRC(k + '-lit-' + d); }));
+    ['rec', 'park', 'ret'].forEach(k => [0, 1, 2, 3].forEach(d => { new Image().src = SRC(k + '-' + d); new Image().src = SRC(k + '-lit-' + d); }));
     measure();
     el.hood.style.top = el.bezel.offsetTop + 'px';
     wireBar(); wireKeys();
     if (S.v2.auxOpen) { applyY(T); X.open = true; el.bar.setAttribute('aria-expanded', 'true'); relayout(true); flashT = -1e9; }
     else applyY(0);
     paint(now());
+    HD.auto();
+    if (S.rec) lockOn();
+    setInterval(meterCheck, 10000);
     // the deck's height follows the screen size: re-seat the panel when it changes
     new ResizeObserver(() => {
       const t0 = T; measure(); el.hood.style.top = el.bezel.offsetTop + 'px';
@@ -287,350 +328,541 @@ window.RX = window.RX || {};
   X.booted = function () {
     if (X.open) { KEYS.forEach((k, i) => { cap[k].up = true; glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 300 + i * 60); }); setTimeout(() => A.beep('aux.lamp'), 300); }
     if (X.pendingKey) { const k = X.pendingKey; X.pendingKey = null; X.key(k); }
+    X.kickCmp();
   };
   // a key asked for while the panel was shut: press it once the panel has settled
   setInterval(() => { if (X.pendingKey && usable()) { const k = X.pendingKey; X.pendingKey = null; X.key(k); } }, 120);
 
   // ======================================================================
-  // SCAN · a sonar sweep for named places around you
+  // COMPASS · where the phone points
+  // iPhone: webkitCompassHeading, after a tap grants motion access. Android: deviceorientationabsolute.
+  // No compass: the direction you're walking (GPS course) once you're moving.
   // ======================================================================
-  const RADII = [150, 300, 600, 1200, 2500];
-  const PAGES = RADII.map(r => 'r' + r);
-  const CAP = 12;
-  const KINDS = ['FOOD', 'SHOP', 'SERV', 'FUEL', 'CIVIC', 'MISC'];
-  const KCOL = { FOOD: '#FFB13B', SHOP: '#6CB6FF', SERV: '#E28BFF', FUEL: '#FF8B8B', CIVIC: '#DDF07A', MISC: '#F2F4E4' };
-  const HOSTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
-  const FT = 0.3048;
-
-  function classify(t) {
-    const a = t.amenity || '', s = t.shop || '';
-    if (/^(restaurant|cafe|fast_food|bar|pub|ice_cream|food_court|biergarten)$/.test(a) || /^(bakery|deli|coffee|confectionery|pastry|tea|butcher)$/.test(s)) return 'FOOD';
-    if (/^(fuel|charging_station)$/.test(a)) return 'FUEL';
-    if (s) return /^(hairdresser|beauty|car_repair|laundry|dry_cleaning|tailor|massage|tattoo|funeral_directors|copyshop|repair|car_wash|travel_agency|optician|tyres|locksmith|storage_rental)$/.test(s) ? 'SERV' : 'SHOP';
-    if (t.office || t.craft || t.healthcare || /^(bank|atm|pharmacy|clinic|doctors|dentist|hospital|veterinary|car_wash|car_rental|bureau_de_change|money_transfer|childcare|driving_school|nursing_home|vehicle_inspection)$/.test(a)) return 'SERV';
-    if (/^(school|college|university|kindergarten|library|townhall|police|fire_station|courthouse|post_office|community_centre|place_of_worship|social_facility|public_building|arts_centre|theatre|cinema)$/.test(a)) return 'CIVIC';
-    return 'MISC';
+  const HD = X.hd = { mag: null, magT: 0, live: false, asked: false, denied: false, hold: null };
+  const askFirst = () => !!(window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === 'function');
+  function onOri(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading) && e.webkitCompassHeading >= 0) h = e.webkitCompassHeading;
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h == null) return;
+    const so = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    HD.mag = norm(h + so); HD.magT = Date.now();
+    X.kickCmp();
   }
-  // the mark's icon, from what the place is
-  function typeFor(t, kind) {
-    const a = t.amenity || '', l = t.leisure || '', tr = t.tourism || '';
-    if (kind === 'FOOD') return 'FOOD';
-    if (kind === 'FUEL') return 'FUEL';
-    if (a === 'parking') return 'PARKING';
-    if (/^(bank|atm|bureau_de_change|money_transfer)$/.test(a)) return 'DOLLAR';
-    if (t.healthcare || /^(pharmacy|clinic|doctors|dentist|hospital|veterinary)$/.test(a)) return 'MEDICAL';
-    if (/^(fitness_centre|sports_centre)$/.test(l)) return 'GYM';
-    if (/^(park|garden|nature_reserve|playground)$/.test(l)) return 'TREE';
-    if (/^(hotel|motel|hostel|guest_house)$/.test(tr)) return 'BED';
-    if (t.craft || /^(car_repair|repair|tyres)$/.test(t.shop || '')) return 'WRENCH';
-    if (kind === 'SHOP') return 'SHOP';
-    if (t.office) return 'WORK';
-    if (a === 'place_of_worship') return 'STAR';
-    return 'NONE';
+  function listen() {
+    if (HD.live) return; HD.live = true;
+    if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOri);
+    window.addEventListener('deviceorientation', onOri);
   }
-  // what a found place is, as a mark kind: its symbol, else its sweep class. The ring then only asks for a colour.
-  const kindFor = it => RX.ui.kindFromType(it.type) || (it.kind === 'CIVIC' || it.kind === 'MISC' ? 'LANDMARK' : it.kind === 'FOOD' ? 'FOOD' : it.kind === 'SHOP' ? 'SHOP' : it.kind === 'FUEL' ? 'FUEL' : 'SUPPLY');
-
-  async function overpass(lat, lng, rM) {
-    const q = '[out:json][timeout:20];nwr(around:' + Math.round(rM) + ',' + lat.toFixed(6) + ',' + lng.toFixed(6) + ')[name][~"^(amenity|shop|craft|office|healthcare|tourism|leisure)$"~"."];out tags center qt 1500;';
-    let last = null;
-    for (const host of HOSTS) {
-      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 22000);
+  HD.start = function () {   // call from inside a tap
+    if (HD.live || HD.denied) return;
+    if (askFirst()) {
+      if (HD.asked) return; HD.asked = true;
       try {
-        const res = await fetch(host, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const j = await res.json();
-        return j.elements || [];
-      } catch (e) { last = e; } finally { clearTimeout(tm); }
+        window.DeviceOrientationEvent.requestPermission().then(r => { if (r === 'granted') listen(); else HD.denied = true; if (A) A.dirty = true; })
+          .catch(() => { HD.asked = false; });   // not a real tap: ask again on the next one
+      } catch (e) { HD.asked = false; }
+    } else if (window.DeviceOrientationEvent) listen();
+  };
+  HD.auto = function () { if (!askFirst()) HD.start(); };
+  HD.heading = function () {
+    if (HD.mag != null && Date.now() - HD.magT < 3000) return HD.mag;
+    const g = A && A.gps;
+    if (g && g.heading != null && g.speed > 0.8 && Date.now() - g.ts < 10000) return g.heading;
+    return null;
+  };
+  HD.source = () => (HD.mag != null && Date.now() - HD.magT < 3000) ? 'COMPASS' : (HD.heading() != null ? 'GPS COURSE' : null);
+  HD.status = () => HD.heading() != null ? HD.source() : HD.denied ? 'MOTION ACCESS OFF' : (askFirst() && !HD.live) ? 'TAP TO TURN ON' : 'WALK FOR A HEADING';
+
+  // the dial on the deck: the card floats (it lags and settles like a liquid compass); in RETURN the needle swings to the car
+  const CM = { card: 0, cv: 0, nd: 0, nv: 0, raf: 0, pipOn: null, shown: { card: null, nd: null, pip: null } };
+  X.target = function () {
+    const p = X.parked(), g = A && A.gps;
+    if (!p || !g || !A.stack.length || A.top().name !== 'ret') return null;
+    return Geo.bearing(g.lat, g.lng, p.lat, p.lng);
+  };
+  function cmpStep() {
+    CM.raf = 0;
+    const h = HD.heading(), hd = h == null ? 0 : h, tgt = X.target();
+    const toCard = -hd, toNd = tgt != null ? tgt - hd : -hd;
+    const sp = (cur, vel, to) => { const d = wrap180(to - cur); vel = vel * 0.8 + d * 0.05; return [cur + vel, vel, Math.abs(d) > 0.08 || Math.abs(vel) > 0.02]; };
+    let m1, m2;
+    [CM.card, CM.cv, m1] = sp(CM.card, CM.cv, toCard);
+    [CM.nd, CM.nv, m2] = sp(CM.nd, CM.nv, toNd);
+    const tc = CM.card.toFixed(1), tn = CM.nd.toFixed(1);
+    if (el.cmp) {
+      if (tc !== CM.shown.card) { CM.shown.card = tc; el.cmp.card.style.transform = 'scaleY(0.9272) rotate(' + tc + 'deg)'; }
+      if (tn !== CM.shown.nd) { CM.shown.nd = tn; el.cmp.nd.style.transform = 'scaleY(0.9272) rotate(' + tn + 'deg)'; }
+      const pipOn = tgt != null;
+      if (pipOn !== CM.pipOn) { CM.pipOn = pipOn; el.cmp.pip.style.opacity = pipOn ? 1 : 0; }
+      if (pipOn) { const tp = (tgt - hd + CM.card - toCard).toFixed(1); if (tp !== CM.shown.pip) { CM.shown.pip = tp; el.cmp.pip.style.transform = 'scaleY(0.9272) rotate(' + tp + 'deg)'; } }
     }
-    throw last || new Error('NO ANSWER');
+    if (m1 || m2) X.kickCmp();
   }
-  const normName = s => RX.font.norm(s || '').replace(/[^A-Z0-9]/g, '');
-  function alreadyMarked(it) {
-    const n = normName(it.name);
-    return S.pois.find(p => Geo.meters(p.lat, p.lng, it.lat, it.lng) < 60 && (normName(p.name) === n || Geo.meters(p.lat, p.lng, it.lat, it.lng) < 8)) || null;
+  X.kickCmp = () => { if (!CM.raf) CM.raf = requestAnimationFrame(cmpStep); };
+  X.shownHeading = () => HD.heading() == null ? null : norm(-CM.card);
+  function cmpPress() {
+    HD.start(); A.beep('cmp');
+    if (A.top().name === 'compass') { A.home(); return; }
+    if (A.stack.length > 1) A.home();
+    A.go('compass');
   }
 
-  async function sweep(st, A) {
-    const fresh = A.gps && Date.now() - A.gps.ts < 60000;
-    const from = fresh ? { lat: A.gps.lat, lng: A.gps.lng } : { lat: M.lat, lng: M.lng };
-    const rM = Math.max(st.rFt, 600) * FT;
-    const tok = st.tok = (st.tok || 0) + 1;
-    st.busy = true; st.err = null; st.ping = now(); st.from = from; st.fromGps = fresh;
-    A.dirty = true; A.lcdDirty = true;
-    A.beep('scan.ping'); clearInterval(st.pingT);
-    st.pingT = setInterval(() => { if (st.tok !== tok || !st.busy) { clearInterval(st.pingT); return; } A.beep('scan.ping'); }, 1300);
-    try {
-      const els = await overpass(from.lat, from.lng, rM);
-      if (st.tok !== tok) return;
-      const seen = new Set(), items = [];
-      els.forEach(e => {
-        const lat = e.lat != null ? e.lat : e.center && e.center.lat, lng = e.lon != null ? e.lon : e.center && e.center.lon;
-        if (lat == null || lng == null || !e.tags || !e.tags.name) return;
-        const name = RX.font.norm(e.tags.name).slice(0, 40);
-        const key = normName(name) + '@' + lat.toFixed(4) + lng.toFixed(4);
-        if (seen.has(key)) return; seen.add(key);
-        const kind = classify(e.tags);
-        items.push({ id: e.type[0] + e.id, lat, lng, name, kind, type: typeFor(e.tags, kind), tags: e.tags, m: Geo.meters(from.lat, from.lng, lat, lng), brg: Geo.bearing(from.lat, from.lng, lat, lng) });
-      });
-      items.sort((a, b) => a.m - b.m);
-      st.res = { from, rM, at: Date.now(), items };
-      st.pulse = now(); st.sel = 0; st.jog = true; st.scroll = 0;
-      const n = items.filter(i => i.m <= st.rFt * FT).length;
-      A.say('SCAN ▸ ' + n + ' PLACE' + (n === 1 ? '' : 'S') + ' IN ' + st.rFt + ' FT' + (fresh ? '' : ' OF THE MAP CENTER'), 3500);
-      A.beep('scan.ping'); setTimeout(() => A.beep(n ? 'scan.found' : 'scan.empty'), 450);
-    } catch (e) {
-      if (st.tok !== tok) return;
-      st.err = (e && e.name === 'AbortError') ? 'NO ANSWER' : 'NO SIGNAL';
-      A.say('SCAN ▸ ' + st.err + ' · PRESS SCAN TO TRY AGAIN', 4000); A.beep('err');
-    } finally {
-      if (st.tok === tok) { st.busy = false; clearInterval(st.pingT); A.dirty = true; A.lcdDirty = true; }
-    }
+  // ======================================================================
+  // REC · a track you keep
+  // ======================================================================
+  const tNo = t => String(t.n || 0).padStart(4, '0');
+  const tName = t => t.name || 'TRACK ' + tNo(t);
+  const mmss = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(ss).padStart(2, '0'); };
+  const MI = 1609.344;
+  X.tName = tName;
+  let wake = null;
+  async function lockOn() {   // the screen stays on while REC runs (iPhone stops the GPS when it locks)
+    try { if (navigator.wakeLock && !wake && document.visibilityState === 'visible') { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) { wake = null; }
   }
-  // what the current radius and kind leave on the scope
-  function view(st) {
-    const res = st.res; if (!res) return { all: [], inR: [], shown: [], counts: {} };
-    const rM = st.rFt * FT;
-    const inR = res.items.filter(i => i.m <= rM);
-    const counts = { ALL: inR.length }; KINDS.forEach(k => { counts[k] = 0; }); inR.forEach(i => { counts[i.kind]++; });
-    const all = st.kind === 'ALL' ? inR : inR.filter(i => i.kind === st.kind);
-    return { all, inR, shown: all.slice(0, CAP), counts };
-  }
-  function markIt(st, A, it) {
-    const had = alreadyMarked(it);
-    if (had) { A.openMark(had.id); A.say('ALREADY MARKED ▸ ' + S.markLabel(had), 2500); return; }
-    A.home();
-    A.follow(false); M.setView(it.lat, it.lng, Math.max(M.zoom, 17));
-    A.dropAt(it.lat, it.lng, 'SCAN', { name: it.name, kind: kindFor(it), notes: [it.tags['addr:housenumber'], it.tags['addr:street']].filter(Boolean).join(' ') });
-  }
+  function lockOff() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.rec) lockOn(); });
 
-  RX.screens.sonar = {
-    drum: PAGES,
-    animating: st => st.busy || (st.pulse && now() - st.pulse < 1600),
-    jogLabels: () => ['◂ NEARER', 'FARTHER ▸', 'PUSH ▸ MARK IT'],
-    enter(st, params, A) {
-      st.rFt = RADII.includes(S.v2.scanR) ? S.v2.scanR : 600; st.page = 'r' + st.rFt; st.kind = 'ALL';
-      st.sel = 0; st.jog = true; X.setMode('scan'); sweep(st, A);
-    },
-    resume(st) { X.setMode('scan'); },
-    leave(st) { st.tok = (st.tok || 0) + 1; clearInterval(st.pingT); X.setMode(null); },
-    again(st, A) { sweep(st, A); },
-    onPage(pg, st, A) {
-      st.rFt = +pg.slice(1); S.saveV2({ scanR: st.rFt });
-      st.sel = 0; st.scroll = 0;
-      clearTimeout(st.rT);
-      // inside what the last sweep covered: just redraw; farther out: sweep again once the drum settles
-      if (st.res && st.res.rM >= st.rFt * FT - 1) { st.pulse = now(); A.dirty = true; }
-      else st.rT = setTimeout(() => { if (A.top().st === st) sweep(st, A); }, 800);
-    },
-    jog(d, st, A) {
-      const v = view(st), n = v.shown.length;
-      if (!n) return;
-      st.jog = true; st.sel = clamp((st.sel || 0) + d, 0, n - 1); st.armed = null;
-    },
-    push(st, A) { const it = view(st).shown[st.sel || 0]; if (it) markIt(st, A, it); else A.say(st.busy ? 'SCANNING...' : 'NOTHING TO MARK', 1800); },
-    onMarkKey(st, A) { this.push(st, A); },
-    lcd(st, A) {
-      const v = view(st), it = v.shown[st.sel || 0];
-      if (st.busy && !st.res) return { rows: [['SCN', 'PINGING ' + st.rFt + ' FT'], ['NEAR', '--'], ['DST', '--']], tag: 'SCN' };
-      return { rows: [['SCN', v.all.length + (st.kind === 'ALL' ? '' : ' ' + st.kind) + ' IN ' + st.rFt + ' FT'], ['NEAR', it ? it.name : 'NOTHING'], ['DST', it ? Geo.fmtDist(it.m) + ' ' + Geo.cardinal(it.brg) + ' ' + String(Math.round(it.brg) % 360).padStart(3, '0') + '°' : '--']], tag: 'SCN' };
-    },
-    render(g, st, A) {
-      const W = g.W, H = g.H, mx = g.mx, t = now();
-      const v = view(st);
-      const head = v.all.length > CAP ? CAP + ' OF ' + v.all.length : String(v.all.length);
-      g.header('SCAN · ' + st.rFt + ' FT', st.busy ? 'PINGING' : (st.res ? head + (st.kind === 'ALL' ? '' : ' ' + st.kind) : ''));
-      const fy = g.H - 11;
-      // the scope
-      const listMin = 5 * 9 + 10;
-      const D = clamp(Math.min(W - 10, fy - 13 - listMin - 4), 34, 92), R = Math.floor(D / 2);
-      const cx = Math.floor(W / 2), cy = 13 + R + 1;
-      mx.ring(cx, cy, R, C.ink, 0.75);
-      mx.ring(cx, cy, Math.round(R * 2 / 3), C.ink, 0.25, 3); mx.ring(cx, cy, Math.round(R / 3), C.ink, 0.25, 3);
-      mx.hline(cx - R, cy, 2 * R + 1, C.ink, 0.12, 3); mx.vline(cx, cy - R, 2 * R + 1, C.ink, 0.12, 3);
-      g.mini('N', cx - 1, cy - R - 6 < 12 ? cy - R + 2 : cy - R - 6, { a: 0.6 });
-      const sc = R / (st.rFt * FT);
-      // pulse: while waiting it keeps pinging; when the answer lands one ring sweeps out and the blips catch as it passes
-      let pr = R + 1;
-      if (st.busy) { const k = ((t - st.ping) % 1300) / 1100; if (k <= 1) { pr = k * R; mx.ring(cx, cy, Math.max(1, pr), C.hot, 0.8 * (1 - k)); } }
-      else if (st.pulse && t - st.pulse < 1300) { const k = (t - st.pulse) / 1100; pr = Math.min(1, k) * R; if (k < 1) { mx.ring(cx, cy, Math.max(1, pr), C.hot, 0.9); if (pr > 3) mx.ring(cx, cy, pr - 3, C.ink, 0.35); } }
-      if (st.res) {
-        const from = st.res.from, shownSet = new Set(v.shown.map(i => i.id));
-        // the rest of the crowd: single faint dots
-        v.inR.forEach(it => {
-          if (shownSet.has(it.id)) return;
-          const r = it.m * sc; if (r > pr) return;
-          const a = it.brg * Math.PI / 180;
-          mx.set(Math.round(cx + Math.sin(a) * r), Math.round(cy - Math.cos(a) * r), KCOL[it.kind], st.kind === 'ALL' || it.kind === st.kind ? 0.35 : 0.12);
-        });
-        v.shown.forEach((it, i) => {
-          const r = it.m * sc; if (r > pr) return;
-          const a = it.brg * Math.PI / 180, x = Math.round(cx + Math.sin(a) * r), y = Math.round(cy - Math.cos(a) * r);
-          const sel = i === (st.sel || 0);
-          mx.carve(x, y, sel ? 3.2 : 2.4); mx.disc(x, y, sel ? 2.2 : 1.5, KCOL[it.kind], 1);
-          if (sel) g.brackets(x, y, 5 + (Math.floor(t / 450) % 2), C.hot, 1);
-        });
-        if (!st.fromGps) g.mini('MAP CTR', W - 2 - RX.font.measure('MAP CTR', 'mini'), 14, { c: C.amber, a: 0.9 });
-      }
-      // you, and which way you're facing
-      mx.carve(cx, cy, 2.4); mx.disc(cx, cy, 1.4, C.hot, 1);
-      if (A.gps && A.gps.heading != null) { const h = A.gps.heading * Math.PI / 180; for (let r = 3; r <= 6; r++) mx.set(cx + Math.round(Math.sin(h) * r), cy - Math.round(Math.cos(h) * r), C.hot, 0.9); }
-      let y = cy + R + 4;
-      // the kinds, with how many of each (tap one to show only those)
-      if (st.res) {
-        const chips = ['ALL'].concat(KINDS.filter(k => v.counts[k] > 0 || st.kind === k));
-        let x = 1;
-        chips.forEach(k => {
-          const lab = k + ' ' + (v.counts[k] || 0), w = RX.font.measure(lab, 'mini') + 4;
-          if (x + w > W) { x = 1; y += 9; }   // wraps to a second row
-          const on = st.kind === k, col = k === 'ALL' ? C.ink : KCOL[k];
-          if (on) mx.rect(x, y, w, 7, col, 0.85); else mx.frame(x, y, w, 7, col, 0.45);
-          g.mini(lab, x + 2, y + 1, { c: on ? '#04120C' : col, a: on ? 1 : 0.9 });
-          g.hit(x, y - 1, w, 9, () => { st.kind = on && k !== 'ALL' ? 'ALL' : k; st.sel = 0; st.scroll = 0; st.armed = null; st.pulse = now(); });
-          x += w + 2;
-        });
-        y += 10;
-      }
-      // the nearest, nearest first
-      const top = y;
-      let ly = g.scrollBegin(top, fy);
-      if (st.err && !st.res) { g.text(st.err, 2, ly + 2, { c: C.red }); g.mini('PRESS SCAN TO TRY AGAIN', 2, ly + 12); ly += 22; }
-      else if (!st.res) { g.text(st.busy ? 'PINGING...' : 'PRESS SCAN', 2, ly + 2, { a: 0.6 }); ly += 12; }
-      else if (!v.shown.length) { g.text('NOTHING NAMED IN ' + st.rFt + ' FT', 2, ly + 2, { a: 0.6 }); g.mini('ROLL THE DRUM FOR MORE RANGE', 2, ly + 12); ly += 22; }
-      v.shown.forEach((it, i) => {
-        // first tap picks it (brackets on the scope), a second tap on the same one marks it
-        const sel = g.row(0, ly, W - 2, 9, () => { if (st.armed === it.id) markIt(st, A, it); else { st.armed = it.id; st.sel = i; st.jog = true; } });
-        const had = alreadyMarked(it);
-        mx.disc(4, ly + 4, 1.6, KCOL[it.kind], had ? 0.4 : 1);
-        const right = Geo.fmtDist(it.m) + ' ' + Geo.cardinal(it.brg);
-        const rw = RX.font.measure(right, 'mini');
-        g.text(g.fit((had ? '✓ ' : '') + it.name, W - rw - 14), 9, ly + 1, { c: sel ? C.hot : C.ink, a: had ? 0.5 : 1 });
-        g.miniR(right, W - 3, ly + 2, { a: 0.7 });
-        ly += 9;
-      });
-      g.scrollEnd(ly);
-      g.footer(A.sayActive() ? A.statusShown(g.t) : (st.res && v.shown.length ? 'PUSH ▸ MARK ' + (v.shown[st.sel || 0] || {}).name : 'DRUM ▸ RADIUS · SCAN ▸ SWEEP'));
+  X.recStart = function () {
+    S.rec = { id: 'TRK-' + Date.now().toString(36).toUpperCase(), n: S.trackNo(), t0: Date.now(), m: 0, pts: [] };
+    S.saveRec(true);
+    if (A.gps && Date.now() - A.gps.ts < 30000) X.fix(A.gps);
+    lockOn();
+    A.beep('rec.on'); A.say('REC ▸ RECORDING TRACK ' + tNo(S.rec) + ' · REC AGAIN STOPS', 3500);
+    relamp('rec'); if (A.updateLamps) A.updateLamps(); A.dirty = true; A.lcdDirty = true;
+  };
+  X.recStop = function () {
+    const r = S.rec; if (!r) return;
+    S.rec = null; S.saveRec(true); lockOff();
+    relamp('rec'); if (A.updateLamps) A.updateLamps(); A.dirty = true; A.lcdDirty = true;
+    if (r.pts.length < 2 || r.m < 20) { A.say('REC ▸ TOO SHORT · NOTHING SAVED', 3000); A.beep('err'); return; }
+    const tr = { id: r.id, n: r.n, name: '', t0: r.t0, t1: Date.now(), m: Math.round(r.m), pts: r.pts, from: null, to: null };
+    S.tracks.push(tr); S.saveTracks();
+    const st = X.stats(tr);
+    S.log('track', null, tName(tr) + ' · ' + st.mi.toFixed(2) + ' MI · ' + mmss(st.ms / 1000));
+    S.journal[S.journal.length - 1].trackId = tr.id; S.saveJournal();
+    A.beep('rec.off');
+    if (A.stack.length > 1) A.home();
+    A.go('track', { id: tr.id });
+    // the street names at either end, when the lookup answers
+    const a = tr.pts[0], b = tr.pts[tr.pts.length - 1];
+    Promise.all([Geo.reverse(a[0], a[1], 17), Geo.reverse(b[0], b[1], 17)]).then(([ra, rb]) => {
+      tr.from = road(ra); tr.to = road(rb); S.saveTracks(); A.dirty = true;
+    }).catch(() => {});
+  };
+  // every GPS fix: while REC runs, a point when you've really moved
+  X.fix = function (g) {
+    const r = S.rec; if (!r || !g) return;
+    if (g.acc > 35) return;
+    const t = Math.max(0, Math.round((g.ts - r.t0) / 1000)), last = r.pts[r.pts.length - 1];
+    if (last) {
+      const d = Geo.meters(last[0], last[1], g.lat, g.lng);
+      if (d < Math.max(4, g.acc * 0.5)) return;
+      if (d > 300 && t - last[2] < 10) return;   // a jump, not a walk
+      r.m += d;
     }
+    r.pts.push([+g.lat.toFixed(6), +g.lng.toFixed(6), t, g.alt == null ? null : Math.round(g.alt * 10) / 10, g.speed == null ? null : Math.round(g.speed * 10) / 10]);
+    S.saveRec();
+    A.lcdDirty = true;
+  };
+  X.stats = function (tr) {
+    const live = !tr.t1, ms = (live ? Date.now() : tr.t1) - tr.t0, mi = (tr.m || 0) / MI, P = tr.pts;
+    // top speed: the best 20 s stretch (single fixes are too noisy)
+    let top = 0;
+    for (let i = 0, j = 0; j < P.length; j++) {
+      while (P[j][2] - P[i][2] > 20 && i < j) i++;
+      let dd = 0; for (let k = i + 1; k <= j; k++) dd += Geo.meters(P[k - 1][0], P[k - 1][1], P[k][0], P[k][1]);
+      const dt = P[j][2] - P[i][2]; if (dt >= 10) top = Math.max(top, dd / dt);
+    }
+    // climb: rises of more than 3 m only, so GPS altitude noise doesn't add up
+    let climb = 0, ref = null, high = null;
+    P.forEach(p => { const a = p[3]; if (a == null) return; high = high == null ? a : Math.max(high, a); if (ref == null) { ref = a; return; } if (a > ref + 3) { climb += a - ref; ref = a; } else if (a < ref) ref = a; });
+    return { ms, mi, pace: mi > 0.01 ? ms / 60000 / mi : null, mph: ms > 0 ? mi / (ms / 3600000) : 0, top: top * 2.23694, climb: high == null ? null : climb * 3.28084, high: high == null ? null : high * 3.28084 };
+  };
+  const road = r => !r ? null : ((r.house ? r.house + ' ' : '') + (r.road || '')).trim() || r.area || null;
+  X.road = road;
+  // a track on the map: fit it to the screen
+  X.showTrack = function (id) {
+    const tr = S.track(id); if (!tr || !tr.pts.length) return;
+    A.home(); A.showTrack = id;
+    let la0 = 90, la1 = -90, ln0 = 180, ln1 = -180;
+    tr.pts.forEach(p => { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); ln0 = Math.min(ln0, p[1]); ln1 = Math.max(ln1, p[1]); });
+    const lat = (la0 + la1) / 2, lng = (ln0 + ln1) / 2, v = A.view();
+    const spanM = Math.max(Geo.meters(la0, lng, la1, lng) / Math.max(1, v.rows - 40), Geo.meters(lat, ln0, lat, ln1) / Math.max(1, v.cols - 16), 0.5);
+    const z = Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) * v.pitch / spanM);
+    A.follow(false); M.setView(lat, lng, clamp(Math.floor(z * 2) / 2, 3, 18));
+    A.say(tName(tr) + ' ▸ ON THE MAP · BACK HIDES IT', 3500); A.dirty = true;
   };
 
   // ======================================================================
-  // HERE · where you are, exactly
+  // PARK / RETURN
   // ======================================================================
-  // Open Location Code (plus code), 10 digits ≈ 14 m
-  function plusCode(lat, lng) {
-    const AL = '23456789CFGHJMPQRVWX';
-    let la = Math.floor((clamp(lat, -90, 90 - 1e-10) + 90) * 8000), lo = Math.floor((((lng + 180) % 360 + 360) % 360) * 8000);
-    const d = [];
-    for (let i = 0; i < 5; i++) { d.unshift(AL[lo % 20]); d.unshift(AL[la % 20]); la = Math.floor(la / 20); lo = Math.floor(lo / 20); }
-    return d.slice(0, 8).join('') + '+' + d.slice(8).join('');
+  const METERS = [0, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720];   // minutes
+  const parkSave = () => S.saveV2({ park: S.v2.park });
+  X.parkHere = function () {
+    const g = A.gps;
+    if (!g || Date.now() - g.ts > 60000) { A.say('PARK ▸ NO GPS FIX YET · TRY AGAIN IN A MOMENT', 3000); A.beep('err'); return; }
+    const p = { lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6), acc: Math.round(g.acc), ts: Date.now(), addr: null, meter: null, away: false, back: false };
+    S.saveV2({ park: p });
+    A.parkBanner = { until: Date.now() + 9000 };
+    if (A.stack.length > 1) A.home();
+    A.beep('park.set'); A.say('PARKED ▸ ' + F.hm(p.ts) + ' · RETURN FINDS IT', 3000);
+    relamp('park'); A.dirty = true; A.lcdDirty = true;
+    Geo.reverse(p.lat, p.lng, 18).then(r => { const q = S.v2.park; if (q && q.ts === p.ts && r) { q.addr = road(r); parkSave(); A.dirty = true; A.lcdDirty = true; } }).catch(() => {});
+  };
+  X.parkClear = function (how) {
+    if (!X.parked()) return;
+    S.saveV2({ park: null }); A.parkBanner = null;
+    A.beep('park.clear'); A.say('PARK ▸ SPOT CLEARED' + (how === 'HOLD' ? ' · KEY HELD' : ''), 2500);
+    if (A.stack.length > 1 && A.top().name === 'ret') A.back();
+    relamp('park'); X.kickCmp(); A.dirty = true; A.lcdDirty = true;
+  };
+  const meterLeft = p => p && p.meter ? Math.max(0, p.meter - Date.now()) : null;
+  const fmtMeter = ms => { const m = Math.ceil(ms / 60000); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+  X.meterText = () => { const l = meterLeft(X.parked()); return l == null ? 'NO METER' : l <= 0 ? 'EXPIRED' : fmtMeter(l); };
+  X.meterStep = function (d) {
+    const p = X.parked(); if (!p) return;
+    const left = meterLeft(p) == null ? 0 : Math.ceil(meterLeft(p) / 60000);
+    let next = d > 0 ? METERS.find(m => m > left) : [...METERS].reverse().find(m => m < left);
+    if (next == null) next = d > 0 ? METERS[METERS.length - 1] : 0;
+    p.meter = next ? Date.now() + next * 60000 : null; p.w5 = p.w0 = false; parkSave();
+    A.say(next ? 'METER ▸ ' + fmtMeter(next * 60000) + ' · ENDS ' + F.hm(p.meter) : 'METER ▸ OFF', 1800);
+    A.lcdDirty = true; A.dirty = true;
+  };
+  function meterCheck() {
+    const p = X.parked(); if (!p || !A) return;
+    const l = meterLeft(p);
+    if (l != null) {
+      if (l <= 0 && !p.w0) { p.w0 = p.w5 = true; parkSave(); A.say('METER ▸ TIME IS UP', 8000); A.beep('meter'); }
+      else if (l > 0 && l <= 300000 && !p.w5) { p.w5 = true; parkSave(); A.say('METER ▸ ' + Math.ceil(l / 60000) + ' MIN LEFT', 6000); A.beep('meter'); }
+    }
+    // walked away, then came back: offer to clear it
+    const g = A.gps; if (!g || Date.now() - g.ts > 60000) return;
+    const m = Geo.meters(g.lat, g.lng, p.lat, p.lng);
+    if (m > 60 && !p.away) { p.away = true; parkSave(); }
+    if (p.away && !p.back && m <= arriveM(g)) { p.back = true; parkSave(); A.say('BACK AT YOUR CAR ▸ RETURN, THEN DRUM TO CLEAR', 5000); A.beep('park.back'); }
   }
-  RX.aux.plusCode = plusCode;
-  function dms(v, pos, neg) {
-    const a = Math.abs(v), d = Math.floor(a), mf = (a - d) * 60, m = Math.floor(mf), s = (mf - m) * 60;
-    return d + '°' + String(m).padStart(2, '0') + "'" + s.toFixed(1).padStart(4, '0') + '"' + (v >= 0 ? pos : neg);
+  const arriveM = g => clamp(g ? g.acc : 15, 15, 40);
+
+  // ======================================================================
+  // ON THE MAP
+  // ======================================================================
+  function drawTape(g, v, pts, col, a) {
+    if (!pts || pts.length < 2) return;
+    const mx = g.mx, W = g.W, H = g.H, P = pts.map(p => M.latLngToDot(p[0], p[1], v));
+    const walk = fn => { for (let i = 1; i < P.length; i++) { const p0 = P[i - 1], p1 = P[i];
+      if ((p0.x < -4 && p1.x < -4) || (p0.x > W + 4 && p1.x > W + 4) || (p0.y < -4 && p1.y < -4) || (p0.y > H + 4 && p1.y > H + 4)) continue;
+      const n = Math.max(1, Math.ceil(Math.hypot(p1.x - p0.x, p1.y - p0.y) * 2)); for (let k = 0; k <= n; k++) fn(Math.floor(p0.x + (p1.x - p0.x) * k / n), Math.floor(p0.y + (p1.y - p0.y) * k / n)); } };
+    walk((x, y) => { for (let j = -2; j <= 2; j++) for (let i = -2; i <= 3; i++) mx.off(x + i, y + j); });   // a dark keyline so it reads over streets
+    walk((x, y) => { mx.set(x, y, col, a); mx.set(x + 1, y, col, a); mx.set(x, y + 1, col, a * 0.8); mx.set(x + 1, y + 1, col, a * 0.8); });
+    const s = P[0]; mx.carve(Math.floor(s.x), Math.floor(s.y), 3); mx.ring(Math.floor(s.x), Math.floor(s.y), 2, col, 1);
   }
-  async function elevation(lat, lng) {
-    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
-    try {
-      const j = await (await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lat.toFixed(5) + '&longitude=' + lng.toFixed(5), { signal: ctl.signal })).json();
-      const m = j && j.elevation && j.elevation[0]; return Number.isFinite(m) ? m : null;
-    } catch (e) { return null; } finally { clearTimeout(tm); }
+  // under the marks: the track being recorded, and a saved one you asked to see
+  X.drawUnder = function (g, A, v) {
+    if (A.showTrack) { const tr = S.track(A.showTrack); if (tr) { drawTape(g, v, tr.pts, RED, 0.85); const e = tr.pts[tr.pts.length - 1], d = M.latLngToDot(e[0], e[1], v); g.mx.carve(Math.floor(d.x), Math.floor(d.y), 2.6); g.mx.disc(Math.floor(d.x), Math.floor(d.y), 1.6, RED, 1); } else A.showTrack = null; }
+    if (S.rec) drawTape(g, v, S.rec.pts, RED, 1);
+  };
+  // over the marks: where the car is
+  X.drawOver = function (g, A, v, o) {
+    const p = X.parked(); if (!p) return;
+    const d = M.latLngToDot(p.lat, p.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
+    if (x < -8 || y < -8 || x > g.W + 8 || y > g.H + 8) return;
+    g.kindPin(x, y, 'PARKING', C.amber, { r: 6 });
+    if (!o || !o.noHits) g.hit(x - 7, y - 7, 15, 15, () => { if (A.stack.length > 1) A.home(); A.go('ret'); });
+  };
+  const bannerUp = A => A.parkBanner && Date.now() < A.parkBanner.until && X.parked();
+  // the top-left chip while REC runs
+  X.mapChip = function (g, A) {
+    if (!S.rec) return;
+    const mx = g.mx, st = X.stats(S.rec), label = 'REC ' + mmss(st.ms / 1000) + ' · ' + st.mi.toFixed(2) + ' MI', w = RX.font.measure(label) + 14;
+    mx.clearRect(1, 13, w + 2, 12); mx.frame(1, 13, w + 2, 12, RED, 1);
+    mx.disc(7, 18, 2.2, RED, Math.floor(g.t / 600) % 2 ? 1 : 0.35); g.text(label, 12, 15, { c: '#FFD9D4' });
+  };
+  X.mapBanner = function (g, A, fy) {
+    if (!bannerUp(A)) return false;
+    const p = X.parked(), mx = g.mx, bx = 4, bw = g.W - 8, bh = 33, by = fy - 12 - bh;
+    mx.clearRect(bx, by, bw, bh); mx.frame(bx, by, bw, bh, C.amber, 1);
+    g.kindPin(bx + 8, by + 8, 'PARKING', C.amber, { r: 5 });
+    g.text('PARKED ▸ ' + F.hm(p.ts), bx + 16, by + 4, { c: C.hot });
+    g.mini(g.fit(p.addr || 'READING THE ADDRESS...', bw - 10, 'mini'), bx + 4, by + 15, { a: 0.9 });
+    g.mini(p.meter ? 'METER ' + X.meterText() + ' · ENDS ' + F.hm(p.meter) : 'RETURN ▸ FIND IT · JOG ▸ METER TIMER', bx + 4, by + 24, { c: C.amber, a: 0.95 });
+    return true;
+  };
+  X.mapLabels = A => bannerUp(A) ? ['◂ LESS', 'MORE ▸', 'METER TIMER · PUSH ▸ DONE'] : null;
+  X.mapJogVal = A => bannerUp(A) ? X.meterText() : null;
+  X.mapJog = function (d, A) { if (!bannerUp(A)) return false; X.meterStep(d); A.parkBanner.until = Date.now() + 9000; return true; };
+  X.mapPush = function (A) { if (!bannerUp(A)) return false; A.parkBanner = null; A.dirty = true; return true; };
+  X.mapBack = function (A) {
+    if (bannerUp(A)) { A.parkBanner = null; return true; }
+    if (A.showTrack) { A.showTrack = null; A.say('TRACK HIDDEN', 1500); return true; }
+    return false;
+  };
+  X.mapLcd = function (A) {
+    if (S.rec) { const st = X.stats(S.rec); return { rows: [['REC', mmss(st.ms / 1000)], ['DIST', st.mi.toFixed(2) + ' MI'], ['PACE', st.pace ? mmss(st.pace * 60) + ' /MI' : '--']], tag: 'REC' }; }
+    if (bannerUp(A)) { const p = X.parked(); return { rows: [['PARK', F.hm(p.ts)], ['SPOT', p.addr || '...'], ['METER', X.meterText()]], tag: 'PRK' }; }
+    return null;
+  };
+  // the rotating status line
+  X.status = function (A) {
+    const out = [];
+    if (S.rec) { const st = X.stats(S.rec); out.push('REC ▸ ' + mmss(st.ms / 1000) + ' · ' + st.mi.toFixed(2) + ' MI'); }
+    const p = X.parked(), g = A.gps;
+    if (p && g) { const m = Geo.meters(g.lat, g.lng, p.lat, p.lng); out.push('CAR ▸ ' + Geo.fmtDist(m) + ' ' + Geo.cardinal(Geo.bearing(g.lat, g.lng, p.lat, p.lng)) + (p.meter ? ' · METER ' + X.meterText() : '')); }
+    return out;
+  };
+
+  // ======================================================================
+  // SCREENS
+  // ======================================================================
+  function fillPoly(mx, pts, c, a) {
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    for (let y = Math.floor(Math.min(...ys)); y <= Math.ceil(Math.max(...ys)); y++) for (let x = Math.floor(Math.min(...xs)); x <= Math.ceil(Math.max(...xs)); x++) {
+      let ins = false; const px = x + 0.5, py = y + 0.5;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j];
+        if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) ins = !ins; }
+      if (ins) mx.set(x, y, c, a);
+    }
   }
-  function look(st, A) {
-    const fresh = A.gps && Date.now() - A.gps.ts < 60000;
-    const f = fresh ? { lat: A.gps.lat, lng: A.gps.lng, acc: A.gps.acc, alt: A.gps.alt, ts: A.gps.ts, gps: true } : { lat: M.lat, lng: M.lng, acc: null, alt: null, ts: Date.now(), gps: false };
-    const tok = st.tok = (st.tok || 0) + 1;
-    st.fix = f; st.addr = null; st.elev = null; st.lot = null; st.busy = { addr: true, elev: true, lot: true };
-    A.dirty = true; A.lcdDirty = true;
-    const done = (k, v) => { if (st.tok !== tok) return; st[k] = v; st.busy[k] = false; A.dirty = true; A.lcdDirty = true; };
-    Geo.reverse(f.lat, f.lng, 18).then(r => done('addr', r || false));
-    elevation(f.lat, f.lng).then(m => done('elev', m == null ? false : m));
-    if (RX.parcel) RX.parcel.at(f.lat, f.lng).then(p => done('lot', p || false)).catch(() => done('lot', false)); else done('lot', false);
-    A.say(f.gps ? 'HERE ▸ FIX ±' + Math.round(f.acc) + ' M' : 'HERE ▸ NO GPS FIX · READING THE MAP CENTER', 3000); A.beep('here.fix');
-  }
-  function addrLines(st) {
-    const a = st.addr; if (!a) return [];
-    const l1 = ((a.house ? a.house + ' ' : '') + a.road).trim();
-    const l2 = [a.town, [a.st, a.postcode].filter(Boolean).join(' ')].filter(Boolean).join(' ');
-    return [l1 || a.area, l2].filter(Boolean);
-  }
-  function shareText(st) {
-    const f = st.fix; if (!f) return '';
-    const ll = f.lat.toFixed(5) + ', ' + f.lng.toFixed(5);
-    return [ll, addrLines(st).join(', '), 'https://maps.apple.com/?ll=' + f.lat.toFixed(6) + ',' + f.lng.toFixed(6) + '&q=' + encodeURIComponent('Here')].filter(Boolean).join('\n');
-  }
-  async function copy(st, A) {
-    const s = shareText(st); if (!s) return;
-    try { await navigator.clipboard.writeText(s); A.say('COPIED ▸ COORDINATES + ADDRESS', 2500); A.beep('ok'); }
+  const rot = (pts, th, cx, cy, s) => pts.map(([x, y]) => [cx + s * (x * Math.cos(th) - y * Math.sin(th)), cy + s * (x * Math.sin(th) + y * Math.cos(th))]);
+  const ARROW = [[0, -1], [0.66, -0.12], [0.25, -0.12], [0.25, 0.92], [-0.25, 0.92], [-0.25, -0.12], [-0.66, -0.12]];
+  const lubber = (mx, cx, cy, R) => fillPoly(mx, [[cx - 3, cy - R - 6], [cx + 4, cy - R - 6], [cx + 0.5, cy - R - 1]], C.hot, 1);
+  const fresh = g => g && Date.now() - g.ts < 60000;
+  async function copy(s, what) {
+    try { await navigator.clipboard.writeText(s); A.say('COPIED ▸ ' + what, 2500); A.beep('ok'); }
     catch (e) { A.say('COPY BLOCKED BY THE BROWSER', 2500); A.beep('err'); }
   }
-  async function share(st, A) {
-    const s = shareText(st); if (!s) return;
-    if (navigator.share) { try { await navigator.share({ title: 'Here', text: s }); A.beep('ok'); } catch (e) { if (!e || e.name !== 'AbortError') copy(st, A); } }
-    else copy(st, A);
-  }
-  function markHere(st, A) {
-    const f = st.fix; if (!f) return;
-    const lines = addrLines(st);
-    A.home();
-    A.follow(false); M.setView(f.lat, f.lng, Math.max(M.zoom, 17));
-    A.dropAt(f.lat, f.lng, 'HERE', { name: lines[0] || '' });
-  }
 
-  RX.screens.here = {
-    jogLabels: () => ['◂ UP', 'DOWN ▸', 'PUSH ▸ SELECT'],
-    enter(st, params, A) { st.sel = 0; st.jog = false; X.setMode('here'); look(st, A); },
-    resume() { X.setMode('here'); },
-    leave(st) { st.tok = (st.tok || 0) + 1; X.setMode(null); },
-    again(st, A) { look(st, A); },
-    onMarkKey(st, A) { markHere(st, A); },
-    lcd(st, A) {
-      const f = st.fix; if (!f) return null;
-      const L = addrLines(st);
-      return { rows: [['LAT', (f.lat >= 0 ? 'N ' : 'S ') + Math.abs(f.lat).toFixed(5) + '°'], ['LNG', (f.lng >= 0 ? 'E ' : 'W ') + Math.abs(f.lng).toFixed(5) + '°'], ['ADDR', L[0] || (st.busy.addr ? 'READING...' : '--')]], tag: 'HRE' };
+  // ---------------------------------------------------------------- COMPASS
+  function rose(g, cx, cy, R, hd, o) {
+    const mx = g.mx; o = o || {};
+    mx.ring(cx, cy, R, C.ink, 0.35);
+    for (let a = 0; a < 360; a += 10) {
+      const th = (a - hd) * Math.PI / 180, big = a % 30 === 0, L = big ? 5 : 2, sx = Math.sin(th), sy = -Math.cos(th);
+      for (let r = R - L; r <= R - 1; r++) mx.set(Math.round(cx + sx * r), Math.round(cy + sy * r), a === 0 ? C.amber : C.ink, big ? 1 : 0.6);
+    }
+    [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([L, a]) => { const th = (a - hd) * Math.PI / 180, r = R - 11;
+      mx.textC(L, Math.round(cx + Math.sin(th) * r), Math.round(cy - Math.cos(th) * r) - 3, { c: L === 'N' ? C.amber : C.ink, a: o.dim ? 0.45 : 1 }); });
+    if (o.target != null) {   // the bearing you hold (or are choosing): a dashed line out to an amber pointer on the ring
+      const th = (o.target - hd) * Math.PI / 180, sx = Math.sin(th), sy = -Math.cos(th);
+      mx.line(cx, cy, Math.round(cx + sx * (R - 7)), Math.round(cy + sy * (R - 7)), C.amber, o.picking ? 0.6 : 0.9, 2);
+      fillPoly(mx, rot([[0, -1], [0.7, 0.4], [-0.7, 0.4]], th, cx + sx * (R + 3), cy + sy * (R + 3), 3.4), C.amber, o.picking && Math.floor(g.t / 400) % 2 ? 0.4 : 1);
+    }
+    lubber(mx, cx, cy, R);
+    mx.vline(cx, cy - R + 1, 6, C.hot, 0.9);
+    mx.disc(cx, cy, 1.5, C.hot, 1);
+  }
+  RX.screens.compass = {
+    animating: () => true,
+    jogLabels: () => HD.hold != null ? ['◂ -1°', '+1° ▸', 'PUSH ▸ LET GO'] : ['◂ BEARING', 'BEARING ▸', 'PUSH ▸ HOLD IT'],
+    enter(st) { st.pick = null; X.kickCmp(); },
+    jog(d, st, A) {
+      if (HD.hold != null) { HD.hold = norm(HD.hold + d); return; }
+      const h = X.shownHeading(), base = st.pick != null ? st.pick : Math.round((h || 0) / 5) * 5;
+      st.pick = norm(base + d * 5);
     },
+    push(st, A) {
+      if (HD.hold != null) { HD.hold = null; st.pick = null; A.say('COMPASS ▸ LET GO', 1500); A.beep('key'); return; }
+      const h = X.shownHeading();
+      if (st.pick == null && h == null) { HD.start(); A.say('COMPASS ▸ ' + HD.status(), 2000); A.beep('err'); return; }
+      HD.hold = Math.round(st.pick != null ? st.pick : h); st.pick = null;
+      A.say('COMPASS ▸ HOLDING ' + deg(HD.hold) + ' ' + card8(HD.hold), 2500); A.beep('ok');
+    },
+    lcd: () => { const h = X.shownHeading(), g = A.gps; return { rows: [['HDG', h == null ? '--' : deg(h) + ' ' + card8(h)], ['HOLD', HD.hold != null ? deg(HD.hold) + ' ' + card8(HD.hold) : '--'], ['FIX', g ? '±' + Math.round(g.acc) + ' M' : '--']], tag: 'CMP' }; },
     render(g, st, A) {
-      const W = g.W, mx = g.mx, f = st.fix;
-      g.header('HERE', f ? (f.gps ? 'FIX ' + Math.round(f.acc) + 'M · ' + F.hm(f.ts) : 'NO FIX · MAP CENTER') : '');
-      if (!f) { g.footer(''); return; }
-      const fy = g.H - 11;
-      let y = g.scrollBegin(13, fy);
-      // the coordinates, big
-      const big = W >= 140 ? 2 : 1;
-      const latS = (f.lat >= 0 ? 'N ' : 'S ') + Math.abs(f.lat).toFixed(5) + '°', lngS = (f.lng >= 0 ? 'E ' : 'W ') + Math.abs(f.lng).toFixed(5) + '°';
-      g.text(latS, 2, y + 1, { s: big, c: C.hot }); y += 8 * big + 2;
-      g.text(lngS, 2, y + 1, { s: big, c: C.hot }); y += 8 * big + 3;
-      g.mini(dms(f.lat, 'N', 'S') + '  ' + dms(f.lng, 'E', 'W'), 2, y, { a: 0.7 }); y += 9;
-      // the address
-      const L = addrLines(st);
-      if (L.length) L.forEach(l => { g.text(g.fit(l, W - 4), 2, y, { c: C.amber }); y += 9; });
-      else { g.text(st.busy.addr ? 'READING THE ADDRESS...' : 'NO ADDRESS HERE', 2, y, { c: C.amber, a: 0.6 }); y += 9; }
-      y += 3;
-      // the details
-      const row = (k, v, fn, o) => {
+      X.kickCmp();
+      const W = g.W, mx = g.mx, h = X.shownHeading(), hd = h == null ? 0 : h, R = clamp(Math.floor((W - 80) / 2), 30, 41), cx = R + 6, cy = 14 + R + 9;
+      const gp = A.gps;
+      document.getElementById('jogVal').textContent = HD.hold != null ? deg(HD.hold) : st.pick != null ? deg(st.pick) : h != null ? deg(h) : '---°';
+      g.header('COMPASS', h == null ? HD.status() : HD.source() + (gp ? ' · ±' + Math.round(gp.acc) + ' M' : ''));
+      const tgt = HD.hold != null ? HD.hold : st.pick;
+      rose(g, cx, cy, R, hd, { target: tgt, picking: HD.hold == null && st.pick != null, dim: h == null });
+      g.hit(cx - R, cy - R, 2 * R, 2 * R, () => HD.start());
+      const rx = cx + R + 8;
+      g.mini('HEADING', rx, 16, { a: 0.6 });
+      g.text(h == null ? '---°' : deg(h), rx, 23, { s: 2, c: h == null ? C.ink : C.hot, a: h == null ? 0.5 : 1 });
+      if (h != null) g.text(card8(h), rx, 41, { s: 2 });
+      else { const msg = U.wrap(HD.status(), Math.max(6, Math.floor((W - rx) / 4))); msg.forEach((l, i) => g.mini(l, rx, 42 + i * 7, { c: C.amber, a: 0.9 })); }
+      let y = 60;
+      if (HD.hold != null) {
+        g.mini('HOLDING', rx, y, { a: 0.6 }); g.text(deg(HD.hold) + ' ' + card8(HD.hold), rx, y + 7, { c: C.amber });
+        if (h != null) { const off = wrap180(HD.hold - h); g.text(Math.abs(off) <= 3 ? 'ON COURSE ✓' : (off > 0 ? 'TURN ' + Math.abs(Math.round(off)) + '° ▸' : '◂ TURN ' + Math.abs(Math.round(off)) + '°'), rx, y + 17, { c: C.hot }); }
+      } else if (st.pick != null) {
+        g.mini('PUSH TO HOLD', rx, y, { a: 0.6 }); g.text(deg(st.pick) + ' ' + card8(st.pick), rx, y + 7, { c: C.amber });
+      } else { g.mini('HOLD A BEARING', rx, y, { a: 0.6 }); g.text('JOG ▸ PICK', rx, y + 7, { a: 0.5 }); }
+      y = cy + R + 7;
+      const row = (k, v, o, fn) => {
         o = o || {};
         const sel = fn ? g.row(0, y, W - 2, 10, fn) : false;
-        g.mini(k, 3, y + 3, { a: 0.55 });
-        g.text(g.fit(v, W - 40 - (o.go ? 8 : 0)), 34, y + 2, { c: sel ? C.hot : (o.c || C.ink), a: o.a == null ? 1 : o.a });
-        if (o.go) g.textR('▸', W - 4, y + 2, { a: 0.6 });
+        g.mini(k, 3, y + 3, { a: 0.55 }); g.text(g.fit(v, W - 40 - (fn ? 8 : 0)), 34, y + 2, { c: sel ? C.hot : (o.c || C.ink), a: o.a || 1 });
+        if (fn) g.textR('▸', W - 4, y + 2, { a: 0.6 });
         y += 10;
       };
-      const nb = (() => { let best = null; S.pois.forEach(p => { const m = Geo.meters(f.lat, f.lng, p.lat, p.lng); if (!best || m < best.m) best = { p, m, b: Geo.bearing(f.lat, f.lng, p.lat, p.lng) }; }); return best; })();
-      row('NEAR', nb ? S.markLabel(nb.p) + ' · ' + Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.b) : 'NO MARKS', nb ? () => A.openMark(nb.p.id) : null, { go: !!nb });
-      row('COUNTY', st.addr ? (st.addr.county || '--') : (st.busy.addr ? '...' : '--'));
-      row('ELEV', st.elev != null && st.elev !== false ? Math.round(st.elev * 3.28084) + ' FT' + (f.alt != null ? ' · GPS ' + Math.round(f.alt * 3.28084) + ' FT' : '') : (st.busy.elev ? '...' : (f.alt != null ? 'GPS ' + Math.round(f.alt * 3.28084) + ' FT' : '--')));
-      row('PLUS', plusCode(f.lat, f.lng));
-      const lot = st.lot;
-      row('LOT', lot ? [lot.id ? 'ACCT ' + lot.id : null, RX.parcel.fmtAcres(lot.acres)].filter(Boolean).join(' · ') : (st.busy.lot ? '...' : 'NONE ON FILE'), lot ? () => A.go('lot', { lat: f.lat, lng: f.lng }) : null, { go: !!lot });
-      y += 3;
-      // what to do with it
-      const bw = Math.floor((W - 8) / 3);
-      g.btn(2, y, bw, 13, 'COPY', () => copy(st, A));
-      g.btn(4 + bw, y, bw, 13, 'SHARE', () => share(st, A));
-      g.btn(6 + bw * 2, y, W - 8 - bw * 2, 13, 'MARK', () => markHere(st, A), { c: C.amber });
+      const p = X.parked();
+      if (p && fresh(gp)) { const b = Geo.bearing(gp.lat, gp.lng, p.lat, p.lng); row('CAR', Geo.fmtDist(Geo.meters(gp.lat, gp.lng, p.lat, p.lng)) + ' · ' + deg(b) + ' ' + card8(b), { c: C.amber }, () => { A.home(); A.go('ret'); }); }
+      else row('CAR', p ? 'PARKED · NO FIX' : 'NOT PARKED', { a: 0.5 });
+      if (gp) {
+        const ll = (gp.lat >= 0 ? 'N' : 'S') + Math.abs(gp.lat).toFixed(5) + ' ' + (gp.lng >= 0 ? 'E' : 'W') + Math.abs(gp.lng).toFixed(5);
+        row('HERE', ll, null, () => copy(gp.lat.toFixed(6) + ', ' + gp.lng.toFixed(6), 'COORDINATES'));
+        row('ELEV', gp.alt != null ? Math.round(gp.alt * 3.28084) + ' FT · GPS' : '--');
+      } else row('HERE', 'NO GPS FIX', { a: 0.5 });
+      g.footer(A.sayActive() ? A.statusShown(g.t) : (HD.hold != null ? 'PUSH ▸ LET GO' : st.pick != null ? 'PUSH ▸ HOLD ' + deg(st.pick) : 'JOG ▸ PICK A BEARING'));
+    }
+  };
+
+  // ---------------------------------------------------------------- RETURN
+  RX.screens.ret = {
+    drum: ['back', 'clear'],   // roll it to CLEAR and press: no clearing the spot by a habit of pressing BACK
+    animating: () => true,
+    jogLabels: (st, A) => ['◂ METER', 'METER ▸', RX.screens.ret.arrived(A) ? 'PUSH ▸ CLEAR IT' : 'PUSH ▸ WALKING DIRECTIONS'],
+    arrived(A) { const p = X.parked(), g = A.gps; return !!(p && fresh(g) && Geo.meters(g.lat, g.lng, p.lat, p.lng) <= arriveM(g)); },
+    enter(st, params, A) { if (!X.parked()) { setTimeout(() => A.back(), 0); return; } HD.start(); X.kickCmp(); },
+    resume() { X.kickCmp(); },
+    leave() { setTimeout(() => X.kickCmp(), 0); },
+    drumPress(st, A) { if (st.page !== 'clear') return false; X.parkClear('DRUM'); return true; },
+    jog(d, st, A) { X.meterStep(d); },
+    push(st, A) { if (this.arrived(A)) X.parkClear(); else directions(); },
+    lcd: () => {
+      const p = X.parked(), g = A.gps; if (!p) return null;
+      if (!fresh(g)) return { rows: [['CAR', 'NO GPS FIX'], ['PARKED', F.ago(p.ts)], ['METER', X.meterText()]], tag: 'RTN' };
+      const m = Geo.meters(g.lat, g.lng, p.lat, p.lng);
+      return { rows: [['CAR', m <= arriveM(g) ? 'YOU ARE HERE' : Geo.fmtDist(m) + ' ' + Geo.cardinal(Geo.bearing(g.lat, g.lng, p.lat, p.lng))], ['WALK', Math.max(1, Math.round(m / 80)) + ' MIN'], ['METER', X.meterText()]], tag: 'RTN' };
+    },
+    render(g, st, A) {
+      X.kickCmp();
+      const p = X.parked(); if (!p) { g.header('RETURN'); g.footer('NOT PARKED'); return; }
+      const W = g.W, mx = g.mx, t = g.t, R = clamp(Math.floor((W - 80) / 2), 30, 40), cx = R + 6, cy = 14 + R + 9;
+      const gp = A.gps, ok = fresh(gp), arrived = this.arrived(A);
+      // back at the car: the drum rolls itself round to CLEAR, ready for a press
+      if (arrived && !st.rolled) { st.rolled = true; if ((st.page || 'back') !== 'clear') setTimeout(() => { if (A.top().st === st) A.drumRoll(-1, true); }, 0); }
+      const m = ok ? Geo.meters(gp.lat, gp.lng, p.lat, p.lng) : null, brg = ok ? Geo.bearing(gp.lat, gp.lng, p.lat, p.lng) : null;
+      const h = X.shownHeading();
+      document.getElementById('jogVal').textContent = X.meterText();
+      g.header('RETURN', 'PARKED ' + F.hm(p.ts), { c: C.amber });
+      mx.ring(cx, cy, R, C.amber, 0.3, 2);
+      if (arrived) {
+        const k = Math.floor(t / 500) % 2; mx.ring(cx, cy, R - 8 + k * 2, C.amber, 0.8);
+        mx.carve(cx, cy, 18); mx.disc(cx, cy, 17, C.amber, 1); mx.text('P', cx - 7, cy - 10, { s: 3, punch: true });
+      } else if (ok) {
+        // no compass: the arrow is drawn north-up, and says so
+        const th = (brg - (h == null ? 0 : h)) * Math.PI / 180;
+        fillPoly(mx, rot(ARROW, th, cx, cy, R - 6), C.amber, 1);
+        const tn = -(h == null ? 0 : h) * Math.PI / 180; mx.textC('N', Math.round(cx + Math.sin(tn) * R), Math.round(cy - Math.cos(tn) * R) - 3, { c: C.ink, a: 0.9 });
+        lubber(mx, cx, cy, R);
+      } else { g.textC('NO FIX', cx, cy - 3, { a: 0.6 }); }
+      const rx = cx + R + 9;
+      if (arrived) {
+        g.mini("YOU'RE AT", rx, 16, { a: 0.6 });
+        g.text('YOUR', rx, 24, { s: 2, c: C.hot }); g.text('CAR', rx, 41, { s: 2, c: C.hot });
+        g.text('WITHIN ' + Math.round(m) + ' M', rx, 60, { c: C.amber });
+      } else if (ok) {
+        g.mini('TO YOUR CAR', rx, 16, { a: 0.6 });
+        const mi = m / MI, big = mi >= 0.1 ? (mi >= 10 ? mi.toFixed(0) : mi.toFixed(2)) : String(Math.round(m * 3.28084)), unit = mi >= 0.1 ? 'MI' : 'FT';
+        const w = g.text(big, rx, 23, { s: 2, c: C.hot }); g.text(unit, rx + w + 2, 30, { a: 0.8 });
+        g.text(deg(brg) + ' ' + card8(brg), rx, 41, { c: C.amber });
+        g.text(Math.max(1, Math.round(m / 80)) + ' MIN WALK', rx, 51, { a: 0.9 });
+        if (h != null) { const off = wrap180(brg - h); g.mini(off < -20 ? 'BEAR LEFT' : off > 20 ? 'BEAR RIGHT' : Math.abs(off) > 150 ? 'TURN AROUND' : 'STRAIGHT ON', rx, 62, { c: C.hot, a: 0.95 }); }
+        else g.mini('NO COMPASS · N IS UP', rx, 62, { c: C.amber, a: 0.9 });
+      } else { g.mini('WAITING FOR GPS', rx, 16, { c: C.amber }); }
+      let y = cy + R + 7;
+      const row = (k, v, o) => { g.mini(k, 3, y + 3, { a: 0.55 }); g.text(g.fit(v, W - 40), 34, y + 2, { c: (o && o.c) || C.ink }); y += 10; };
+      row('SPOT', p.addr || (Math.abs(p.lat).toFixed(5) + ' ' + Math.abs(p.lng).toFixed(5)));
+      row('PARKED', F.hm(p.ts) + ' · ' + F.ago(p.ts));
+      // the meter, if you set one: a bar that runs down
+      g.mini('METER', 3, y + 3, { a: 0.55 });
+      const left = meterLeft(p);
+      if (left == null) g.text('NONE · JOG SETS ONE', 34, y + 2, { a: 0.5 });
+      else {
+        const tot = Math.max(left, (p.meter - p.ts)), low = left <= 300000, col = low ? RED : C.amber, bw = W - 40 - 30;
+        mx.frame(34, y + 2, bw, 7, col, 0.8); mx.rect(35, y + 3, Math.round((bw - 2) * left / Math.max(1, tot)), 5, col, 0.85);
+        g.textR(left <= 0 ? 'UP' : fmtMeter(left), W - 3, y + 2, { c: col });
+      }
+      y += 12;
+      const b2 = Math.floor((W - 6) / 2);
+      if (arrived) { g.btn(2, y, b2, 13, 'CLEAR', () => X.parkClear(), { c: C.amber, on: true }); g.btn(4 + b2, y, W - 6 - b2, 13, 'KEEP IT', () => A.home()); }
+      else { g.btn(2, y, b2, 13, 'DIRECTIONS', directions); g.btn(4 + b2, y, W - 6 - b2, 13, 'SHOW MAP', () => showCar(A)); }
+      g.footer(A.sayActive() ? A.statusShown(g.t) : (st.page === 'clear' ? 'PRESS THE DRUM ▸ CLEAR IT' : 'ROLL THE DRUM ▸ CLEAR'));
+    }
+  };
+  function directions() {
+    const p = X.parked(); if (!p) return;
+    A.beep('key');
+    window.open('https://maps.apple.com/?daddr=' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6) + '&dirflg=w', '_blank');
+  }
+  function showCar(A) {
+    const p = X.parked(); if (!p) return;
+    A.home(); A.follow(false);
+    const g = A.gps;
+    if (fresh(g)) {
+      const lat = (g.lat + p.lat) / 2, lng = (g.lng + p.lng) / 2, v = A.view();
+      const spanM = Math.max(Geo.meters(g.lat, lng, p.lat, lng) / Math.max(1, v.rows - 40), Geo.meters(lat, g.lng, lat, p.lng) / Math.max(1, v.cols - 16), 0.5);
+      M.setView(lat, lng, clamp(Math.floor(Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) * v.pitch / spanM) * 2) / 2, 3, 18));
+    } else M.setView(p.lat, p.lng, Math.max(M.zoom, 17));
+    A.dirty = true;
+  }
+
+  // ---------------------------------------------------------------- TRACK (one)
+  RX.screens.track = {
+    lcd: (st) => { const tr = S.track(st.id); if (!tr) return null; const s = X.stats(tr); return { rows: [['TRACK', tNo(tr)], ['TIME', mmss(s.ms / 1000)], ['DIST', s.mi.toFixed(2) + ' MI']], tag: 'TRK' }; },
+    enter(st, params, A) { st.id = params.id; },
+    render(g, st, A) {
+      const tr = S.track(st.id), W = g.W, mx = g.mx;
+      if (!tr) { g.header('TRACK'); g.textC('DELETED', W / 2, 40, { a: 0.5 }); g.footer('BACK'); return; }
+      const s = X.stats(tr);
+      g.header(g.fit(tName(tr), W - 60), F.day(tr.t0), { c: C.hot });
+      let y = 14;
+      // the shape of it, fitted into a box
+      const bx = 2, by = y, bs = 74;
+      mx.frame(bx, by, bs, bs, C.ink, 0.35, 2);
+      const lats = tr.pts.map(p => p[0]), lngs = tr.pts.map(p => p[1]), la0 = Math.min(...lats), la1 = Math.max(...lats), ln0 = Math.min(...lngs), ln1 = Math.max(...lngs);
+      const kx = Math.cos(la0 * Math.PI / 180), spanX = Math.max(1e-9, (ln1 - ln0) * kx), spanY = Math.max(1e-9, la1 - la0), sc = (bs - 12) / Math.max(spanX, spanY);
+      const ox = bx + 6 + ((bs - 12) - spanX * sc) / 2, oy = by + 6 + ((bs - 12) - spanY * sc) / 2;
+      const P = tr.pts.map(p => [Math.round(ox + (p[1] - ln0) * kx * sc), Math.round(oy + (la1 - p[0]) * sc)]);
+      for (let i = 1; i < P.length; i++) mx.line(P[i - 1][0], P[i - 1][1], P[i][0], P[i][1], RED, 1);
+      mx.carve(P[0][0], P[0][1], 3); mx.ring(P[0][0], P[0][1], 2, C.hot, 1);
+      const e = P[P.length - 1]; mx.disc(e[0], e[1], 1.6, C.hot, 1);
+      g.hit(bx, by, bs, bs, () => X.showTrack(tr.id));
+      // the numbers
+      const rx = bx + bs + 6;
+      g.mini('TIME', rx, y + 2, { a: 0.6 }); g.text(mmss(s.ms / 1000), rx, y + 9, { s: 2, c: C.hot });
+      g.mini('DISTANCE', rx, y + 28, { a: 0.6 }); const dw = g.text(s.mi.toFixed(2), rx, y + 35, { s: 2, c: C.hot }); g.text('MI', rx + dw + 3, y + 42, { a: 0.8 });
+      g.mini('PACE', rx, y + 56, { a: 0.6 }); g.text(s.pace ? mmss(s.pace * 60) + ' /MI' : '--', rx, y + 63, { c: C.amber });
+      y = by + bs + 4;
+      const row = (k, v) => { g.mini(k, 3, y + 3, { a: 0.55 }); g.text(g.fit(v, W - 40), 34, y + 2); y += 10; };
+      row('START', F.hm(tr.t0) + (tr.from ? ' · ' + tr.from : ''));
+      row('STOP', F.hm(tr.t1) + (tr.to ? ' · ' + tr.to : ''));
+      row('SPEED', s.mph.toFixed(1) + ' MPH' + (s.top ? ' · TOP ' + s.top.toFixed(1) : ''));
+      row('CLIMB', s.climb == null ? 'NO ALTITUDE' : '+' + Math.round(s.climb) + ' FT · HIGH ' + Math.round(s.high) + ' FT');
+      y += 2;
+      g.field('trk-' + tr.id, 0, y, W, 13, { label: 'NAME', value: tr.name || '', placeholder: 'TRACK ' + tNo(tr), onCommit: v => { tr.name = RX.font.norm(v || '').trim().slice(0, 28); S.saveTracks(); } });
       y += 16;
+      const b2 = Math.floor((W - 6) / 2);
+      g.btn(2, y, b2, 13, 'SHOW ON MAP', () => X.showTrack(tr.id));
+      g.btn(4 + b2, y, W - 6 - b2, 13, 'DELETE', () => A.go('confirm', { title: 'DELETE TRACK', danger: true, confirm: 'DELETE', lines: ['DELETE ' + tName(tr) + '?', s.mi.toFixed(2) + ' MI · ' + F.dateY(tr.t0)], onConfirm: () => { S.tracks = S.tracks.filter(x => x.id !== tr.id); S.saveTracks(); if (A.showTrack === tr.id) A.showTrack = null; A.say('TRACK DELETED', 2000); } }), { c: RED });
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'KEPT ▸ LOG · JOURNAL · MENU ▸ TRACKS');
+    }
+  };
+
+  // ---------------------------------------------------------------- TRACKS (all)
+  RX.screens.tracks = {
+    render(g, st, A) {
+      const W = g.W, mx = g.mx, list = S.tracks.slice().sort((a, b) => b.t0 - a.t0);
+      const tot = S.tracks.reduce((m, t) => m + (t.m || 0), 0) / MI;
+      let y = g.header('TRACKS', list.length + ' · ' + tot.toFixed(1) + ' MI');
+      y = g.scrollBegin(y, g.H - 12);
+      if (S.rec) { const s = X.stats(S.rec); g.row(0, y, W - 2, 19, () => A.home()); mx.disc(5, y + 5, 2, RED, Math.floor(g.t / 600) % 2 ? 1 : 0.4); g.text('RECORDING ' + tNo(S.rec), 11, y + 2, { c: RED }); g.mini(mmss(s.ms / 1000) + ' · ' + s.mi.toFixed(2) + ' MI · REC STOPS IT', 3, y + 11, { a: 0.6 }); mx.hline(3, y + 19, W - 6, C.ink, 0.1, 2); y += 20; }
+      list.forEach(tr => {
+        const s = X.stats(tr), sel = g.row(0, y, W - 2, 19, () => A.go('track', { id: tr.id }));
+        mx.line(2, y + 7, 7, y + 3, RED, 1);
+        const right = s.mi.toFixed(2) + ' MI', rw = RX.font.measure(right);
+        g.text(g.fit(tName(tr), W - rw - 18), 11, y + 2, { c: sel ? C.hot : C.ink });
+        g.textR(right, W - 4, y + 2, { a: 0.85 });
+        g.mini(F.day(tr.t0) + ' · ' + F.hm(tr.t0) + ' · ' + mmss(s.ms / 1000) + (tr.from ? ' · ' + tr.from : ''), 3, y + 11, { a: 0.55 });
+        mx.hline(3, y + 19, W - 6, C.ink, 0.1, 2);
+        y += 20;
+      });
+      if (!list.length && !S.rec) { g.textC('NO TRACKS YET', W / 2, y + 10, { a: 0.6 }); g.textC('REC ON THE AUX DECK', W / 2, y + 22, { face: 'mini', a: 0.5 }); y += 34; }
       g.scrollEnd(y);
-      g.footer(A.sayActive() ? A.statusShown(g.t) : 'HERE AGAIN ▸ NEW FIX · MARK ▸ DROP ONE');
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'TAP ONE · JOG SCROLLS');
     }
   };
 })();

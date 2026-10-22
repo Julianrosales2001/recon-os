@@ -26,8 +26,11 @@ window.RX = window.RX || {};
     ['tool.vis', 'F10-tool-vis', 'tool', 'VIS KEY', 'TOOLS'], ['tool.profile', 'F11-tool-prfl', 'tool', 'PRFL KEY', 'TOOLS'],
     ['aux.latch', 'A1-aux-grip', 'key', 'AUX GRIP PRESSED', 'AUX'], ['aux.open', 'A2-aux-open', 'thunk', 'AUX PANEL LANDS UP', 'AUX'], ['aux.close', 'A3-aux-close', 'thunk', 'AUX PANEL LANDS HOME', 'AUX'],
     ['aux.keyup', 'A4-aux-keyup', 'key', 'AUX KEYS SPRING UP', 'AUX'], ['aux.lamp', 'A5-aux-lamp', null, 'AUX LAMPS FLICKER ON', 'AUX'],
-    ['scan.ping', 'S1-scan-ping', null, 'SONAR PULSE', 'SCAN'], ['scan.found', 'S2-scan-found', 'ok', 'SWEEP FOUND PLACES', 'SCAN'], ['scan.empty', 'S3-scan-empty', 'key', 'SWEEP FOUND NOTHING', 'SCAN'],
-    ['here.fix', 'H1-here-fix', 'ok', 'HERE TAKES A FIX', 'HERE'],
+    // the deck's tools: REC, the compass, PARK / RETURN
+    ['rec.on', 'A6-rec-start', 'key', 'REC STARTS A TRACK', 'AUX'], ['rec.off', 'A7-rec-stop', 'file', 'REC STOPS · TRACK SAVED', 'AUX'],
+    ['cmp', 'A8-compass', 'key', 'COMPASS DIAL TAPPED', 'AUX'],
+    ['park.set', 'A9-park', 'ok', 'PARK SAVES WHERE THE CAR IS', 'AUX'], ['park.clear', 'A10-park-clear', 'key', 'PARKING SPOT CLEARED', 'AUX'],
+    ['park.back', 'A11-at-car', 'ok', 'BACK AT YOUR CAR', 'AUX'], ['meter', 'A12-meter', 'err', 'PARKING METER RUNNING OUT', 'AUX'],
     ['ring.pick', 'R1-ring-pick', 'jog', 'RING MOVES TO A KIND OR COLOR', 'RING'], ['ring.file', 'R2-ring-file', 'file', 'RING FILES THE MARK', 'RING'],
     ['gps.lock', 'G1-gps-lock', 'ok', 'FIRST GPS LOCK', 'GPS'], ['visit', 'G2-visit', 'ok', 'VISIT LOGGED AT A MARK', 'GPS'],
     ['fit.set', 'T1-train-set', 'ok', 'ONE SET LOGGED', 'TRAIN'], ['fit.done', 'T2-train-done', 'file', 'EXERCISE DONE FOR THE DAY', 'TRAIN'], ['fit.down', 'T3-train-down', 'jog', 'SET COUNTED DOWN', 'TRAIN'],

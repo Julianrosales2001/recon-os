@@ -69,7 +69,7 @@ window.RX = window.RX || {};
     if (nb) frames.push('NEAREST ▸ ' + S.markLabel(nb.p) + ' ' + Geo.fmtDist(nb.m) + ' ' + Geo.cardinal(nb.brg));
     const pend = S.pending().length;
     if (pend) frames.push('PEND ' + U.F.pad2(pend) + ' · FN ▸ LOG ▸ ASSETS');
-    frames.push('TRAIL ' + S.trailMiles().toFixed(1) + ' MI TODAY' + (S.v2.recordTrail ? ' · REC' : ' · OFF'));
+    RX.aux.status(A).forEach(f => frames.push(f));
     const urgent = S.missions.filter(m => m.status === 'active' && (m.priority === 'urgent' || (m.deadline && m.deadline < Date.now() + 864e5)));
     if (urgent.length) frames.push('OBJ ▸ ' + urgent[0].title + (urgent[0].deadline ? ' · DUE ' + U.F.date(urgent[0].deadline) : ''));
     const otd = onThisDay();
@@ -474,7 +474,7 @@ window.RX = window.RX || {};
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   // the lit face glows mint on the map, amber one level in, red deeper
   const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=1)';
-  ['menu', 'near', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals', 'r150', 'r300', 'r600', 'r1200', 'r2500', 'fast', 'stages', 'train'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
+  ['menu', 'near', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals', 'clear', 'fast', 'stages', 'train'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
   // The roller has three physical faces, so the faces either side of the front are repainted with the pages either side.
@@ -489,7 +489,7 @@ window.RX = window.RX || {};
     else { faceArt[1] = 'near'; faceArt[2] = 'lot'; paintFace(0, A.assign && atHome ? UNDO_FACE : (atHome ? DRUM[0] : BACK_FACE)); }
     const depth = A.assign ? 0 : Math.min(2, A.stack.length - 1);
     rotor.querySelectorAll('.drum-cap').forEach(c => { const k = +c.dataset.face, art = DRUM_ART(faceArt[k], k === face, depth); if (c.dataset.art !== art) { c.dataset.art = art; c.style.backgroundImage = art; } });
-    const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + ' (PRESS = BACK)' : face === 0 ? (A.assign && atHome ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
+    const id = md ? md[drumIdx(md, A.top().st)].toUpperCase() + (md[drumIdx(md, A.top().st)] === 'back' || !A.screen().drumPress ? ' (PRESS = BACK)' : ' (PRESS = ' + md[drumIdx(md, A.top().st)].toUpperCase() + ')') : face === 0 ? (A.assign && atHome ? 'UNDO' : (atHome ? 'MENU' : 'BACK')) : DRUM[face].id;
     drumEl.setAttribute('aria-label', 'Function drum: ' + id + '. Swipe up or down to roll, press to use.');
   }
   A.updateDrum = updateDrum;
@@ -554,6 +554,8 @@ window.RX = window.RX || {};
   };
   A.drumPress = function () {
     A.wake(); A.drumTouched = Date.now(); A.drumPressFx();
+    // a screen can give the drum its own press (RETURN: CLEAR); otherwise pressing goes BACK
+    { const sc = A.screen(); if (A.stack.length > 1 && !A.assign && sc.drumPress && sc.drumPress(A.top().st, A)) return; }
     const id = A.stack.length <= 1 ? A.drumFace() : 'MENU';
     if (id === 'MENU') { A.menuAction(); return; }
     if (id === 'NEAR') {
@@ -873,8 +875,9 @@ window.RX = window.RX || {};
     else if (k === 'i' || k === 'I') { if (A.top().name === 'profile') return; if (A.stack.length > 1) A.home(); A.go('profile'); }
     else if (k === 'f' || k === 'F') setTray(!A.trayOpen);
     else if (k === 'p' || k === 'P') { RX.aux.toggle(); flashKey($('auxBar')); }
-    else if (k === 'a' || k === 'A') RX.aux.key('scan');
-    else if (k === 'w' || k === 'W') RX.aux.key('here');
+    else if (k === 'a' || k === 'A') RX.aux.key('rec');
+    else if (k === 'w' || k === 'W') RX.aux.key('park');
+    else if (k === 'q' || k === 'Q') RX.aux.key('cmp');
     else if (k === 'Enter' || k === ' ') { e.preventDefault(); A.push(); }
     else if (k === 'c' || k === 'C') { A.beep('ok'); A.recenter(true); }
     else if (k === '+' || k === '=') { if (sc.map) { M.zoomBy(0.5); A.dirty = true; } else A.jog(-1); }
@@ -971,6 +974,7 @@ window.RX = window.RX || {};
     const moved = !prevShown || Geo.meters(prevShown.lat, prevShown.lng, lat, lng) > 0.5;
     A.gps = { lat, lng, acc, alt: (typeof c.altitude === 'number' ? c.altitude : null), heading, speed: speed < 0.5 ? 0 : speed, ts: now, raw };
     A.gpsErr = null;
+    RX.aux.fix(A.gps);
     if (first) {
       M.setView(lat, lng, Math.max(M.zoom, 15)); M.follow = true;
       A.say('GPS LOCK · ±' + Math.round(acc) + 'M', 3000); A.beep('gps.lock');
@@ -982,7 +986,7 @@ window.RX = window.RX || {};
       lastFogPos = { lat, lng };
     }
     if (moved) {
-      S.recordTrail(lat, lng);
+      S.odoStep(lat, lng);
       placeLookup(lat, lng);
       S.saveV2({ lastPos: { lat: +lat.toFixed(5), lng: +lng.toFixed(5) } });
     }
@@ -1044,7 +1048,7 @@ window.RX = window.RX || {};
     { const l = $('visLed'); if (l) l.classList.toggle('on', !!S.v2.hicon); }
     const g = A.gps, fresh = g && Date.now() - g.ts < 30000;
     lamp('fix', fresh || !A.gpsErr, fresh && g.acc < 30 ? null : 'blink');
-    lamp('rec', S.v2.recordTrail);
+    lamp('rec', !!S.rec, 'blink');
     const nb = A.nearest(null);
     lamp('near', fresh && nb && nb.m < 245, 'pulse');
     const pend = S.pending().length;
@@ -1295,7 +1299,7 @@ window.RX = window.RX || {};
     startGps();
     document.addEventListener('pointerdown', () => { if (!A.gps && A.gpsErr) retryGps(); }, { once: true });
     window.addEventListener('pagehide', () => { S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); else { S.pruneTrail(); A.dirty = true; } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); else { A.dirty = true; } });
   }
   A.bootDone = function () {
     if (A.booted) return;

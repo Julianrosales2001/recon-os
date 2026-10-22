@@ -9,6 +9,6 @@ RP Sound Push renames it and sends it to the phone by itself.
 Delete yours and the original comes back.
 
 When these folders are empty they play this one too:
-  R2-ring-file, T2-train-done
+  A7-rec-stop, R2-ring-file, T2-train-done
 
 Hear it: MENU › SOUND TEST on the RP.

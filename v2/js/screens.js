@@ -25,16 +25,8 @@ window.RX = window.RX || {};
     M.drawBase(mx, v, { ink: C.ink, water: C.water, fog: C.fog });
     if (S.v2.hicon) { const tw = RX.font.measure('HI-CON', 'mini') + 4; mx.rect(W - tw - 2, 13, tw, 7, '#FFFFFF', 1); g.miniR('HI-CON', W - 4, 14, { c: '#000000', a: 1 }); }
 
-    // today's trail
-    if (S.prefsV1.showTrail !== false && S.trail.length > 1) {
-      let prev = null;
-      for (const pt of S.trail) {
-        const d = M.latLngToDot(pt.lat, pt.lng, v);
-        if (prev && !((prev.x < -4 && d.x < -4) || (prev.x > W + 4 && d.x > W + 4) || (prev.y < -4 && d.y < -4) || (prev.y > H + 4 && d.y > H + 4)))
-          mx.line(Math.floor(prev.x), Math.floor(prev.y), Math.floor(d.x), Math.floor(d.y), C.trail, 0.85, 2);
-        prev = d;
-      }
-    }
+    // tracks: the one REC is laying down, and a saved one you asked to see
+    if (RX.aux && RX.aux.drawUnder) RX.aux.drawUnder(g, A, v);
 
     // objectives with a place
     S.missions.forEach(m => {
@@ -68,6 +60,8 @@ window.RX = window.RX || {};
       else g.pin(s.x, s.y, p, blinking ? { c: C.amber } : null);
       if (!o.noHits) g.hit(s.x - 7, s.y - 7, 15, 15, () => A.openMark(p.id));
     }
+    // the car (PARK)
+    if (RX.aux && RX.aux.drawOver) RX.aux.drawOver(g, A, v, o);
     // NEAR: brackets and the mark's name under it
     if (scanIt) {
       const d = M.latLngToDot(scanIt.lat, scanIt.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
@@ -243,6 +237,7 @@ window.RX = window.RX || {};
     // the jog dial takes on the drum's face
     jogLabels: (st, A) => {
       if (A.assign) return A.assign.step === 'color' ? ['◂ COLOR', 'COLOR ▸', 'PUSH ▸ FILE · DRUM ▸ UNDO'] : ['◂ KIND', 'KIND ▸', 'PUSH ▸ PICK · DRUM ▸ UNDO'];
+      const al = RX.aux.mapLabels(A); if (al) return al;
       const f = A.drumFace();
       if (f === 'NEAR') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
       if (f === 'LOT') return ['◂ OUT', 'IN ▸', 'DRUM ▸ READ LOT · HOLD RESET'];
@@ -250,15 +245,18 @@ window.RX = window.RX || {};
     },
     jog(d, st, A) {
       if (A.assign) { A.ringStep(d); return; }
+      if (RX.aux.mapJog(d, A)) return;
       const f = A.drumFace();
       if (f === 'NEAR') { A.nearStep(d); return; }
       const v = A.view();
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
-    push(st, A) { if (A.assign) { A.ringPush(); return; } A.locate(); },
+    push(st, A) { if (A.assign) { A.ringPush(); return; } if (RX.aux.mapPush(A)) return; A.locate(); },
+    lcd: (st, A) => RX.aux.mapLcd(A),
     back(st, A) {
       if (A.target) { A.target = null; A.say('TARGET CLEARED', 2000); return true; }
+      if (RX.aux.mapBack(A)) return true;
       return false;
     },
     longPress(d, st, A) {
@@ -270,9 +268,11 @@ window.RX = window.RX || {};
       const W = g.W, H = g.H, mx = g.mx;
       drawMap(g, A);
       hud(g, A);
+      RX.aux.mapChip(g, A);
       {
         const f = A.drumFace(), it = f === 'NEAR' ? A.nearItem() : null;
-        document.getElementById('jogVal').textContent = A.assign ? ((A.assign.step === 'color' ? A.assign.csel : A.assign.sel) + 1) + '/6' : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
+        const av = !A.assign && RX.aux.mapJogVal(A);
+        document.getElementById('jogVal').textContent = A.assign ? ((A.assign.step === 'color' ? A.assign.csel : A.assign.sel) + 1) + '/6' : av ? av : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
           : 'Z' + (Math.round(M.zoom * 2) / 2);
         // the jog's labels follow the ring coming and going
         const jl = this.jogLabels(st, A), key = jl.join('|');
@@ -303,6 +303,8 @@ window.RX = window.RX || {};
         const left = Math.max(0, A.assign.until - Date.now());
         g.mini('MARK ▸ LATER · DRUM ▸ UNDO · ' + Math.ceil(left / 1000) + 'S', bx + 4, by + 24, { c: C.amber, a: 0.9 });
         mx.rect(bx + bw - 30, by + 25, Math.round(26 * left / A.ASSIGN_MS), 3, C.amber, 1);
+      } else if (RX.aux.mapBanner(g, A, fy)) {
+        // PARKED: the banner drew itself
       } else if (A.filed && Date.now() < A.filed.until) {
         const bx = 4, bw = W - 8, bh = 23, by = fy - 12 - bh;
         const p = S.poi(A.filed.id);
@@ -493,12 +495,14 @@ window.RX = window.RX || {};
             g.mini(F.hm(e.ts), 1, yy + 1, { a: 0.6 });
             const p = e.poiId ? S.poi(e.poiId) : null;
             const cat = p ? U.catById(p.category) : null;
-            if (e.type && e.type.indexOf('mission') === 0) g.hex(25, yy + 3, e.type === 'mission-complete' ? C.ink : C.obj, 0.8);
+            if (e.type === 'track') { g.mx.line(22, yy + 5, 28, yy + 1, '#FF6B5E', 1); g.mx.line(23, yy + 5, 29, yy + 1, '#FF6B5E', 0.6); }
+            else if (e.type && e.type.indexOf('mission') === 0) g.hex(25, yy + 3, e.type === 'mission-complete' ? C.ink : C.obj, 0.8);
             else if (e.type === 'drop') g.mx.ring(25, yy + 3, 2, C.ink, 0.9, 2);
             else g.mx.disc(25, yy + 3, 2, cat ? cat.color : C.ink, e.type === 'delete' ? 0.3 : 1);
             const txt = RX.font.norm(e.summary || e.type) + (e.meta && e.type === 'visit' ? ' ' + String(e.meta).replace(/^.*·\s*/, '') : '');
             g.text(g.fit(txt, W - 34), 31, yy, { a: e.type === 'delete' ? 0.45 : 0.95 });
             if (p) g.hit(0, yy - 1, W, 9, () => A.openMark(p.id));
+            else if (e.trackId && S.track(e.trackId)) g.hit(0, yy - 1, W, 9, () => A.go('track', { id: e.trackId }));
           }
           yy += 9;
         });
@@ -1114,17 +1118,15 @@ window.RX = window.RX || {};
       row('NOW', A.place ? A.place.area + ' · ' + A.place.city + ' · ' + A.place.metro : (A.gps ? 'LOOKING UP' : 'NO FIX YET'), null, () => { if (A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
       row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', val(String(new Set(S.regions.map(r => r.name)).size)), null);
 
-      y = g.section('03 · MAP, TRAIL & FOG', y + 2);
+      y = g.section('03 · MAP, TRACKS & FOG', y + 2);
       const SRC = ['AUTO', 'ESRI', 'OSM'];
       row('MAP SOURCE', 'NOW ' + M.sourceName() + (M.loaded ? ' · OK' : '') + Object.keys(M.why).map(k => ' · ' + k + ' ' + M.why[k]).join(''), val(S.v2.mapSrc || 'AUTO'), () => {
         const nx = SRC[(SRC.indexOf(S.v2.mapSrc || 'AUTO') + 1) % SRC.length];
         S.saveV2({ mapSrc: nx }); M.setSource(nx); A.say('MAP SOURCE ▸ ' + (nx === 'AUTO' ? 'AUTO · ' + M.sourceName() : M.sourceName()), 2500);
       });
-      row('RECORD TRAIL', S.trailMiles().toFixed(1) + ' MI · ' + S.trail.length + ' POINTS TODAY', tog(S.v2.recordTrail, ['REC', 'OFF', C.red]), () => { S.saveV2({ recordTrail: !S.v2.recordTrail }); A.updateLamps(); });
-      row('SHOW TRAIL', 'DOTTED AMBER LINE ON THE MAP', tog(S.prefsV1.showTrail !== false), () => S.savePrefsV1({ showTrail: S.prefsV1.showTrail === false }));
+      row('TRACKS', S.tracks.length + ' KEPT · ' + (S.tracks.reduce((m, t) => m + (t.m || 0), 0) / 1609.344).toFixed(1) + ' MI' + (S.rec ? ' · RECORDING' : ' · REC ON THE AUX DECK'), arrow, () => A.go('tracks'));
       const mi2 = S.fog.size * 150 * 150 / 2589988;
       row('FOG DENSITY', F.num(S.fog.size) + ' CELLS · ' + mi2.toFixed(0) + ' SQ MI EXPLORED', val(S.prefsV1.fogOpacity || 'HEAVY'), () => { S.savePrefsV1({ fogOpacity: FOGS[(FOGS.indexOf(S.prefsV1.fogOpacity || 'HEAVY') + 1) % 4] }); M.dirty = true; });
-      row("CLEAR TODAY'S TRAIL", S.trail.length + ' POINTS', arrow, () => A.go('confirm', { title: "CLEAR TODAY'S TRAIL", confirm: 'CLEAR', lines: ['REMOVE ' + S.trail.length + ' TRAIL POINTS', 'RECORDED TODAY?'], onConfirm: () => { S.trail = []; S.saveTrail(); A.say('TRAIL CLEARED', 2500); } }));
       row('CLEAR FOG', 'RESET ALL REVEALED TERRAIN', arrow, () => A.go('confirm', { title: 'CLEAR FOG', danger: true, confirm: 'CLEAR FOG', lines: ['RESET ' + F.num(S.fog.size) + ' REVEALED CELLS?', 'MARKS ARE NOT AFFECTED.', 'EXPORT A BACKUP FIRST.'], onConfirm: () => { S.fog.clear(); S.saveFog(); M.dirty = true; A.say('FOG CLEARED', 2500); } }), { red: true });
 
       y = g.section('04 · DATA', y + 2);
@@ -1140,11 +1142,11 @@ window.RX = window.RX || {};
 
       y = g.section('05 · STATS', y + 2);
       row('LIFETIME STATS', 'MARKS · VISITS · TERRITORY · FIELD TIME', arrow, () => A.go('stats'));
-      row('KEYBOARD', 'M MARK · 1-6 · F FN · ESC BACK · ARROWS', null, null);
+      row('KEYBOARD', 'M MARK · 1-6 · F FN · P AUX · A REC · W PARK · ESC BACK', null, null);
 
       y = g.section('06 · DANGER', y + 2);
       row('DELETE ALL MARKS', 'PERMANENTLY REMOVE ' + S.pois.length + ' MARKS', arrow, () => A.go('confirm', { title: 'DELETE ALL MARKS', danger: true, confirm: 'DELETE ALL', lines: ['PERMANENTLY DELETE ALL', S.pois.length + ' MARKS?', 'EXPORT A BACKUP FIRST.'], onConfirm: () => { S.wipe('marks'); A.updateLamps(); A.say('ALL MARKS DELETED', 3000); } }), { red: true });
-      row('FULL RESET', 'WIPE EVERYTHING ON THIS DEVICE', arrow, () => A.go('confirm', { title: 'FULL RESET', danger: true, confirm: 'WIPE ALL', lines: ['WIPE MARKS, FOG, TRAIL,', 'OBJECTIVES, FASTS, SETTINGS?', 'THIS CANNOT BE UNDONE.'], onConfirm: () => { S.wipe('all'); A.updateLamps(); M.dirty = true; A.say('DEVICE RESET', 3000); } }), { red: true });
+      row('FULL RESET', 'WIPE EVERYTHING ON THIS DEVICE', arrow, () => A.go('confirm', { title: 'FULL RESET', danger: true, confirm: 'WIPE ALL', lines: ['WIPE MARKS, FOG, TRACKS,', 'OBJECTIVES, FASTS, SETTINGS?', 'THIS CANNOT BE UNDONE.'], onConfirm: () => { S.wipe('all'); A.updateLamps(); M.dirty = true; A.say('DEVICE RESET', 3000); } }), { red: true });
 
       y += 6;
       g.textC('R.OS ' + RX.VERSION + ' · RP-1000', W / 2, y, { c: C.hot });
@@ -1201,7 +1203,7 @@ window.RX = window.RX || {};
       kv('PLACES', new Set(S.regions.map(r => r.name)).size);
       kv('FOG CELLS', F.num(S.fog.size));
       kv('AREA EXPLORED', (S.fog.size * 22500 / 2589988).toFixed(1) + ' SQ MI');
-      kv('TRAIL TODAY', S.trailMiles().toFixed(1) + ' MI');
+      kv('TRACKS', S.tracks.length + ' · ' + (S.tracks.reduce((m, t) => m + (t.m || 0), 0) / 1609.344).toFixed(1) + ' MI');
       const first = S.journal.length ? Math.min(...S.journal.map(e => e.ts)) : null;
       if (first) kv('FIELD TIME', Math.ceil((Date.now() - first) / 864e5) + ' DAYS');
       y = g.section('OBJECTIVES · FASTS', y + 2);
@@ -1424,7 +1426,8 @@ window.RX = window.RX || {};
       y = g.section('MAP KEY', y);
       const key = (draw, label) => { draw(10, y + 5); g.mini(label, 24, y + 3, { a: 0.8 }); y += 12; };
       key((x, yy) => { mx.ring(x, yy, 4, C.ink, 0.5); mx.disc(x, yy, 1.6, C.hot, 1); for (let r = 3; r <= 6; r++) mx.set(x, yy - r, C.hot, 1); }, 'YOU · TICK SHOWS HEADING');
-      key((x, yy) => mx.line(x - 7, yy + 2, x + 7, yy - 2, C.trail, 0.9, 2), "TODAY'S TRAIL");
+      key((x, yy) => { mx.line(x - 7, yy + 2, x + 7, yy - 2, '#FF6B5E', 1); mx.line(x - 6, yy + 2, x + 8, yy - 2, '#FF6B5E', 0.6); }, 'A TRACK · REC ON THE AUX DECK');
+      key((x, yy) => g.kindPin(x, yy, 'PARKING', C.amber, { r: 5 }), 'YOUR CAR · PARK ON THE AUX DECK');
       key((x, yy) => g.hex(x, yy, C.obj, 1), 'OBJECTIVE · RED = URGENT OR DUE');
       key((x, yy) => { mx.frame(x - 4, yy - 4, 9, 9, C.hot, 1); mx.set(x, yy, C.hot, 1); }, 'SEARCH TARGET');
       key((x, yy) => g.brackets(x, yy, 5, C.hot, 1), 'NEAR DRUM · THE MARK PICKED');

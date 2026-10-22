@@ -8,4 +8,7 @@ RP Sound Push renames it and sends it to the phone by itself.
 (Without RP Sound Push: name it sound.mp3 yourself, then push.)
 Delete yours and the original comes back.
 
+When these folders are empty they play this one too:
+  A12-meter
+
 Hear it: MENU › SOUND TEST on the RP.

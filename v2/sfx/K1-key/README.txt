@@ -9,6 +9,6 @@ RP Sound Push renames it and sends it to the phone by itself.
 Delete yours and the original comes back.
 
 When these folders are empty they play this one too:
-  F3-tools (and through it F4-F11), A1-aux-grip, A4-aux-keyup, S3-scan-empty
+  F3-tools (and through it F4-F11), A1-aux-grip, A4-aux-keyup, A6-rec-start, A8-compass, A10-park-clear
 
 Hear it: MENU › SOUND TEST on the RP.
