@@ -173,6 +173,66 @@ window.RX = window.RX || {};
     return RX.maus.buildFor(703 * avg / (P.heightIn * P.heightIn));
   }
 
+  // ---------- the readout: what the tape and the scale say about your health ----------
+  // Bands: body fat (ACE), fat-free mass index (lean kg / m²), waist-to-height (keep it under half your height).
+  // WATCH FOR picks from a pool by your own numbers and habits; DO NEXT turns the biggest ones into steps.
+  const BF_BANDS = { M: [[6, 'ESSENTIAL', YEL], [14, 'ATHLETE', GRN], [18, 'FIT', GRN], [25, 'AVERAGE', INK], [99, 'HIGH', AMB]],
+                     F: [[14, 'ESSENTIAL', YEL], [21, 'ATHLETE', GRN], [25, 'FIT', GRN], [32, 'AVERAGE', INK], [99, 'HIGH', AMB]] };
+  function readout() {
+    const P = S.profile, bi = bodyInfo(), sex = P.sex || 'M', h = P.heightIn, t = bi.t, now = Date.now();
+    if (bi.w == null || bi.bf == null || !h) return null;
+    const lines = [], watch = [], todo = [];
+    // body fat, and the next band down (holding the lean you have)
+    const B = BF_BANDS[sex], bi0 = B.findIndex(b => bi.bf < b[0]), band = B[bi0];
+    const nxt = bi0 > 1 ? B[bi0 - 1] : null, nxtAt = nxt ? B[bi0 - 1][0] : null;
+    const fatAt = pct => bi.lean * pct / (100 - pct), toGo = nxtAt ? bi.fat - fatAt(nxtAt - 0.5) : 0;
+    lines.push({ k: 'BODY FAT', v: bi.bf.toFixed(1) + '%', tag: band[1], c: band[2], sub: nxt && toGo > 0.5 ? nxt[1] + ' BELOW ' + nxtAt + '% · ' + wtD(toGo) + ' ' + wtU() + ' OF FAT TO GO' : '' });
+    // lean mass: fat-free mass index, normalised to 1.8 m
+    const hm = h * 0.0254, ffmi = (bi.lean * 0.45359) / (hm * hm) + 6.1 * (1.8 - hm), adj = sex === 'F' ? 3.5 : 0, f = ffmi + adj;
+    const ffTag = f < 18 ? ['BELOW AVERAGE', AMB] : f < 20 ? ['AVERAGE', INK] : f < 22 ? ['ABOVE AVERAGE', GRN] : f < 24 ? ['STRONG', GRN] : ['MORE THAN MOST', GRN];
+    lines.push({ k: 'LEAN MASS', v: wt(bi.lean) + ' ' + wtU(), tag: ffTag[0], c: ffTag[1], sub: 'FFMI ' + ffmi.toFixed(1) + (f >= 22 ? ' · KEEP IT WHILE YOU CUT' : f < 18 ? ' · ROOM TO BUILD' : '') });
+    // waist to height
+    if (bi.whr != null) {
+      const w = bi.whr, tg = w < 0.4 ? ['LOW', YEL] : w < 0.5 ? ['HEALTHY', GRN] : w < 0.6 ? ['RAISED', AMB] : ['HIGH', RED];
+      lines.push({ k: 'WAIST / HT', v: w.toFixed(2), tag: tg[0], c: tg[1], sub: w >= 0.5 ? 'UNDER 0.5 MEANS A WAIST UNDER ' + len(h / 2) : 'UNDER HALF YOUR HEIGHT · KEEP IT THERE' });
+    }
+    // BMI, read against the muscle
+    if (bi.bmi != null) {
+      const ov = bi.bmi >= 25 && f >= 21;
+      lines.push({ k: 'BMI', v: bi.bmi.toFixed(1), tag: ov ? 'OVERSTATES YOU' : bi.bmi < 18.5 ? 'UNDER' : bi.bmi < 25 ? 'NORMAL' : bi.bmi < 30 ? 'OVER' : 'OBESE', c: ov ? INK : bi.bmi < 25 && bi.bmi >= 18.5 ? GRN : AMB, sub: ov ? "BMI CAN'T SEE MUSCLE · TRUST THE TAPE" : '' });
+    }
+    // habits from the log
+    const L = wis(), w28 = lbsAt(now - 28 * DAY), rate = w28 != null ? (w28 - bi.w) / 4 : 0;   // lb lost a week
+    const fasts30 = S.fasts.filter(x => x.endTs && x.endTs >= now - 30 * DAY && x.hours), long24 = fasts30.filter(x => x.hours >= 24).length, longest = fasts30.reduce((m, x) => Math.max(m, x.hours), 0);
+    const perWk = sessionsIn(now - 28 * DAY, now + 1) / 4, AD = areaDays(), skipped = ['PULL', 'CORE'].filter(a => AD[a] == null || AD[a] > 14);
+    const whr = bi.whr || 0, neck = t && t.neck;
+    const add = (on, title, d, c) => { if (on) watch.push({ title, d, c: c || AMB }); };
+    add(whr >= 0.5, 'LIVER FAT', 'BELLY FAT LANDS THERE FIRST, QUIETLY · ALT ON A BLOOD TEST');
+    add(whr >= 0.5, 'BLOOD SUGAR', 'WAIST FAT DRIVES INSULIN RESISTANCE · AN A1C SHOWS IT EARLY');
+    add(rate > 2.5 || long24 >= 4, 'GALLSTONES', (rate > 2.5 ? 'FAST LOSS' : 'LONG FASTS') + ' LET BILE SIT · PAIN UNDER THE RIGHT RIBS AFTER A MEAL');
+    add(longest >= 36, 'SALTS', 'LONG FASTS DRAIN SODIUM, POTASSIUM, MAGNESIUM · CRAMPS OR HEADACHE = LOW');
+    add(long24 >= 2, 'URIC ACID', 'FASTING RAISES IT FOR A DAY OR TWO · A HOT, SWOLLEN BIG TOE IS GOUT', YEL);
+    add((sex === 'M' ? neck >= 17 : neck >= 16) || (bi.bmi || 0) >= 35, 'SLEEP APNEA', 'A THICK NECK IS THE TELL · LOUD SNORING, TIRED BY 2 PM');
+    add(skipped.length > 0, 'POSTURE', skipped.join(' + ') + ' WORK NOT LOGGED · PRESSING WITHOUT PULLING ROUNDS THE SHOULDERS', YEL);
+    add((bi.bmi || 0) >= 30, 'KNEES', 'EACH LB IS ABOUT 4 LB ON THE KNEE PER STEP · WARM UP BEFORE SQUATS', YEL);
+    add(sex === 'M' && whr >= 0.53, 'TESTOSTERONE', 'BELLY FAT CONVERTS IT TO ESTROGEN · LOW DRIVE, POOR SLEEP, SLOW RECOVERY', YEL);
+    add(sex === 'F' && whr >= 0.53, 'HORMONES', 'WAIST FAT IS TIED TO IRREGULAR CYCLES AND PCOS', YEL);
+    add(whr >= 0.55, 'REFLUX', 'BELLY PRESSURE PUSHES ACID UP · WORSE LYING DOWN AFTER BIG MEALS', YEL);
+    add(whr >= 0.5 || bi.bf >= band[0] - 1 && band[1] === 'HIGH', 'BLOOD PRESSURE', 'A PHARMACY CUFF TWICE A MONTH · OVER 130/80 IS WORTH A CALL');
+    add(rate > 0.5 && perWk < 1.5, 'MUSCLE LOSS', 'LOSING WEIGHT WITHOUT LIFTING TAKES MUSCLE WITH IT', RED);
+    add(bi.bf < (sex === 'M' ? 8 : 15), 'TOO LEAN', 'HORMONES, SLEEP AND IMMUNITY DIP BELOW HERE · HOLD, DO NOT CUT', RED);
+    // do next: the biggest ones as steps
+    const step = (on, t1, d) => { if (on && todo.length < 4) todo.push({ t: t1, d }); };
+    step(whr >= 0.5 || (bi.bmi || 0) >= 30, 'BLOOD WORK', 'A1C · LIPIDS · ALT AT YOUR NEXT CHECKUP');
+    step(rate > 0 || toGo > 0, 'PROTEIN', Math.round(bi.lean * 0.8) + '-' + Math.round(bi.lean) + ' G A DAY · IT KEEPS THE MUSCLE WHILE YOU CUT');
+    step(longest >= 36, 'ON LONG FASTS', 'SALT IN YOUR WATER · MAGNESIUM AT NIGHT');
+    step(skipped.includes('PULL'), 'ROWS', 'TWO PULLING SETS FOR EVERY PUSHING SET');
+    step(whr >= 0.5, 'WAIST TARGET', 'UNDER ' + len(h / 2) + ' · HALF YOUR HEIGHT');
+    step(!t || now - t.ts > 14 * DAY, 'RETAPE', 'EVERY 2 WEEKS · MORNING · SAME SPOT AT THE NAVEL');
+    step(true, 'SLEEP', '7+ HOURS · SHORT NIGHTS RAISE HUNGER THE NEXT DAY');
+    return { lines, watch: watch.slice(0, 6), todo };
+  }
+
   // ---------- body areas: days since each was worked ----------
   const AREAS = ['LEGS', 'PUSH', 'PULL', 'CORE', 'CARDIO'];
   const areaDays = memo(() => {
@@ -508,7 +568,7 @@ window.RX = window.RX || {};
     RX.maus.draw(mx, cx, top, figH, 'STEADY', { t: g.t, build: B });
     const T = bi.t, Tp = bi.p;
     const tape = [['NECK', 'neck', 35, [-4, 4], false], ['CHEST', 'chest', 44, [-11, 11], true], ['ARM', 'arm', 49, [11, 15], true], ['WAIST', 'waist', 52, [-11, 11], true], ['HIPS', 'hips', 58, [-11, 11], true], ['THIGH', 'thigh', 67, [2, 8], false]];
-    let lastY = -99;
+    let lastY = -1e9;   // (not a fixed number: scrolled far, the rows sit well above the top)
     tape.forEach(([lab, k, v, half, byW]) => {
       const yb = Math.round(top + v * s), yy = Math.max(yb, lastY + 9); lastY = yy;
       const h0 = half[0] * (byW ? B.w : 1), h1 = half[1] * (byW ? B.w : 1), val = T ? T[k] : null;
@@ -546,6 +606,8 @@ window.RX = window.RX || {};
     const x2 = W - 79;
     kv('BMI', bi.bmi ? bi.bmi.toFixed(1) : '--', bi.bmi ? (bi.bmi < 25 ? GRN : YEL) : null, 1); kv('WAIST / HT', bi.whr ? bi.whr.toFixed(2) : '--', whrC, x2); y += 10;
     kv('GOAL', P.goalLbs ? wt(P.goalLbs) + ' ' + wtU() : '--', AMB, 1); kv('AT GOAL BF', bi.goalBF != null ? '~' + Math.round(bi.goalBF) + '%' : '--', AMB, x2); y += 12;
+    // the readout
+    y = readoutBlock(g, st, y);
     // the trend: weight and body fat on one strip
     st.rng = st.rng == null ? 1 : st.rng;
     g.seg(0, y, 80, 10, RANGES.map((r, i) => ({ label: r[0], on: st.rng === i, fn: () => { st.rng = i; A.beep('jog'); } })), { face: 'mini' });
@@ -572,6 +634,44 @@ window.RX = window.RX || {};
     }
     y += 15;
     g.scrollEnd(y);
+  }
+
+  function readoutBlock(g, st, y) {
+    const W = g.W, mx = g.mx, R = readout();
+    y = g.section('READOUT', y, R ? 'FROM YOUR TAPE + SCALE' : '');
+    if (!R) { g.mini(g.fit(!S.profile.sex || !S.profile.heightIn ? 'SET SEX + HEIGHT IN FILE, THEN TAPE' : 'TAPE + WEIGH IN TO READ YOUR BODY', W - 4, 'mini'), 2, y + 1, { a: 0.55 }); return y + 12; }
+    R.lines.forEach(l => {
+      mx.rect(1, y + 1, 2, 5, l.c, 1);
+      g.mini(l.k, 6, y + 1, { a: 0.65 });
+      const vw = g.text(l.v, 50, y, { c: HOT });
+      g.miniR(g.fit(l.tag, W - 56 - vw, 'mini'), W - 2, y + 1, { c: l.c, a: 1 });
+      y += 9;
+      if (l.sub) { g.mini(g.fit(l.sub, W - 8, 'mini'), 6, y, { a: 0.55 }); y += 7; }
+      y += 1;
+    });
+    y += 2;
+    if (R.watch.length) {
+      y = g.section('WATCH FOR', y);
+      R.watch.forEach(w => {
+        mx.rect(1, y + 2, 3, 3, w.c, 0.9);
+        g.text(w.title, 7, y, { c: w.c });
+        y += 8;
+        U.wrap(w.d, Math.floor((W - 8) / 4)).slice(0, 2).forEach(l => { g.mini(l, 7, y, { a: 0.6 }); y += 7; });
+        y += 2;
+      });
+    }
+    if (R.todo.length) {
+      y = g.section('DO NEXT', y);
+      R.todo.forEach((d, i) => {
+        g.text(String(i + 1), 2, y, { c: AMB });
+        g.text(d.t, 9, y, { c: HOT });
+        y += 8;
+        U.wrap(d.d, Math.floor((W - 10) / 4)).slice(0, 2).forEach(l => { g.mini(l, 9, y, { a: 0.6 }); y += 7; });
+        y += 2;
+      });
+    }
+    g.mini(g.fit('TAPE ESTIMATES +/-3% · NOT MEDICAL ADVICE', W - 4, 'mini'), 2, y + 1, { a: 0.4 });
+    return y + 12;
   }
 
   // ======================================================================
@@ -881,7 +981,7 @@ window.RX = window.RX || {};
   }
 
   // for tests and the calendar
-  RX.profile = { navy, tapeBF, bodyInfo, mausState, xpInfo, areaDays, prInfo, buildNow, levelOf, cum, bars };
+  RX.profile = { navy, tapeBF, bodyInfo, mausState, xpInfo, areaDays, prInfo, buildNow, levelOf, cum, bars, readout };
 
   // badges and levels keep counting while the RP is on, even with PROFILE closed
   setInterval(() => { if (RX.app && RX.app.booted) checkBadges(RX.app); }, 120000);
