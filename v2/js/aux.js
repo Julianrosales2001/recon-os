@@ -36,7 +36,7 @@ window.RX = window.RX || {};
   const FLICK = { rec: [0, .55, .05, .2, .7, .15, .45, .25], park: [0, .35, .1, .6, .05, .5, .3, .2] };   // the lamps catching
   const HIT = [1, .45, 1, .7, 1];                                                                         // a press landing
   const KEYS = ['rec', 'park'];
-  const SRC = n => 'keys/aux/' + n + '.webp';
+  const SRC = n => 'keys/aux/' + n + '.webp?v=2';   // v2: rubber gasket frame
   const X = RX.aux = { open: false, y: 0 };
   let A = null, hooks = {}, T = 96, raf = 0, slide = null, drag = null, gripDown = false, afterClose = null;
   const el = {};

@@ -39,7 +39,6 @@ body {
   touch-action: manipulation;
 }
 button { font: inherit; color: inherit; border: 0; padding: 0; background: none; cursor: pointer; }
-.jp { font-family: 'DotGothic16', 'Hiragino Sans', monospace; font-weight: 400; letter-spacing: 0.04em; }
 
 #desk { position: fixed; inset: 0; background: var(--body-lo); }
 #desk.fit { bottom: auto; height: var(--app-h, 100%); }
@@ -75,7 +74,6 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .brand-logo { display: block; height: 15px; width: 52.5px; fill: var(--silk-hi); filter: drop-shadow(0 1px 0 rgba(0,0,0,0.35)); }
 .brand-model { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; color: var(--sage); }
 .brand-sub { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--sage); }
-.brand-sub .jp { font-size: 11px; }
 
 .lamps { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 0 6px; height: 16px; margin: 4px 0 6px; white-space: nowrap; overflow: hidden; }
 .lamp { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: var(--sage); }
@@ -121,6 +119,22 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .clock-glass { background: #0B0805; }
 .clock-glass::after { content: ''; position: absolute; inset: 0; background: linear-gradient(165deg, rgba(255,200,140,0.06) 0%, rgba(255,200,140,0) 40%); pointer-events: none; }
 .lcd-well:active .lcd-glass { filter: brightness(0.96); }
+/* VIS also switches on the readout's backlight: a green LED behind the LCD, lit from its bottom edge like a Casio or a
+   Game Boy Light. The pixels stay dark (they block the light), so the contrast holds; a soft bloom leaks round the glass. */
+.lcd-glass::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.22s ease;
+  background:
+    radial-gradient(38% 70% at 18% 108%, rgba(214,255,160,0.55), rgba(214,255,160,0) 100%),
+    radial-gradient(38% 70% at 82% 108%, rgba(214,255,160,0.55), rgba(214,255,160,0) 100%),
+    linear-gradient(0deg, #9BE36A 0%, #86D05D 45%, #6FB552 100%);
+  box-shadow: inset 0 0 5px 1px rgba(205,255,150,0.55), inset 0 -2px 6px rgba(230,255,190,0.5); }
+.lcd-glass { isolation: isolate; }
+.lcd-glass > .mx-ghost, .lcd-glass > .mx-dots, .lcd-glass > .mx-shadow { z-index: 1; }
+.lcd-glass::after { z-index: 2; }
+.lcd-well { position: relative; transition: box-shadow 0.22s ease; }
+#device.backlit .lcd-glass::before { opacity: 1; }
+#device.backlit .lcd-glass .mx-shadow { opacity: 0.1; }
+#device.backlit .lcd-glass::after { opacity: 0.55; }
+#device.backlit .lcd-well { box-shadow: 0 0 6px 1px rgba(150,245,100,0.5), 0 0 16px 3px rgba(130,235,90,0.28), 0 0 34px 8px rgba(120,230,80,0.12); }
 
 /* ---------- main screen bezel ---------- */
 .bezel {
@@ -256,11 +270,11 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
   box-shadow: inset 0 0 0 1px #0B1314, inset 0 2px 0 rgba(255,255,255,0.05), inset 0 -3px 0 rgba(0,0,0,0.22);
 }
 .bezel .ruler { left: 11px; }
-.lip { position: absolute; left: 3px; right: 24px; bottom: 0; height: 32px; display: flex; align-items: center; justify-content: center; }
+.lip { position: absolute; left: 3px; right: 3px; bottom: 0; height: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; }   /* centred on the deck: the grip lines up with the compass and the drum */
 .lip-line { position: absolute; top: 16px; height: 1px; background: rgba(165,177,148,0.26); }
 .lip-line.l { left: 10px; right: calc(50% + 46px); } .lip-line.r { right: 10px; left: calc(50% + 46px); }
-.aux-bar { position: relative; width: 77px; height: 28.3px; margin-top: 1px; padding: 0; background: url(keys/aux/bar-0.webp) center / 77px 28.3px no-repeat; touch-action: none; cursor: ns-resize; -webkit-tap-highlight-color: transparent; }
-.aux-bar.down { background-image: url(keys/aux/bar-2.webp); }
+.aux-bar { position: relative; width: 77px; height: 28.3px; margin-top: 1px; padding: 0; background: url(keys/aux/bar-0.webp?v=2) center / 77px 28.3px no-repeat; touch-action: none; pointer-events: auto; cursor: ns-resize; -webkit-tap-highlight-color: transparent; }
+.aux-bar.down { background-image: url(keys/aux/bar-2.webp?v=2); }
 .aux-bar:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 2px; border-radius: 6px; }
 .deck { --aux-t: 96px; position: absolute; left: 6px; right: 6px; bottom: 6px; height: var(--aux-t); z-index: 1; border-radius: 10px;
   background: linear-gradient(180deg, #0b1314 0%, #122021 40%, #162526 100%);
@@ -361,7 +375,6 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .drum-cap .led { width: 6px; height: 6px; }
 .drum-cap svg { display: block; width: 18px; height: 18px; margin-top: 2px; fill: none; stroke: var(--silk-hi); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .df-lbl { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 12px; padding-left: 0.1em; }
-.df-jp { font-family: 'DotGothic16', monospace; font-size: 9px; line-height: 9px; color: var(--sage); }
 .drum-shade { position: absolute; inset: 0; pointer-events: none; border-radius: 8px;
   background:
     linear-gradient(90deg, rgba(0,0,0,0.6) 0px, rgba(0,0,0,0) 3px, rgba(0,0,0,0) calc(100% - 3px), rgba(0,0,0,0.6) 100%),
@@ -378,7 +391,6 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .mark-key:active, .mark-key.down { transform: translateY(3px); box-shadow: 0 0 0 #3A0C02, 0 1px 3px rgba(0,0,0,0.6), inset 0 2px 7px rgba(0,0,0,0.4); }
 .mark-dimple { position: absolute; left: 14px; right: 14px; top: 16px; bottom: 14px; border-radius: 50%; box-shadow: inset 0 2px 6px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,190,160,0.16); pointer-events: none; }
 .mark-key .led { position: absolute; left: 11px; top: 9px; width: 6px; height: 6px; }
-.mark-jp { position: absolute; right: 10px; top: 6px; font-size: 10px; color: #E7BFAE; }
 .mark-lbl { position: relative; font-size: 28px; font-weight: 700; letter-spacing: 0.22em; padding-left: 0.22em; line-height: 30px; margin-top: 4px; }
 
 /* spec plate between two grip-rib pockets; molded marks underneath */
@@ -395,7 +407,6 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .serial .plate b { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--silk-hi); }
 .serial .plate .dc { display: flex; align-items: center; gap: 4px; color: var(--silk); font-weight: 700; letter-spacing: 0.08em; }
 .serial .plate .dc svg { width: 11px; height: 7px; fill: none; stroke: currentColor; stroke-width: 1.6; }
-.serial .plate .jp { font-size: 10px; letter-spacing: 0.04em; }
 .molded {
   flex: 0 0 auto; display: flex; justify-content: space-between; height: 10px; margin-top: 3px; padding: 0 40px;
   font-size: 8px; line-height: 10px; font-weight: 700; letter-spacing: 0.26em; color: #233435;
@@ -460,8 +471,13 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 }
 .mark-key::before {
   content: ''; position: absolute; inset: -20px; pointer-events: none; z-index: 2;   /* the ink rides above both caps */
-  background: url(keys/mark-ink.png?v=2) center calc(50% + 3px) / 104px 34px no-repeat, url(keys/mark-jp.png?v=2) right 10px top 4px / 27px 22px no-repeat;
+  background: url(keys/mark-ink.png?v=3) center calc(50% + 2.5px) / 87.33px 34.33px no-repeat;   /* the cutout: frosted letters set flush in the rubber */
 }
+/* the letters light from inside: pressed or armed, the lit cutout (with its bloom) fades in over them */
+.mark-key > .mark-glow { display: block !important; position: absolute; inset: -20px; pointer-events: none; z-index: 3;
+  background: url(keys/mark-ink-lit.png?v=3) center calc(50% + 2.5px) / 87.33px 34.33px no-repeat; opacity: 0; transition: opacity 0.18s ease; }
+.mark-key:active > .mark-glow, .mark-key.down > .mark-glow { opacity: 1; transition-duration: 0.05s; }
+#device.assign .mark-key > .mark-glow { animation: mark-armed 1.4s ease-in-out infinite; }
 .mark-key::after {
   content: ''; position: absolute; inset: -20px; pointer-events: none;
   border: 20px solid transparent; border-image: url(keys/mark-base-lit.png?v=2) 60 fill / 20px; z-index: 1;

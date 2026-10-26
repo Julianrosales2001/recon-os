@@ -295,9 +295,10 @@ window.RX = window.RX || {};
 
     // Fog: which cells sit in unrevealed 150 m squares.
     const fog = new Uint8Array(n);
-    const S = RX.store, HI = !!(S.v2 && S.v2.hicon);
+    // (both looks read explored ground at every zoom; zoomed out, every explored cell is plotted so none disappear)
+    const S = RX.store, ALL = true;
     const cellDots = S.FOG_CELL_DEG / Math.max(1e-12, Math.abs(M.dotToLatLng(0, 0, v).lat - M.dotToLatLng(0, 1, v).lat));
-    if (HI && cellDots < 1.5) {
+    if (ALL && cellDots < 1.5) {
       // zoomed out: cells are smaller than a dot · plot every explored cell so none disappear
       fog.fill(1);
       const D = S.FOG_CELL_DEG;
@@ -306,7 +307,7 @@ window.RX = window.RX || {};
         const x = Math.floor(d.x), y = Math.floor(d.y);
         if (x >= 0 && y >= 0 && x < v.cols && y < v.rows) fog[y * v.cols + x] = 0;
       }
-    } else if ((M.zoom >= 9.5 || HI) && RX.store.fog.size) {
+    } else if (RX.store.fog.size) {
       const D = RX.store.FOG_CELL_DEG;
       const latIdx = new Int32Array(v.rows), lngIdx = new Int32Array(v.cols);
       for (let r = 0; r < v.rows; r++) latIdx[r] = Math.floor(M.dotToLatLng(0, r + 0.5, v).lat / D);
@@ -314,7 +315,7 @@ window.RX = window.RX || {};
       for (let r = 0; r < v.rows; r++) for (let col = 0; col < v.cols; col++) {
         if (!RX.store.isRevealed(latIdx[r], lngIdx[col])) fog[r * v.cols + col] = 1;
       }
-    } else if (M.zoom >= 9.5 || HI) {
+    } else {
       fog.fill(1);
     }
     M.missing = missing;
@@ -330,7 +331,8 @@ window.RX = window.RX || {};
     return M.base;
   };
 
-  const FOG_FACTOR = { CLEAR: 0.85, LIGHT: 0.55, MEDIUM: 0.32, HEAVY: 0.16 };
+  // FOG DENSITY: how far unexplored ground sinks (HEAVY is darkest)
+  const FOG_SINK = { CLEAR: 2.4, LIGHT: 1.7, MEDIUM: 1.3, HEAVY: 1 };
 
   // ---------- state lines (wide zoom) ----------
   // Zoomed far out, the basemap's own state lines are too faint to survive the
@@ -393,7 +395,6 @@ window.RX = window.RX || {};
     const b = M.ensureBase(v);
     const HI = !!(RX.store.v2 && RX.store.v2.hicon);
     if (!b || b.cols !== mx.cols || b.rows !== mx.rows) { drawBorders(mx, v, HI ? [150, 150, 150] : RX.rgb(colors.ink), HI); return; }
-    const fogF = FOG_FACTOR[RX.store.prefsV1.fogOpacity] != null ? FOG_FACTOR[RX.store.prefsV1.fogOpacity] : 0.32;
     const ink = RX.rgb(colors.ink), wat = RX.rgb(colors.water), hatch = RX.rgb(colors.fog);
     const buf = mx.buf, cols = mx.cols;
     if (RX.store.v2 && RX.store.v2.hicon) {
@@ -410,23 +411,21 @@ window.RX = window.RX || {};
       drawBorders(mx, v, GR, true);   // grey over the white so a line still shows on explored ground
       return;
     }
+    // Explored ground is lit territory: a phosphor floor under full-strength roads, and a white-hot frontier where it
+    // meets the unknown. The unknown sinks to dark teal (FOG DENSITY sets how far). HI-CON is the same idea in white.
+    const hot = [233, 255, 247], kF = FOG_SINK[RX.store.prefsV1.fogOpacity || 'HEAVY'] || 1;
+    const isFog = (c, r) => c >= 0 && r >= 0 && c < b.cols && r < b.rows && b.fog[r * cols + c] === 1;
     for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
-      const i = r * cols + c, p = i * 4;
-      const fogged = b.fog[i] === 1;
+      const i = r * cols + c, p = i * 4, fg = b.fog[i] === 1, L = b.lum[i] / 255;
       let a = 0, col = ink;
-      if (b.water[i]) {
-        if (((c + r * 3) % 4) === 0 || (((c + 1) + r * 3) % 4 === 0 && r % 2 === 0)) { a = 0.42; col = wat; }
-      } else {
-        const L = b.lum[i] / 255;
-        if (L > 0.06) a = 0.18 + 0.82 * Math.min(1, L * 1.15);
-        if (fogged) {
-          a *= fogF;
-          if (a < 0.08 && ((c - r + 4096) % 5) === 0) { a = 0.1; col = hatch; }
-        }
-      }
-      if (a > 0) {
-        buf[p] = col[0]; buf[p + 1] = col[1]; buf[p + 2] = col[2]; buf[p + 3] = a * 255;
-      }
+      if (!fg) {
+        if (isFog(c - 1, r) || isFog(c + 1, r) || isFog(c, r - 1) || isFog(c, r + 1)) { a = 0.95; col = hot; }
+        else if (b.water[i]) { a = ((c + r * 3) % 4) === 0 ? 0.5 : 0.1; col = wat; }
+        else { a = Math.max(0.2, L > 0.06 ? 0.3 + 0.7 * Math.min(1, L * 1.15) : 0); if (L > 0.5) col = hot; }
+      } else if (b.water[i]) { if (((c + r * 3) % 4) === 0) { a = 0.22 * Math.min(1.6, kF); col = wat; } }
+      else if (L > 0.06) { a = Math.min(0.6, (0.1 + 0.12 * Math.min(1, L)) * kF); col = hatch; }
+      else if (((c - r + 4096) % 7) === 0) { a = 0.06; col = hatch; }
+      if (a > 0) { buf[p] = col[0]; buf[p + 1] = col[1]; buf[p + 2] = col[2]; buf[p + 3] = a * 255; }
     }
     drawBorders(mx, v, ink, false);
   };

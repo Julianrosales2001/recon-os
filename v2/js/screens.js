@@ -1031,20 +1031,17 @@ window.RX = window.RX || {};
     // HLTH opens on the page you last used; the calendar can open it on TRAIN for a day
     enter(st, params) { params = params || {}; st.page = params.page || S.v2.hlthPage || 'fast'; if (params.day) st.fday = params.day; },
     animating: () => true,
-    onPage(pg, st, A) { st.edit = false; st.scroll = 0; S.saveV2({ hlthPage: pg }); if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
-    jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.page === 'train' ? ['◂ UP', 'DOWN ▸', 'PUSH ▸ DONE'] : st.edit ? ['◂ -15M', '+15M ▸', 'PUSH · DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
+    onPage(pg, st, A) { st.scroll = 0; S.saveV2({ hlthPage: pg }); if (pg === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; } },
+    jogLabels: st => st.page === 'stages' ? ['◂ EARLIER', 'LATER ▸', 'PUSH ▸ NOW'] : st.page === 'train' ? ['◂ UP', 'DOWN ▸', 'PUSH ▸ DONE'] : ['◂ UP', 'DOWN ▸', 'PUSH SELECT · HOLD MAP'],
     longPress(d, st, A) { if (st.page !== 'train') return; const t = RX.fit.tileAt(st, d); if (t) { A.beep('key'); A.go('move', { id: t.id, day: st.fday }); } },
     jog(d, st, A) {
       if (st.page === 'stages') { st.scrub = Math.max(0, Math.min(MAXH, Math.round((st.scrub || 0) + d))); return; }   // an hour a click
-      if (st.edit) { const f = S.activeFast(); if (f) { f.startTs = Math.min(Date.now(), f.startTs + d * 15 * 60000); S.saveFasts(); } return; }
       A.focusJog(d);
     },
     push(st, A) {
       if (st.page === 'stages') { const f = S.activeFast(); st.scrub = f ? Math.min(MAXH, (Date.now() - f.startTs) / 36e5) : 18; A.say(f ? 'SCRUBBER ▸ NOW' : 'NO FAST RUNNING', 1500); return; }
-      if (st.edit) { st.edit = false; A.refreshChrome(); A.say('START TIME SAVED', 2000); return; }
       A.focusPush();
     },
-    back(st, A) { if (st.edit) { st.edit = false; A.refreshChrome(); return true; } return false; },
     // on STAGES a sideways drag moves the scrubber, an up-down drag scrolls the write-up
     drag(dx, dy, st) { if (st.page === 'stages' && Math.abs(dx) > Math.abs(dy)) st.scrub = Math.max(0, Math.min(MAXH, (st.scrub || 0) + dx / ((RX.app.mx.cols - 36) / 24))); else { st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy)); } },
     render(g, st, A) {
@@ -1056,7 +1053,7 @@ window.RX = window.RX || {};
       y = g.scrollBegin(y, footTop(g));
       if (f) {
         const el = Date.now() - f.startTs, L = lapOf(el), hrs = el / 36e5;
-        g.mini(st.edit ? 'ADJUST START · TYPE IT OR JOG 15 MIN' : 'ELAPSED', 1, y, { a: 0.6 });
+        g.mini('ELAPSED', 1, y, { a: 0.6 });
         y += 8;
         const s = F.dur(el);
         g.text(s, 1, y, { s: 3, c: L.col });
@@ -1067,23 +1064,10 @@ window.RX = window.RX || {};
         y += 10;
         y = fastBar(g, y, el);
         y += 2;
-        if (st.edit) {
-          // type the start: 8:30P · 2030 · YEST 9P · SUN 6:15A · 10/11 21:00
-          g.field('fast-start', 0, y, W - 2, 13, { label: 'START', value: '', placeholder: F.hm(f.startTs) + ' · E.G. 8:30P, YEST 9P', maxLen: 18, onCommit: v => {
-            if (!v) return;
-            const t = parseStart(v);
-            if (t == null) { A.say('CAN\'T READ THAT TIME · TRY 8:30P OR YEST 9P', 3500); A.beep('err'); return; }
-            f.startTs = t; S.saveFasts(); A.say('START ▸ ' + F.day(t) + ' ' + F.hm(t) + ' · ' + F.durHM(Date.now() - t) + ' IN', 3500); A.beep('ok');
-          } });
-          y += 16;
-          const bw = Math.floor((W - 2) / 3);
-          g.btn(0, y, bw - 1, 14, '-15M', () => { f.startTs -= 15 * 60000; S.saveFasts(); });
-          g.btn(bw, y, bw - 1, 14, '+15M', () => { f.startTs = Math.min(Date.now(), f.startTs + 15 * 60000); S.saveFasts(); });
-          g.btn(bw * 2, y, W - 2 - bw * 2, 14, 'DONE', () => { st.edit = false; A.refreshChrome(); }, { on: true });
-        } else {
+        {
           const bw = Math.floor((W - 2) * 0.58);
           g.btn(0, y, bw, 14, '■ END FAST', () => { const e = S.endFast(); A.say('FAST ENDED · ' + e.hours + 'H · DAY ' + e.dayNum, 4000); A.beep('file'); A.updateLamps(); }, { solid: true });
-          g.btn(bw + 2, y, W - 4 - bw, 14, 'EDIT START', () => { st.edit = true; A.refreshChrome(); });
+          g.btn(bw + 2, y, W - 4 - bw, 14, 'EDIT START', () => setStart(A, f));
         }
         y += 18;
       } else {
@@ -1093,8 +1077,10 @@ window.RX = window.RX || {};
         y += 20;
         if (last) g.mini('LAST FAST ENDED ' + F.day(last.endTs) + ' ' + F.hm(last.endTs) + ' · ' + last.hours + 'H', 1, y, { a: 0.7 });
         y += 10;
-        g.btn(0, y, W - 2, 15, '▸ START FAST', () => { const n = S.startFast(); if (n) { A.say('FAST STARTED · DAY ' + n.dayNum, 3500); A.beep('file'); A.updateLamps(); } }, { solid: true });
-        y += 19;
+        g.btn(0, y, W - 2, 15, '▸ START FAST NOW', () => { const n = S.startFast(); if (n) { A.say('FAST STARTED · DAY ' + n.dayNum, 3500); A.beep('file'); A.updateLamps(); } }, { solid: true });
+        y += 17;
+        g.btn(0, y, W - 2, 12, 'ALREADY STARTED? SET THE TIME ▸', () => startEarlier(A, last), { face: 'mini' });
+        y += 16;
       }
 
       // history
@@ -1141,6 +1127,176 @@ window.RX = window.RX || {};
     }
   };
 
+  // ---------------------------------------------------------------- set time: four rolling drums (DAY · HOUR · MIN · AM/PM)
+  // Flick a drum up or down: it spins, slows and clicks into place; the row in the window is the pick. Tap the row above or
+  // below to step one; the jog rolls the picked drum. Never later than now, never before `min`, never after `max`.
+  const t12h = ts => { const d = new Date(ts); return (d.getHours() % 12 || 12) + ':' + F.pad2(d.getMinutes()) + ' ' + (d.getHours() < 12 ? 'AM' : 'PM'); };
+  const sodT = ts => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const dayWord = ts => { const n = Math.round((sodT(Date.now()) - sodT(ts)) / 864e5); return n === 0 ? 'TODAY' : n === 1 ? 'YESTERDAY' : n < 7 ? n + ' DAYS AGO' : ''; };
+  const hm2 = ms => { const m = Math.max(0, Math.round(ms / 60000)); return Math.floor(m / 60) + 'H ' + F.pad2(m % 60) + 'M'; };
+  const modn = (a, n) => ((a % n) + n) % n;
+  const DR = { P: 19, R: 32, SY: 2 };                     // row pitch round the drum, drum radius, rows drawn twice as tall
+  const DRUMS = ['day', 'hr', 'min', 'ap'];
+  const DNAME = { day: 'DAY', hr: 'HOUR', min: 'MIN', ap: 'AM/PM' };
+  function drumLimits(p) { const now = Date.now(); return { lo: p.min != null ? p.min : now - 60 * 864e5, hi: Math.min(now, p.max != null ? p.max : Infinity) }; }
+  function drumBuild(st) {
+    const L = drumLimits(st.p), days = [];
+    for (let d = new Date(sodT(L.lo)); d.getTime() <= sodT(L.hi); d.setDate(d.getDate() + 1)) days.push(d.getTime());
+    st.days = days;
+    st.dr = {
+      day: { n: days.length, cyc: false, sx: 1, label: i => dayWord(days[i]) || F.day(days[i]) },
+      hr: { n: 12, cyc: true, sx: 2, label: i => String(i || 12) },
+      min: { n: 60, cyc: true, sx: 2, label: i => F.pad2(i) },
+      ap: { n: 2, cyc: false, sx: 1, label: i => i ? 'PM' : 'AM' },
+    };
+    DRUMS.forEach(k => Object.assign(st.dr[k], { pos: 0, anim: null, v: 0, lastT: 0, tick: 0 }));
+    drumsTo(st, st.t, false);
+  }
+  const drumIdx = (c, at) => { const r = Math.round(at != null ? at : (c.anim ? c.anim.to : c.pos)); return c.cyc ? modn(r, c.n) : Math.max(0, Math.min(c.n - 1, r)); };
+  function drumTime(st, live) {
+    const D = st.dr, pick = k => drumIdx(D[k], live ? D[k].pos : null);
+    const d = new Date(st.days[pick('day')]); d.setHours(pick('hr') + 12 * pick('ap'), pick('min'), 0, 0); return d.getTime();
+  }
+  function drumRoll(c, to) {
+    if (!c.cyc) to = Math.max(0, Math.min(c.n - 1, to));
+    const dist = Math.abs(to - c.pos);
+    c.anim = dist < 0.01 ? null : { from: c.pos, to, t0: performance.now(), dur: Math.max(160, Math.min(1100, dist * 55)) };
+    if (!c.anim) c.pos = to;
+  }
+  function drumsTo(st, t, animate) {
+    const d = new Date(t), want = { day: Math.max(0, st.days.indexOf(sodT(t))), hr: d.getHours() % 12, min: d.getMinutes(), ap: d.getHours() >= 12 ? 1 : 0 };
+    DRUMS.forEach(k => { const c = st.dr[k]; let to = want[k];
+      if (c.cyc) { const base = Math.round(c.anim ? c.anim.to : c.pos); to = base + ((modn(want[k] - base, c.n) + c.n / 2) % c.n) - c.n / 2; }   // the short way round
+      if (animate) drumRoll(c, to); else { c.pos = to; c.anim = null; } c.tick = Math.round(c.pos); });
+    st.t = t;
+  }
+  // after every drum has stopped: keep the time inside its limits, rolling back if it went too far
+  function drumSettle(st, A) {
+    const p = st.p, L = drumLimits(p); let t = drumTime(st);
+    if (t > L.hi) { drumsTo(st, L.hi, true); A.say(p.max != null && p.max < Date.now() ? 'CAN\'T BE AFTER THE END · ' + F.day(p.max) + ' ' + t12h(p.max) : 'CAN\'T BE LATER THAN NOW', 2400); A.beep('err'); }
+    else if (t < L.lo) { drumsTo(st, L.lo, true); A.say(p.minWhy || 'CAN\'T BE BEFORE THE START', 2400); A.beep('err'); }
+    else st.t = t;
+  }
+  function drumTick(st, A) {
+    const now = performance.now(); let moving = !!st.drag;
+    DRUMS.forEach(k => { const c = st.dr[k];
+      if (c.anim) { const a = c.anim, q = Math.min(1, (now - a.t0) / a.dur), e = 1 - Math.pow(1 - q, 3); c.pos = a.from + (a.to - a.from) * e; if (q >= 1) { c.pos = a.to; c.anim = null; } else moving = true; }
+      const r = Math.round(c.pos); if (r !== c.tick) { c.tick = r; A.beep('jog'); }   // a click as each row passes the window
+    });
+    if (st.wasMoving && !moving) drumSettle(st, A);
+    st.wasMoving = moving;
+  }
+  // one row, drawn round the drum: each line of dots lands where it would on a cylinder, and darkens as it turns away
+  function drumText(mx, str, cx, yc, th0, sx, c, a) {
+    const f = RX.font.std, H = f.h * DR.SY, w = RX.font.measure(str, 'std', sx);
+    let x = Math.round(cx - w / 2);
+    for (const ch of RX.font.norm(str)) {
+      const gl = f.glyphs[ch] || f.glyphs[f.fallback];
+      for (let gy = 0; gy < f.h; gy++) for (let dy = 0; dy < DR.SY; dy++) {
+        const th = th0 + (gy * DR.SY + dy + 0.5 - H / 2) / DR.R; if (Math.abs(th) > 1.5) continue;
+        const yy = Math.round(yc + DR.R * Math.sin(th)), sh = Math.cos(th), row = gl[gy];
+        for (let gx = 0; gx < f.w; gx++) if (row[gx]) for (let dx = 0; dx < sx; dx++) mx.set(x + gx * sx + dx, yy, c, a * (0.18 + 0.82 * sh * sh));
+      }
+      x += f.adv * sx;
+    }
+  }
+  RX.screens.settime = {
+    pal: 'amber',
+    enter(st, params) { st.p = params || {}; st.t = st.p.ts || Date.now(); st.k = 'hr'; drumBuild(st); },
+    animating: () => true,
+    jogLabels: st => ['◂ ' + DNAME[st.k], DNAME[st.k] + ' ▸', 'PUSH ▸ SAVE'],
+    jog(d, st, A) { const c = st.dr[st.k]; drumRoll(c, Math.round(c.anim ? c.anim.to : c.pos) + d); st.wasMoving = true; },
+    push(st, A) { saveTime(st, A); },
+    drag(dx, dy, st, A, d0) {
+      if (!st.drag) { const k = (d0 && st.cols && st.cols.find(o => d0.x >= o.x && d0.x < o.x + o.w)) || null; st.drag = { k: k ? k.k : st.k }; if (st.k !== st.drag.k) { st.k = st.drag.k; A.refreshChrome(); } }
+      const c = st.dr[st.drag.k], now = performance.now();
+      let dp = -dy / DR.P;
+      if (!c.cyc && ((c.pos < 0 && dp < 0) || (c.pos > c.n - 1 && dp > 0))) dp *= 0.3;   // past the end: stiff
+      c.anim = null; c.pos += dp;
+      const dt = Math.max(8, now - (c.lastT || now - 16)), inst = dp / (dt / 1000); c.v = now - c.lastT > 90 ? inst : c.v * 0.35 + 0.65 * inst; c.lastT = now;
+    },
+    dragEnd(st, A) {
+      if (!st.drag) return; const c = st.dr[st.drag.k]; st.drag = null;
+      // let go while moving: it coasts and slows (a slow drag stops where you leave it; a hard flick spins on)
+      const v = performance.now() - c.lastT > 90 ? 0 : Math.max(-60, Math.min(60, c.v));
+      drumRoll(c, Math.round(c.pos + Math.sign(v) * v * v / 90)); st.wasMoving = true;
+    },
+    render(g, st, A) {
+      drumTick(st, A);
+      const W = g.W, mx = g.mx, p = st.p, HOT = '#FFE3B8', AMB = C.amber;
+      let y = g.header(p.title || 'SET TIME', '', { c: AMB });
+      if (p.what) { g.mini(p.what, 1, y, { a: 0.7 }); y += 8; }
+      // the answer as it reads now
+      const live = drumTime(st, true), dw = dayWord(live);
+      g.text((dw ? dw + ' · ' : '') + F.day(live), 1, y + 1, { c: HOT });
+      y += 10;
+      if (p.span) g.mini((p.spanLabel || 'LENGTH') + ' ' + hm2(p.span(live)), 1, y + 1, { c: AMB, a: 1 });
+      y += 9;
+      // the drums
+      const gap = 3, apW = 18, hrW = 28, mnW = 28, coW = 8, dayW = W - 2 - (apW + hrW + mnW + coW + gap * 3);
+      const xs = { day: 1 }; xs.hr = xs.day + dayW + gap; xs.min = xs.hr + hrW + coW; xs.ap = xs.min + mnW + gap;
+      const ws = { day: dayW, hr: hrW, min: mnW, ap: apW };
+      st.cols = DRUMS.map(k => ({ k, x: xs[k], w: ws[k] }));
+      DRUMS.forEach(k => g.mini(DNAME[k] === 'AM/PM' ? '' : DNAME[k], xs[k] + 1, y + 1, { a: st.k === k ? 1 : 0.55, c: st.k === k ? HOT : AMB }));
+      y += 8;
+      // the drums take the room there is: bigger on a tall screen, never too small to read
+      DR.R = Math.max(28, Math.min(54, Math.floor((footTop(g) - y - 4 - 23 - 4) / 2)));
+      const top = y, yc = y + DR.R + 2, bot = yc + DR.R + 2; st.yc = yc;
+      mx.rect(0, yc - 10, W, 21, AMB, 0.1);                            // the window
+      DRUMS.forEach(k => {
+        const c = st.dr[k], x = xs[k], w = ws[k], on = st.k === k;
+        mx.frame(x - 1, top, w + 2, bot - top + 1, AMB, on ? 0.5 : 0.22);   // the drum's housing
+        mx.pushClip(x, top + 1, w, bot - top - 1);
+        const i0 = Math.floor(c.pos) - 3, i1 = Math.ceil(c.pos) + 3;
+        for (let i = i0; i <= i1; i++) {
+          if (!c.cyc && (i < 0 || i >= c.n)) continue;
+          const th = (i - c.pos) * DR.P / DR.R; if (Math.abs(th) > 1.75) continue;
+          const mid = Math.abs(i - c.pos) < 0.5;
+          drumText(mx, c.label(c.cyc ? modn(i, c.n) : i), x + w / 2, yc, th, c.sx, mid ? HOT : AMB, mid ? 1 : (on ? 0.85 : 0.6));
+        }
+        mx.popClip();
+        mx.frame(x - 1, yc - 10, w + 2, 21, on ? HOT : AMB, on ? 1 : 0.55);
+        // tap the window to pick this drum; tap above or below to step it
+        g.hit(x - 1, top, w + 2, bot - top, d => {
+          if (st.k !== k) { st.k = k; A.refreshChrome(); }
+          const off = d.y - yc; if (Math.abs(off) <= 10) return;
+          const rows = Math.round(Math.asin(Math.max(-1, Math.min(1, off / DR.R))) * DR.R / DR.P) || Math.sign(off);
+          drumRoll(c, Math.round(c.anim ? c.anim.to : c.pos) + rows); st.wasMoving = true;
+        });
+      });
+      g.text(':', xs.hr + hrW, yc - 7, { s: 2, c: HOT });
+      y = bot + 4;
+      const bw = Math.floor((W - 2) * 0.36);
+      g.btn(0, y, bw, 15, 'CANCEL', () => A.back());
+      g.btn(bw + 2, y, W - 4 - bw, 15, '▸ ' + (p.saveLabel || 'SAVE'), () => saveTime(st, A), { solid: true });
+      g.footer(A.sayActive() ? A.statusShown(g.t) : 'FLICK A DRUM UP OR DOWN');
+    }
+  };
+  function saveTime(st, A) {
+    // a drum still spinning: take where it will stop, inside the limits
+    const L = drumLimits(st.p); const t = Math.max(L.lo, Math.min(L.hi, drumTime(st)));
+    const p = st.p; A.back(); if (p.onSave) p.onSave(t);
+  }
+
+  // the three ways in
+  function setStart(A, f) {
+    const prev = S.fasts.filter(x => x.endTs && x.id !== f.id && x.endTs <= f.startTs).sort((a, b) => b.endTs - a.endTs)[0];
+    A.go('settime', { title: 'FAST · DAY ' + f.dayNum, what: 'WHEN DID IT START?', ts: f.startTs, min: prev ? prev.endTs : null, minWhy: 'CAN\'T BE BEFORE YOUR LAST FAST ENDED', span: t => Date.now() - t, spanLabel: 'FASTING FOR', saveLabel: 'SAVE START',
+      onSave: t => { f.startTs = t; S.saveFasts(); A.say('START ▸ ' + F.day(t) + ' ' + t12h(t) + ' · ' + hm2(Date.now() - t) + ' IN', 3500); A.beep('ok'); A.updateLamps(); } });
+  }
+  function startEarlier(A, last) {
+    const now = new Date(); now.setSeconds(0, 0); now.setMinutes(Math.floor(now.getMinutes() / 5) * 5);
+    A.go('settime', { title: 'START A FAST', what: 'WHEN DID YOU STOP EATING?', ts: now.getTime(), min: last ? last.endTs : null, minWhy: 'CAN\'T BE BEFORE YOUR LAST FAST ENDED', span: t => Date.now() - t, spanLabel: 'FASTING FOR', saveLabel: 'START FAST',
+      onSave: t => { const n = S.startFast(); if (!n) return; n.startTs = t; S.saveFasts(); A.say('FAST STARTED · DAY ' + n.dayNum + ' · ' + hm2(Date.now() - t) + ' IN', 3500); A.beep('file'); A.updateLamps(); } });
+  }
+  function setRec(A, f, key) {
+    const isEnd = key === 'endTs';
+    A.go('settime', { title: 'FAST · DAY ' + f.dayNum, what: isEnd ? 'WHEN DID IT END?' : 'WHEN DID IT START?', ts: f[key],
+      min: isEnd ? f.startTs : null, max: isEnd ? null : f.endTs, minWhy: 'CAN\'T BE BEFORE THE START',
+      span: t => isEnd ? t - f.startTs : (f.endTs || Date.now()) - t, spanLabel: 'FAST LENGTH', saveLabel: isEnd ? 'SAVE END' : 'SAVE START',
+      onSave: t => { f[key] = t; S.recalcFastHours(f); S.saveFasts(); A.say((isEnd ? 'END' : 'START') + ' ▸ ' + F.day(t) + ' ' + t12h(t) + ' · ' + (f.hours || 0) + 'H', 3500); A.beep('ok'); } });
+  }
+
   RX.screens.fastrec = {
     pal: 'amber',
     render(g, st, A) {
@@ -1149,14 +1305,10 @@ window.RX = window.RX || {};
       if (!f) { g.header('FAST'); g.textC('NOT FOUND', W / 2, 40); g.footer('BACK TO RETURN'); return; }
       let y = g.header('FAST · DAY ' + (f.dayNum || '?'), f.endTs ? (f.hours || 0) + 'H' : 'IN PROGRESS', { c: C.amber });
       y = g.scrollBegin(y, footTop(g));
-      const adj = (key, d) => () => { f[key] += d * 15 * 60000; if (f.endTs && f.endTs < f.startTs) f.endTs = f.startTs; S.recalcFastHours(f); S.saveFasts(); };
       const rowT = (label, key) => {
         y = g.section(label, y);
         g.text(f[key] ? F.day(f[key]) + ' ' + F.hm(f[key]) : '--', 1, y + 3);
-        if (f[key]) {
-          g.btn(W - 66, y, 32, 13, '-15M', adj(key, -1), { face: 'mini' });
-          g.btn(W - 33, y, 31, 13, '+15M', adj(key, 1), { face: 'mini' });
-        }
+        if (f[key]) g.btn(W - 50, y, 48, 13, 'CHANGE', () => setRec(A, f, key), { face: 'mini' });
         y += 17;
       };
       rowT('START', 'startTs');

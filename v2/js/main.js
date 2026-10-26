@@ -142,6 +142,7 @@ window.RX = window.RX || {};
     $('screen').classList.toggle('amber', amber);
     $('bezel').classList.toggle('amber', amber);
     const hi = mapMode && !!S.v2.hicon;
+    device.classList.toggle('backlit', !!S.v2.hicon);   // VIS lights the readout's LCD, wherever you are
     $('bezel').classList.toggle('hicon', hi); $('screen').classList.toggle('hicon', hi);
     A.mx.setGhost(amber ? 'rgba(255,170,70,0.075)' : hi ? 'rgba(210,210,210,0.05)' : 'rgba(90,255,205,0.07)');
     drumOnModeChange();
@@ -461,12 +462,12 @@ window.RX = window.RX || {};
   // LOT (press opens LOT mode on the crosshair). It only rolls on the map; on
   // any other screen it sits on MENU, which then reads BACK.
   const DRUM = [
-    { id: 'MENU', jp: '設定', icon: 'M3 4.5 L13 4.5 M3 8 L13 8 M3 11.5 L13 11.5' },
-    { id: 'NEAR', jp: '近傍', icon: 'M2 5 L2 2 L5 2 M11 2 L14 2 L14 5 M14 11 L14 14 L11 14 M5 14 L2 14 L2 11 M8 6.5 L8 9.5 M6.5 8 L9.5 8' },
-    { id: 'LOT', jp: '区画', icon: 'M2.5 4.5 L9 2.5 L13.5 6 L12 13.5 L3.5 12 Z' }
+    { id: 'MENU', icon: 'M3 4.5 L13 4.5 M3 8 L13 8 M3 11.5 L13 11.5' },
+    { id: 'NEAR', icon: 'M2 5 L2 2 L5 2 M11 2 L14 2 L14 5 M14 11 L14 14 L11 14 M5 14 L2 14 L2 11 M8 6.5 L8 9.5 M6.5 8 L9.5 8' },
+    { id: 'LOT', icon: 'M2.5 4.5 L9 2.5 L13.5 6 L12 13.5 L3.5 12 Z' }
   ];
-  const BACK_FACE = { id: 'BACK', jp: '戻る', icon: 'M6.5 4 L2.5 8 L6.5 12 M2.5 8 L13.5 8' };
-  const UNDO_FACE = { id: 'UNDO', jp: '取消', icon: 'M5 3.5 L2 6.5 L5 9.5 M2 6.5 L10 6.5 C13 6.5 14 8.5 14 10 C14 11.8 12.6 13 10.5 13 L7 13' };
+  const BACK_FACE = { id: 'BACK', icon: 'M6.5 4 L2.5 8 L6.5 12 M2.5 8 L13.5 8' };
+  const UNDO_FACE = { id: 'UNDO', icon: 'M5 3.5 L2 6.5 L5 9.5 M2 6.5 L10 6.5 C13 6.5 14 8.5 14 10 C14 11.8 12.6 13 10.5 13 L7 13' };
   const mod = (n, m) => ((n % m) + m) % m;
   A.drumRot = 0; A.drumTouched = Date.now(); A.drumSaved = null; A.near = null;
   A.drumFace = () => DRUM[mod(A.drumRot, 3)].id;
@@ -485,7 +486,7 @@ window.RX = window.RX || {};
   // each face is a rendered slab of grip rubber (keys/drum-*.jpg); the face in front gets its lit twin
   const faceArt = DRUM.map(F => F.id.toLowerCase());
   // the lit face glows mint on the map, amber one level in, red deeper
-  const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=1)';
+  const DRUM_ART = (id, lit, depth) => 'url(keys/drum-' + id + (lit ? '-lit' + (['', '-a', '-r'][depth || 0]) : '') + '.jpg?v=3)';   // v3: cutout legends
   ['menu', 'near', 'back', 'undo', 'lot', 'traffic', 'area', 'status', 'body', 'record', 'file', 'month', 'week', 'agenda', 'goals', 'clear', 'fast', 'stages', 'train'].forEach(id => [[0, 0], [1, 0], [1, 1], [1, 2]].forEach(([l, d]) => { const im = new Image(); im.src = DRUM_ART(id, l, d).slice(4, -1); }));
   function paintFace(k, F) { faceArt[k] = F.id.toLowerCase(); }
   // a screen can claim the drum: sc.drum = its page ids (any number). Rolling steps the page (st.page); pressing still goes BACK.
@@ -808,7 +809,7 @@ window.RX = window.RX || {};
       if (gest.moved < 6 || gest.mode === 'long') return;
       clearTimeout(lpTimer);
       if (sc.map) { M.panBy(dx, dy); if (M.follow) { A.follow(false); A.say('FREE LOOK · PUSH JOG TO RE-CENTER', 3000); } A.dirty = true; }
-      else if (sc.drag) { sc.drag(dx / A.mx.pitch, dy / A.mx.pitch, A.top().st, A); A.dirty = true; }
+      else if (sc.drag) { if (!gest.d0) gest.d0 = toDot(gest.sx, gest.sy); gest.dragged = true; sc.drag(dx / A.mx.pitch, dy / A.mx.pitch, A.top().st, A, gest.d0); A.dirty = true; }
       else {
         const st = A.top().st;
         st.scroll = Math.max(0, Math.min(st.scrollMax || 0, (st.scroll || 0) - dy / A.mx.pitch));
@@ -827,6 +828,7 @@ window.RX = window.RX || {};
       if (ptrs.size === 0) {
         const g = gest; gest = null;
         if (g.mode === 'pinch' || g.mode === 'long') return;
+        if (g.dragged) { const sc = A.screen(); if (sc.dragEnd) { sc.dragEnd(A.top().st, A); A.dirty = true; } }
         if (g.moved < 8 && Date.now() - g.t < 800 && e.type === 'pointerup') {
           const pt = pendingTap = { d: toDot(g.sx, g.sy), t: Date.now() };
           setTimeout(() => { if (pendingTap === pt) { pendingTap = null; tap(pt.d); } }, 350);
