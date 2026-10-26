@@ -38,7 +38,7 @@ window.RX = window.RX || {};
 
   // ---------- displays ----------
   A.mx = new RX.Matrix($('screen'), { pitch: 2, shape: 'round', ghost: 'rgba(90,255,205,0.07)', bloom: { blur: 3, opacity: 0.75 } });
-  A.lcd = new RX.Matrix($('lcdHost'), { pitch: 1.6, shape: 'square', ghost: 'rgba(30,45,30,0.07)', bloom: null, shadow: true });
+  A.lcd = new RX.Matrix($('lcdHost'), { pitch: 1.6, shape: 'square', ghost: 'rgba(30,45,30,0.07)', bloom: null, shadow: true, lag: { rise: 55, fall: 140 } });
   A.clock = new RX.Matrix($('clockHost'), { pitch: 1.6, shape: 'round', ghost: 'rgba(255,170,70,0.07)', bloom: { blur: 2.5, opacity: 0.8 } });
   const ro = new ResizeObserver(() => { if (A.mx.resize()) M.dirty = true; A.lcd.resize(); A.clock.resize(); A.dirty = true; A.lcdDirty = true; });
   ro.observe($('screen')); ro.observe($('lcdHost')); ro.observe($('clockHost'));
@@ -133,6 +133,14 @@ window.RX = window.RX || {};
     U.closeField(true);
     while (A.stack.length > 1) { const e = A.stack.pop(); const sc = RX.screens[e.name]; if (sc.leave) sc.leave(e.st, A); }
     applyMode(); A.dirty = true;
+  };
+  // the main screen is a VFD: changing screens leaves the old picture glowing for a moment under the new one
+  ['go', 'replace', 'back', 'home'].forEach(k => { const f = A[k]; A[k] = function () { if (A.booted) A.mx.keepGlow(); return f.apply(this, arguments); }; });
+  // waking up (boot, coming back to the app, out of idle dim) the tube warms: dark, a flicker, then full
+  A.warmScreen = function () {
+    const el = $('screen'); if (!el) return;
+    el.classList.remove('warm'); void el.offsetWidth; el.classList.add('warm');
+    clearTimeout(A.warmT); A.warmT = setTimeout(() => el.classList.remove('warm'), 900);
   };
   function applyMode() {
     const sc = A.screen();
@@ -961,7 +969,7 @@ window.RX = window.RX || {};
   // ---------- idle dim ----------
   A.wake = function () {
     A.lastInput = Date.now();
-    if (device.classList.contains('dim')) { device.classList.remove('dim'); A.dirty = true; }
+    if (device.classList.contains('dim')) { device.classList.remove('dim'); A.warmScreen(); A.dirty = true; }
   };
   setInterval(() => {
     if (!S.v2.idleDim || A.assign || U.activeField) return;
@@ -1149,11 +1157,14 @@ window.RX = window.RX || {};
     const lh = Math.floor((m.rows - 2) / 3);
     const top = Math.max(1, Math.floor((m.rows - lh * 3) / 2) + 1);
     const vx = 25;
-    if (scLcd && scLcd.icon) RX.wx.icon(m, scLcd.icon, 6, top + Math.floor((lh * 2 - 13) / 2), ink);
+    const now = performance.now(), isMsg = !!(A.lcdMsg && Date.now() < A.lcdMsg.until);
+    A.lcdIcon = !!(scLcd && scLcd.icon);
+    if (A.lcdIcon) RX.wx.icon(m, scLcd.icon, 6, top + Math.floor((lh * 2 - 13) / 2), ink, Date.now());
+    RX.readout.lcdBegin((isMsg ? 'MSG' : (scLcd ? scLcd.tag || '' : '')) + '|' + rows.map(r => r[0]).join(','), isMsg);
     rows.forEach((r, i) => {
-      const y = top + i * lh;
+      const y = top + i * lh, maxW = m.cols - vx - (i === 2 ? 14 : 2);
       m.text(r[0], 2, y + 1, { face: 'mini', c: ink, a: 0.55 });
-      m.text(RX.font.fit(r[1], m.cols - vx - (i === 2 ? 14 : 2)), vx, y, { c: ink });
+      RX.readout.lcdRow(m, i, r[0], RX.font.fit(r[1], maxW), vx, y, maxW, ink, now);
     });
     const df = A.stack.length <= 1 ? A.drumFace() : 'MENU';
     const tag = scLcd ? (scLcd.tag || '') : df === 'NEAR' && A.nearItem() ? 'NR' : df === 'LOT' ? 'LOT' : '';
@@ -1167,12 +1178,12 @@ window.RX = window.RX || {};
     m.clear();
     const d = new Date();
     const hh = U.F.pad2(d.getHours()), mm = U.F.pad2(d.getMinutes());
-    const colon = d.getSeconds() % 2 === 0;
     const bigW = RX.font.measure('00:00', 'std', 2);
     const x0 = Math.max(1, Math.floor((m.cols - bigW) / 2));
-    m.text(hh, x0, 2, { s: 2, c: amber });
-    if (colon) m.text(':', x0 + 24, 2, { s: 2, c: amber });
-    m.text(mm, x0 + 36, 2, { s: 2, c: amber });
+    // only the digits that changed flip; the colon breathes
+    let busy = RX.readout.flipText(m, 'hh', hh, x0, 2, { s: 2, c: amber }, t);
+    m.text(':', x0 + 24, 2, { s: 2, c: amber, a: RX.readout.colon() });
+    busy = RX.readout.flipText(m, 'mm', mm, x0 + 36, 2, { s: 2, c: amber }, t) || busy;
     const f = S.activeFast();
     const y2 = 19, segs = 20, segW = Math.floor((m.cols - 4) / segs), yb = m.rows - 5;
     let frac;
@@ -1182,7 +1193,7 @@ window.RX = window.RX || {};
       const L = RX.fastLap(Date.now() - f.startTs);
       m.text('FAST', 2, y2 + 1, { face: 'mini', c: amber, a: 0.6 });
       if (L.n > 1) m.text('×' + L.n, 20, y2 + 1, { face: 'mini', c: L.col, a: 1 });
-      m.textR(U.F.durHM(Date.now() - f.startTs), m.cols - 2, y2, { c: amber });
+      busy = RX.readout.flipText(m, 'fast', U.F.durHM(Date.now() - f.startTs), m.cols - 2, y2, { c: amber }, t, 'r') || busy;
       frac = L.frac; barCol = L.col; if (L.n > 1) under = RX.fastLapCol[Math.min(L.n - 1, RX.fastLapCol.length) - 1];
     } else {
       // plain clock: the date under the time, the bar sweeps the minute
@@ -1239,18 +1250,20 @@ window.RX = window.RX || {};
     if (A.glideAnim) stepGlide();
     if (biasAnim) stepBias();
     const sc = A.screen();
-    const animating = (sc.animating && sc.animating(A.top().st, A)) || !!U.activeField || (performance.now() - A.status.start < 3000);
+    const animating = (sc.animating && sc.animating(A.top().st, A)) || !!U.activeField || (performance.now() - A.status.start < 3000) || A.mx.glowing();
     const dimmed = device.classList.contains('dim');
     const interval = dimmed ? 250 : (animating ? 40 : 200);
     if (A.dirty || M.dirty || t - lastFrame >= interval) {
       if (t - lastFrame >= 33 || A.dirty) drawFrame(t);
     }
-    if (A.lcdDirty || t - lastLcd > 1000) {
+    // the LCD redraws fast while text moves or its slow pixels settle, at 10/s for a moving weather picture, else once a second
+    const lcdEvery = (RX.readout.lcdBusy() || A.lcd.settling) ? 33 : A.lcdIcon ? (dimmed ? 650 : 100) : 1000;
+    if (A.lcdDirty || t - lastLcd > lcdEvery) {
       lastLcd = t; A.lcdDirty = false;
       if (!(A.lcdFlicker && Date.now() - A.lcdFlicker < 220 && Math.floor(t / 70) % 2)) { try { renderLcd(); } catch (err) { console.error(err); A.lcd.clear(); A.lcd.present(); } }
       else { A.lcd.clear(); A.lcd.present(); }
     }
-    if (t - lastClock > 500) { lastClock = t; renderClock(t); }
+    if (t - lastClock > (dimmed ? 250 : 66)) { lastClock = t; renderClock(t); }   // ~15/s: the colon breathes, digits flip
   }
 
   // ---------- data import / export ----------
@@ -1380,12 +1393,13 @@ window.RX = window.RX || {};
     startGps();
     document.addEventListener('pointerdown', () => { if (!A.gps && A.gpsErr) retryGps(); }, { once: true });
     window.addEventListener('pagehide', () => { S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); else { A.dirty = true; } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) S.saveV2({ zoom: Math.round(M.zoom * 2) / 2 }); else { A.warmScreen(); A.dirty = true; } });
   }
   A.bootDone = function () {
     if (A.booted) return;
     A.booted = true;
     device.classList.remove('booting');
+    A.warmScreen();
     A.lcdDirty = true;
     A.replace('map');
     RX.aux.booted();

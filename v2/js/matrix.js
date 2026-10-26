@@ -235,8 +235,44 @@ window.RX = window.RX || {};
       else { this.buf.copyWithin(0, -k * W, n * W); this.buf.fill(0, (n + k) * W); }
     }
 
+    // phosphor afterglow: keep the picture now on the glass; for a moment it fades out under the next one
+    keepGlow() { if (!this.buf) return; this.glow = new Uint8ClampedArray(this.buf); this.glowT = performance.now(); this.glowN = this.buf.length; }
+    glowing() { return !!this.glow && performance.now() - this.glowT < 300; }
+
     // ---------- output ----------
     present() {
+      const n = this.cols * this.rows, b = this.buf;
+      // afterglow: where the old picture was brighter than the new one, it lingers and dies away
+      if (this.glow) {
+        const age = performance.now() - this.glowT;
+        if (age >= 300 || this.glowN !== b.length) this.glow = null;
+        else {
+          const f = Math.pow(1 - age / 300, 2) * 0.5, g = this.glow;
+          for (let i = 3; i < b.length; i += 4) { const ga = g[i] * f; if (ga > b[i]) { b[i - 3] = g[i - 3]; b[i - 2] = g[i - 2]; b[i - 1] = g[i - 1]; b[i] = ga; } }
+        }
+      }
+      // lag (an STN LCD): each pixel eases toward what was drawn, darkening faster than it clears
+      if (this.o.lag) {
+        const t = performance.now();
+        if (!this.lagA || this.lagA.length !== n) {
+          this.lagA = new Float32Array(n); this.lagC = new Uint8ClampedArray(n * 3);
+          for (let i = 0; i < n; i++) { this.lagA[i] = b[i * 4 + 3] / 255; this.lagC[i * 3] = b[i * 4]; this.lagC[i * 3 + 1] = b[i * 4 + 1]; this.lagC[i * 3 + 2] = b[i * 4 + 2]; }
+          this.lagT = t;
+        }
+        const dt = Math.min(1000, t - this.lagT); this.lagT = t;
+        const kr = 1 - Math.exp(-dt / this.o.lag.rise), kf = 1 - Math.exp(-dt / this.o.lag.fall);
+        let moving = false;
+        for (let i = 0; i < n; i++) {
+          const j = i * 4, ta = b[j + 3] / 255;
+          if (ta > 0) { this.lagC[i * 3] = b[j]; this.lagC[i * 3 + 1] = b[j + 1]; this.lagC[i * 3 + 2] = b[j + 2]; }
+          let ca = this.lagA[i];
+          const d = ta - ca;
+          if (d > 0.01 || d < -0.01) { ca += d * (d > 0 ? kr : kf); moving = true; } else ca = ta;
+          this.lagA[i] = ca;
+          b[j] = this.lagC[i * 3]; b[j + 1] = this.lagC[i * 3 + 1]; b[j + 2] = this.lagC[i * 3 + 2]; b[j + 3] = ca * 255;
+        }
+        this.settling = moving;
+      }
       this.ctx.putImageData(this.img, 0, 0);
       if (this.bloomCtx) {
         this.bloomCtx.clearRect(0, 0, this.cols, this.rows);

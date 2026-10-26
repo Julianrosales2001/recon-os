@@ -62,21 +62,32 @@ window.RX = window.RX || {};
     }).catch(() => {}).then(() => { busy = false; A.lcdDirty = true; });
   }
 
-  // little 13×13 weather pictures for the LCD
-  function icon(m, kind, x, y, c) {
-    const P = (i, j) => m.set(x + i, y + j, c, 1);
-    const sun = (cx, cy, r) => { for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r + 1) P(cx + i, cy + j); [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]].forEach(([a, b]) => { P(cx + a * (r + 2), cy + b * (r + 2)); if (!a || !b) P(cx + a * (r + 3), cy + b * (r + 3)); }); };
-    const cloud = (ox, oy) => { const rows = ['00111100', '01111110', '11111111', '11111111']; const top = ['0001100000', '0011110110', '0111111111']; top.forEach((r, j) => [...r].forEach((v, i) => { if (v === '1') P(ox + i, oy + j); })); ['1111111111', '1111111111', '0111111110'].forEach((r, j) => [...r].forEach((v, i) => { if (v === '1') P(ox + i, oy + 3 + j); })); };
-    const moon = () => { for (let j = -5; j <= 5; j++) for (let i = -5; i <= 5; i++) if (i * i + j * j <= 26 && (i - 3) * (i - 3) + (j + 2) * (j + 2) > 16) P(6 + i, 6 + j); };
+  // little 13×13 weather pictures for the LCD. t (ms) moves them: the sun's rays pulse, clouds drift a dot,
+  // rain and snow fall, fog rolls, the storm's bolt flickers, a star blinks by the moon. Nothing else moves.
+  function icon(m, kind, x, y, c, t) {
+    t = t || 0;
+    const P = (i, j) => { if (i >= 0 && j >= 0 && i < 13 && j < 13) m.set(x + i, y + j, c, 1); };
+    const ph = Math.floor(t / 650) % 2;                  // the rays: straight long, then diagonal long
+    const drift = Math.floor(t / 1600) % 2;              // clouds sway one dot and back
+    const sun = (cx, cy, r) => {
+      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r + 1) P(cx + i, cy + j);
+      [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]].forEach(([a, b]) => {
+        const diag = a && b; P(cx + a * (r + 2), cy + b * (r + 2));
+        if (diag ? ph === 1 : ph === 0) P(cx + a * (r + 3), cy + b * (r + 3));
+      });
+    };
+    const cloud = (ox, oy) => { ['0001100000', '0011110110', '0111111111'].forEach((r, j) => [...r].forEach((v, i) => { if (v === '1') P(ox + i, oy + j); })); ['1111111111', '1111111111', '0111111110'].forEach((r, j) => [...r].forEach((v, i) => { if (v === '1') P(ox + i, oy + 3 + j); })); };
+    const moon = () => { for (let j = -5; j <= 5; j++) for (let i = -5; i <= 5; i++) if (i * i + j * j <= 26 && (i - 3) * (i - 3) + (j + 2) * (j + 2) > 16) P(6 + i, 6 + j); if (Math.floor(t / 1400) % 3) P(11, 1); };
+    const fall = (pts, y0, span, ms, wob) => pts.forEach(([a, b], k) => { const yy = y0 + ((b - y0) + Math.floor(t / ms)) % span; P(a + (wob && (Math.floor(t / ms) + k) % 2 ? 1 : 0), yy); });
     if (kind === 'SUN') sun(6, 6, 3);
     else if (kind === 'MOON') moon();
-    else if (kind === 'PART') { sun(8, 4, 2); cloud(0, 6); }
-    else if (kind === 'PARTN') { for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (i * i + j * j <= 10 && (i - 2) * (i - 2) + (j + 1) * (j + 1) > 6) P(9 + i, 3 + j); cloud(0, 6); }
-    else if (kind === 'CLOUD') cloud(1, 3);
-    else if (kind === 'FOG') { for (let j = 2; j <= 10; j += 3) for (let i = (j % 2); i < 13; i++) if ((i + j) % 4) P(i, j); }
-    else if (kind === 'RAIN') { cloud(1, 0); [[2, 8], [5, 9], [8, 8], [11, 9], [3, 11], [6, 12], [9, 11]].forEach(([a, b]) => P(a, b)); }
-    else if (kind === 'STORM') { cloud(1, 0); [[6, 7], [5, 8], [4, 9], [6, 9], [7, 9], [6, 10], [5, 11], [4, 12]].forEach(([a, b]) => P(a, b)); }
-    else if (kind === 'SNOW') { cloud(1, 0); [[2, 8], [6, 9], [10, 8], [4, 11], [8, 12], [12, 11]].forEach(([a, b]) => P(a, b)); }
+    else if (kind === 'PART') { sun(8, 4, 2); cloud(drift, 6); }
+    else if (kind === 'PARTN') { for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (i * i + j * j <= 10 && (i - 2) * (i - 2) + (j + 1) * (j + 1) > 6) P(9 + i, 3 + j); cloud(drift, 6); }
+    else if (kind === 'CLOUD') cloud(1 + drift, 3);
+    else if (kind === 'FOG') { const k = Math.floor(t / 500) % 4; for (let j = 2; j <= 10; j += 3) for (let i = (j % 2); i < 13; i++) if ((i + j + (j % 2 ? k : 4 - k)) % 4) P(i, j); }
+    else if (kind === 'RAIN') { cloud(1, 0); fall([[2, 7], [5, 9], [8, 8], [11, 10], [3, 11], [6, 12], [9, 11]], 7, 6, 130); }
+    else if (kind === 'STORM') { cloud(1, 0); const q = t % 2200; if (q > 220 && !(q > 300 && q < 380)) [[6, 7], [5, 8], [4, 9], [6, 9], [7, 9], [6, 10], [5, 11], [4, 12]].forEach(([a, b]) => P(a, b)); }
+    else if (kind === 'SNOW') { cloud(1, 0); fall([[2, 8], [6, 9], [10, 8], [4, 11], [8, 12], [11, 10]], 8, 5, 420, true); }
   }
 
   // NEXT: the most pressing objective, then the small chores
