@@ -1337,6 +1337,14 @@ window.RX = window.RX || {};
   RX.applyBrightness = function () {
     document.getElementById('screen').style.setProperty('--rx-bright', BRIGHT[S.v2.brightness] || 0.85);
   };
+  // the shell: TEAL (moulded plastic) or BLACK (bead-blasted titanium). rx.css keys off <html data-shell>
+  const SHELLS = { teal: { theme: '#1B2829', mark: '>PC+ABS<' }, black: { theme: '#141414', mark: 'GR5 TI · DLC' } };
+  RX.applyShell = function () {
+    const k = S.v2.shell === 'black' ? 'black' : 'teal', d = document.documentElement;
+    if (k === 'teal') delete d.dataset.shell; else d.dataset.shell = k;
+    const m = document.querySelectorAll('.molded span')[1]; if (m) m.textContent = SHELLS[k].mark;
+    const t = document.querySelector('meta[name="theme-color"]'); if (t) t.setAttribute('content', SHELLS[k].theme);
+  };
   RX.screens.menu = {
     render(g, st, A) {
       const W = g.W, mx = g.mx;
@@ -1364,6 +1372,7 @@ window.RX = window.RX || {};
 
       y = g.section('01 · DISPLAY', y);
       row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', val(S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
+      row('SHELL', 'TEAL PLASTIC · BLACK TITANIUM', val(S.v2.shell === 'black' ? 'BLACK TI' : 'TEAL'), () => { S.saveV2({ shell: S.v2.shell === 'black' ? 'teal' : 'black' }); RX.applyShell(); A.beep('key'); A.say('SHELL ▸ ' + (S.v2.shell === 'black' ? 'BLACK TITANIUM' : 'TEAL PLASTIC'), 2200); });
       row('IDLE DIM', 'DIMS AFTER 60 S UNTOUCHED', tog(S.v2.idleDim), () => S.saveV2({ idleDim: !S.v2.idleDim }));
       row('KEY SOUNDS', 'CLICKS · THE MUTE SWITCH, TOO', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); if (A.syncSwitches) A.syncSwitches(); });
       row('SOUND TEST', 'EVERY SOUND FOLDER · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));

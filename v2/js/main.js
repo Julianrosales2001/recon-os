@@ -1366,6 +1366,7 @@ window.RX = window.RX || {};
     centerOnData();
     U.wireInputs(() => { A.dirty = true; });
     RX.applyBrightness();
+    RX.applyShell();
     A.stack = [];
     A.go('boot');
     updateLamps();

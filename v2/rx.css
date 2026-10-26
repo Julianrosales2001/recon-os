@@ -576,3 +576,45 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .mark-key.boing, .tool.boing { animation: rp-boing 0.46s cubic-bezier(0.3, 0.6, 0.4, 1) both; }
 .tray-tab.boing { animation: rp-boing-tab 0.42s cubic-bezier(0.3, 0.6, 0.4, 1) both; transform-origin: 100% 50%; }
 @media (prefers-reduced-motion: reduce) { .mark-key.boing, .tool.boing, .tray-tab.boing { animation: none; } }
+
+/* =============================================================
+   SHELL · BLACK TITANIUM (2.34) · MENU › SETTINGS › SHELL sets <html data-shell="black">
+   Bead-blasted near-black titanium, satin. A soft sheen from the top-left light, a bright polished hairline where
+   each part catches it, laser-etched lettering. The screen, the keys and the rubber stay as they are.
+   ============================================================= */
+:root[data-shell="black"] {
+  --m-hi: #2b2a29; --m: #212020; --m-lo: #171717;
+  --f-hi: #282726; --f: #1e1d1d; --f-lo: #161515;
+  --m-tex: url(tex/ti-bead.jpg);
+  --m-sheen: rgba(255,250,240,0.06); --m-shade: rgba(0,0,0,0.22);
+  --m-cut: rgba(255,250,240,0.22);                       /* the polished chamfer */
+  --body: #212020; --body-hi: #2b2a29; --body-lo: #171717;
+  --cap: #2e2d2c; --cap-hi: #383635; --cap-lo: #252423; --edge: #0a0a0a;
+  --well: #0b0b0b; --well-lo: #080808;
+  --sage: #B9B6B0; --silk: #E2DFD9; --silk-hi: #F0EDE7;  /* laser-etched: pale, frosted */
+  --ch-dk: rgba(0,0,0,0.6); --ch-lt: rgba(255,250,240,0.17);
+}
+:root[data-shell="black"] #device {
+  background-image: linear-gradient(118deg, var(--m-sheen) 0%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 62%, var(--m-shade) 100%),
+    var(--m-tex), linear-gradient(180deg, var(--m-hi) 0%, var(--m) 36%, var(--m-lo) 100%);
+  background-size: 100% 100%, 180px 180px, 100% 100%; background-blend-mode: normal, overlay, normal;
+}
+:root[data-shell="black"] .faceplate, :root[data-shell="black"] .bezel {
+  background-image: linear-gradient(125deg, var(--m-sheen) 0%, rgba(255,255,255,0) 42%, rgba(0,0,0,0) 70%, var(--m-shade) 100%),
+    var(--m-tex), linear-gradient(180deg, var(--f-hi) 0%, var(--f) 55%, var(--f-lo) 100%);
+  background-size: 100% 100%, 240px 240px, 100% 100%; background-blend-mode: normal, overlay, normal;
+}
+:root[data-shell="black"] .faceplate { box-shadow: 0 0 0 1px rgba(0,0,0,0.65), inset 1px 1px 0 var(--m-cut), inset -1px -1px 0 rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.4); }
+:root[data-shell="black"] .bezel { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.55), inset 1px 1px 0 var(--m-cut), inset 0 -3px 0 rgba(0,0,0,0.25); }
+:root[data-shell="black"] .well, :root[data-shell="black"] .menu-well, :root[data-shell="black"] .mark-well, :root[data-shell="black"] .jog-well, :root[data-shell="black"] .window { border-width: 2px; }
+:root[data-shell="black"] .well, :root[data-shell="black"] .menu-well, :root[data-shell="black"] .mark-well, :root[data-shell="black"] .jog-well { background-color: var(--well); box-shadow: inset 1.5px 2px 3px rgba(0,0,0,0.8), 1px 1px 0 var(--m-cut); }
+:root[data-shell="black"] .window { box-shadow: 1px 1px 0 var(--m-cut), inset 0 0 22px rgba(73,242,196,0.10); }
+:root[data-shell="black"] .cover { background: linear-gradient(118deg, var(--m-sheen) 0%, rgba(255,255,255,0) 50%), var(--m-tex) 0 0 / 160px 160px, linear-gradient(90deg, var(--f-lo) 0%, var(--f-hi) 55%, var(--f) 100%); background-blend-mode: normal, overlay, normal; }
+:root[data-shell="black"] .serial .plate { background-image: var(--m-tex), linear-gradient(180deg, var(--f-lo), var(--m-lo)); box-shadow: inset 1px 1px 1.5px rgba(0,0,0,0.65), inset -1px -1px 0 var(--m-cut); }
+:root[data-shell="black"] .parting { background: linear-gradient(180deg, rgba(0,0,0,0.6) 0 1px, rgba(0,0,0,0.25) 1px 2px, var(--m-cut) 2px 3px); }
+:root[data-shell="black"] .led { background-color: #0c0c0c; }
+:root[data-shell="black"] .bay .catch, :root[data-shell="black"] .dscrew::after { background: #0d0d0d; }
+:root[data-shell="black"] .tline, :root[data-shell="black"] .lip-line { background: var(--m-cut); opacity: 0.6; }
+:root[data-shell="black"] .tsw { background-image: url(keys/sw/slot-black.webp); }
+:root[data-shell="black"] .tsw.s { background-image: url(keys/sw/slot-s-black.webp); }
+:root[data-shell="black"] .deck { background: linear-gradient(180deg, #080808 0%, var(--well) 40%, var(--f-lo) 100%); }
