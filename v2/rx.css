@@ -139,7 +139,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 /* ---------- main screen bezel ---------- */
 .bezel {
   position: relative; flex: 1 1 auto; min-height: 220px;
-  padding: 14px 24px 0 0; overflow: hidden;
+  padding: 17px 24px 0 0; overflow: hidden;
 }
 /* screen window: 45° chamfer down to the glass */
 .window {
@@ -151,14 +151,33 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 }
 .bezel.amber .window { box-shadow: inset 0 0 22px rgba(255,170,60,0.12); }
 .bezel.hicon .window { box-shadow: inset 0 0 22px rgba(255,255,255,0.06); background-color: #000; }
-.ruler {
-  position: absolute; left: 8px; right: 33px; top: 2px; height: 11px;
-  display: flex; justify-content: space-between;
-  font-family: 'DotGothic16', monospace; font-size: 8px; line-height: 8px; color: var(--sage);
-  background:
-    repeating-linear-gradient(90deg, #6F8A80 0 1px, transparent 1px 8px) left bottom / 100% 3px no-repeat;
-}
-.ruler span { position: relative; top: -1px; }
+/* ---------- top strip (2.33): HOLD · VIS · MUTE, toy slide switches in moulded slots ----------
+   Ribbed plastic thumbs click-clack across; slide one toward its word to turn it on. HOLD (red) locks everything but
+   itself; VIS (orange) is the HI-CON map; MUTE (black) silences the keys. On, HOLD and MUTE show a stripe in the slot. */
+.tstrip { position: absolute; left: 3px; right: 3px; top: 0; height: 17px; z-index: 4; pointer-events: none; }
+.tline { position: absolute; top: 8.5px; height: 1px; background: rgba(165,177,148,0.22); }
+.tline.l { left: 92px; right: calc(50% + 48px); } .tline.r { right: 94px; left: calc(50% + 48px); }
+.tsw { position: absolute; top: -0.5px; width: 46px; height: 18px; padding: 0; margin: 0; border: 0; cursor: pointer; --t: 10px;
+  background: url(keys/sw/slot.webp) center / 46px 18px no-repeat; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+.tsw.s { width: 36px; --t: 5px; background-image: url(keys/sw/slot-s.webp); background-size: 36px 18px; }
+#swHold { left: 22px; } #swVis { left: calc(50% - 23px); } #swMute { right: 24px; }
+.tsw-thumb { position: absolute; left: 50%; top: 50%; width: 26px; height: 18.33px; margin: -9.17px 0 0 -13px; pointer-events: none;
+  background: center / 26px 18.33px no-repeat; transform: translateX(calc(-1 * var(--t))); transition: transform 0.13s cubic-bezier(.3, 1.7, .5, 1); }
+.tsw.r .tsw-thumb { transform: translateX(var(--t)); }
+#swHold .tsw-thumb { background-image: url(keys/sw/thumb-red.webp); }
+#swVis .tsw-thumb { background-image: url(keys/sw/thumb-orange.webp); }
+#swMute .tsw-thumb { background-image: url(keys/sw/thumb-black.webp); }
+.tsw .lb { position: absolute; top: 5px; font: 700 7.5px/8px 'Barlow Condensed', sans-serif; letter-spacing: 0.12em; color: #A5B194; opacity: 0.72; white-space: nowrap; pointer-events: none; transition: color .15s, opacity .15s; }
+.tsw .lb.l { right: calc(100% + 3px); } .tsw .lb.r { left: calc(100% + 3px); }
+#swVis:not(.r) .lb.l, #swVis.r .lb.r { color: #DDE7C9; opacity: 1; }
+#swHold.on .lb { color: #FF6B5E; opacity: 1; } #swMute.on .lb { color: #FFAA4A; opacity: 1; }
+.tsw-mark { position: absolute; top: 7px; width: 2px; height: 4px; border-radius: 1px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+#swHold .tsw-mark { left: 7px; background: #E8402A; box-shadow: 0 0 3px rgba(255,80,50,0.8); }
+#swMute .tsw-mark { right: 7px; background: #FF8A1E; box-shadow: 0 0 3px rgba(255,150,40,0.8); }
+.tsw.on .tsw-mark { opacity: 1; }
+.tsw.nudge .tsw-thumb { animation: tsw-nudge 0.34s ease; }
+@keyframes tsw-nudge { 0%, 100% { transform: translateX(var(--t)); } 35% { transform: translateX(calc(var(--t) - 2.5px)); } 65% { transform: translateX(calc(var(--t) + 1px)); } }
+.tsw:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 2px; border-radius: 6px; }
 
 .screen {
   position: relative; width: 100%; height: 100%;
@@ -264,12 +283,11 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
    aux.js moves it (transform + a clip that hides what has gone under the hood) and lays the picture out
    to the window you can see. The deck sits under the panel's lower edge and is uncovered as it rises. */
 .bezel {
-  z-index: 2; border-radius: 10px; padding: 14px 24px 32px 3px;
+  z-index: 2; border-radius: 10px; padding: 17px 24px 32px 3px;   /* 17 px on top: the switch strip */
   background-image: var(--tex-fine), linear-gradient(180deg, #2E4546 0%, #2A3E3F 60%, #283A3B 100%);
   background-size: 120px 120px, 100% 100%; background-blend-mode: overlay, normal;
   box-shadow: inset 0 0 0 1px #0B1314, inset 0 2px 0 rgba(255,255,255,0.05), inset 0 -3px 0 rgba(0,0,0,0.22);
 }
-.bezel .ruler { left: 11px; }
 .lip { position: absolute; left: 3px; right: 3px; bottom: 0; height: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; }   /* centred on the deck: the grip lines up with the compass and the drum */
 .lip-line { position: absolute; top: 16px; height: 1px; background: rgba(165,177,148,0.26); }
 .lip-line.l { left: 10px; right: calc(50% + 46px); } .lip-line.r { right: 10px; left: calc(50% + 46px); }

@@ -1365,7 +1365,7 @@ window.RX = window.RX || {};
       y = g.section('01 · DISPLAY', y);
       row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', val(S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
       row('IDLE DIM', 'DIMS AFTER 60 S UNTOUCHED', tog(S.v2.idleDim), () => S.saveV2({ idleDim: !S.v2.idleDim }));
-      row('KEY SOUNDS', 'CLICKS · FOLLOWS SILENT SWITCH', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); });
+      row('KEY SOUNDS', 'CLICKS · THE MUTE SWITCH, TOO', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); if (A.syncSwitches) A.syncSwitches(); });
       row('SOUND TEST', 'EVERY SOUND FOLDER · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));
 
       y = g.section('02 · PLACE NAMES', y + 2);

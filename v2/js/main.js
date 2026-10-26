@@ -143,6 +143,7 @@ window.RX = window.RX || {};
     $('bezel').classList.toggle('amber', amber);
     const hi = mapMode && !!S.v2.hicon;
     device.classList.toggle('backlit', !!S.v2.hicon);   // VIS lights the readout's LCD, wherever you are
+    if (A.syncSwitches) A.syncSwitches();
     $('bezel').classList.toggle('hicon', hi); $('screen').classList.toggle('hicon', hi);
     A.mx.setGhost(amber ? 'rgba(255,170,70,0.075)' : hi ? 'rgba(210,210,210,0.05)' : 'rgba(90,255,205,0.07)');
     drumOnModeChange();
@@ -154,15 +155,57 @@ window.RX = window.RX || {};
   }
   A.refreshChrome = applyMode;
   // VIS: the high-contrast explored map, on until switched off
-  A.setHicon = function (on) {
+  A.setHicon = function (on, o) {
     S.saveV2({ hicon: !!on });
     const l = $('visLed'); if (l) l.classList.toggle('on', !!on);
     if (on && A.stack.length > 1) A.home();
     applyMode();
     M.dirty = true; A.dirty = true; A.lcdDirty = true;
-    A.beep(on ? 'ok' : 'key');
+    if (!(o && o.quiet)) A.beep(on ? 'ok' : 'key');
     A.say(on ? 'HI-CON ON · WHITE = EXPLORED · VIS AGAIN TO EXIT' : 'HI-CON OFF', 3000);
   };
+
+  // ---------- the switch strip: HOLD · VIS · MUTE ----------
+  // Slide toward the word to turn it on: HOLD right, VIS right, MUTE left. A tap flips it; a sideways drag sets the side.
+  A.syncSwitches = function () {
+    const set = (id, r, on) => { const b = $(id); if (!b) return; b.classList.toggle('r', !!r); b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    set('swHold', S.v2.hold, S.v2.hold);
+    set('swVis', S.v2.hicon, S.v2.hicon);
+    set('swMute', S.v2.sound, !S.v2.sound);
+  };
+  function wireSwitch(id, flip) {
+    const b = $(id); if (!b) return; let x0 = null;
+    b.addEventListener('pointerdown', e => { x0 = e.clientX; try { b.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
+    b.addEventListener('pointerup', e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; flip(Math.abs(dx) > 5 ? (dx > 0 ? 'r' : 'l') : 'flip'); A.dirty = true; });
+    b.addEventListener('pointercancel', () => { x0 = null; });
+    b.addEventListener('click', e => e.preventDefault());
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip('flip'); A.dirty = true; } });
+  }
+  const side = (w, now) => w === 'flip' ? !now : w === 'r';
+  wireSwitch('swHold', w => {
+    const on = side(w, !!S.v2.hold); if (on === !!S.v2.hold) return;
+    S.saveV2({ hold: on }); A.beep('sw'); A.syncSwitches();
+    A.say(on ? 'HOLD · KEYS AND SCREEN LOCKED' : 'HOLD OFF', 2200);
+  });
+  wireSwitch('swVis', w => { const on = side(w, !!S.v2.hicon); if (on === !!S.v2.hicon) return; A.beep('sw'); A.setHicon(on, { quiet: true }); });
+  wireSwitch('swMute', w => {
+    const sound = side(w, !!S.v2.sound); if (sound === !!S.v2.sound) return;
+    if (!sound) A.beep('sw'); S.saveV2({ sound }); if (sound) A.beep('sw');
+    A.syncSwitches(); A.say(sound ? 'SOUND ON' : 'MUTED · KEY SOUNDS OFF', 2000);
+  });
+  A.syncSwitches();
+  // HOLD: while it's on, every key, the screen and the laptop keys are ignored, all but the HOLD switch itself.
+  // A press shows how to unlock and nudges the red thumb. GPS, REC and the clock carry on.
+  let holdNag = 0;
+  ['pointerdown', 'pointerup', 'pointermove', 'pointercancel', 'click', 'dblclick', 'touchstart', 'touchmove', 'touchend', 'mousedown', 'mouseup', 'wheel', 'contextmenu', 'keydown', 'keyup'].forEach(t => window.addEventListener(t, e => {
+    if (!S.v2.hold) return;
+    if (e.target && e.target.closest && e.target.closest('#swHold')) return;
+    if (e.cancelable) e.preventDefault(); e.stopImmediatePropagation();
+    if ((t === 'pointerdown' || t === 'keydown') && performance.now() - holdNag > 1200) {
+      holdNag = performance.now(); A.say('HOLD · SLIDE THE RED SWITCH LEFT TO UNLOCK', 2400); A.dirty = true;
+      const h = $('swHold'); if (h) { h.classList.remove('nudge'); void h.offsetWidth; h.classList.add('nudge'); }
+    }
+  }, { capture: true, passive: false }));
 
   // ---------- map view ----------
   A.view = function () {

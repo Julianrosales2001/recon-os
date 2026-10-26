@@ -78,7 +78,8 @@ window.RX = window.RX || {};
   // still: the top stays put (it ends 13 px higher, eased along the travel) and the moving edge covers or uncovers the
   // bottom. The one re-layout happens where it can't be seen: as the panel lands open, and as it starts to close.
   let laid = false, shiftRows = 0;
-  const INSET = () => Math.max(1, T - 13);
+  const PAD = () => (el.bezel && parseFloat(getComputedStyle(el.bezel).paddingTop)) || 14;   // the switch strip above the window
+  const INSET = () => Math.max(1, T - PAD() + 1);
   function shiftFor(y) {
     const px = laid ? -(T - y) * INSET() / T : y * INSET() / T;
     return A && A.mx ? Math.round(px / A.mx.pitch) : 0;
@@ -333,6 +334,7 @@ window.RX = window.RX || {};
     measure();
     el.hood.style.top = el.bezel.offsetTop + 'px';
     wireBar(); wireKeys();
+    if (S.v2.hold && S.v2.auxOpen) S.saveV2({ auxOpen: false });   // HOLD can't reach a switch hidden under the hood
     if (S.v2.auxOpen) { applyY(T); X.open = true; el.bar.setAttribute('aria-expanded', 'true'); relayout(true); }
     else applyY(0);
     paint(now());
@@ -342,7 +344,7 @@ window.RX = window.RX || {};
     // the deck's height follows the screen size: re-seat the panel when it changes
     new ResizeObserver(() => {
       const t0 = T; measure(); el.hood.style.top = el.bezel.offsetTop + 'px';
-      if (!slide && !drag) { applyY(X.y > t0 / 2 ? T : 0); if (laid && T !== t0) { el.win.style.paddingTop = Math.max(1, T - 13) + 'px'; if (A.fitCart) A.fitCart(); } }
+      if (!slide && !drag) { applyY(X.y > t0 / 2 ? T : 0); if (laid && T !== t0) { el.win.style.paddingTop = INSET() + 'px'; if (A.fitCart) A.fitCart(); } }
     }).observe($('device'));
   };
   // after boot: if it was left open, the lamps catch

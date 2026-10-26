@@ -33,7 +33,7 @@ window.RX = window.RX || {};
     sound: true, idleDim: true, brightness: 'MED',
     hiddenCats: [], placeLookup: true, lastBackup: null, lastPos: null,
     zoom: 15, logSort: 'NEAR', disp: 'wx', journalRange: 'today', objTab: 'active',
-    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, park: null, lastCat: 0, lastRing: 0, ringKinds: ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'], hiddenKinds: [], hlthPage: 'fast', conv: {}, code: null, hicon: false
+    autoName: true, recent: [], mapSrc: 'AUTO', auxOpen: false, park: null, lastCat: 0, lastRing: 0, ringKinds: ['HEART', 'FOOD', 'WRENCH', 'LANDMARK', 'VISTA', 'HOME'], hiddenKinds: [], hlthPage: 'fast', conv: {}, code: null, hicon: false, hold: false
   };
 
   // ---------- low level ----------

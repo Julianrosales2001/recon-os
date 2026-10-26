@@ -34,6 +34,8 @@ window.RX = window.RX || {};
     ['ring.pick', 'R1-ring-pick', 'jog', 'RING MOVES TO A KIND OR COLOR', 'RING'], ['ring.file', 'R2-ring-file', 'file', 'RING FILES THE MARK', 'RING'],
     ['gps.lock', 'G1-gps-lock', 'ok', 'FIRST GPS LOCK', 'GPS'], ['visit', 'G2-visit', 'ok', 'VISIT LOGGED AT A MARK', 'GPS'],
     ['fit.set', 'T1-train-set', 'ok', 'ONE SET LOGGED', 'TRAIN'], ['fit.done', 'T2-train-done', 'file', 'EXERCISE DONE FOR THE DAY', 'TRAIN'], ['fit.down', 'T3-train-down', 'jog', 'SET COUNTED DOWN', 'TRAIN'],
+    // the three slide switches on the panel's top edge (HOLD, VIS, MUTE) share one sound
+    ['sw', 'W1-switches', 'key', 'A SLIDE SWITCH CLICKS OVER (HOLD · VIS · MUTE)', 'SWITCHES'],
     ['boot', 'B1-boot', null, 'STARTUP', 'BOOT']
   ];
   const ROOTS = ['key', 'jog', 'mark', 'file', 'ok', 'err', 'thunk'];   // these folders hold original.wav

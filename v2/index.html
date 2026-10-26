@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="rx.css?v=2.32.0">
+<link rel="stylesheet" href="rx.css?v=2.33.0">
 </head>
 <body>
 <div id="desk">
@@ -39,8 +39,12 @@
     </div>
 
     <div class="bezel" id="bezel">
-      <div class="ruler" aria-hidden="true">
-        <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span>
+      <!-- top strip: three slide switches moulded into the panel face. Slide one toward its word to turn it on. -->
+      <div class="tstrip" id="tstrip">
+        <i class="tline l" aria-hidden="true"></i><i class="tline r" aria-hidden="true"></i>
+        <button type="button" class="tsw s" id="swHold" aria-label="HOLD: lock the keys and the screen" aria-pressed="false"><i class="tsw-mark"></i><span class="tsw-thumb"></span><span class="lb r">HOLD</span></button>
+        <button type="button" class="tsw" id="swVis" aria-label="VIS: standard or high-contrast map" aria-pressed="false"><span class="lb l">STD</span><span class="tsw-thumb"></span><span class="lb r">VIS</span></button>
+        <button type="button" class="tsw s" id="swMute" aria-label="MUTE: key sounds off" aria-pressed="false"><span class="lb l">MUTE</span><i class="tsw-mark"></i><span class="tsw-thumb"></span></button>
       </div>
       <div class="window" id="window">
       <div class="screen vfd" id="screen" tabindex="0" aria-label="Main display">
@@ -138,26 +142,26 @@
   <div class="desk-hint" aria-hidden="true">M MARK · 1–6 RING · P AUX · A REC · Q COMPASS · W PARK · F TOOLS · ENTER PUSH · C RECENTER · ESC BACK · DRAG PAN · SCROLL ZOOM · L LOG · S SEARCH · H HLTH · O OBJ · R REF · G LEGEND · D DISPLAY</div>
 </div>
 
-<script>window.RX = window.RX || {}; RX.VERSION = '2.32.0';</script>
-<script src="js/font.js?v=2.32.0"></script>
-<script src="js/matrix.js?v=2.32.0"></script>
-<script src="js/geo.js?v=2.32.0"></script>
-<script src="js/store.js?v=2.32.0"></script>
-<script src="js/map.js?v=2.32.0"></script>
-<script src="js/parcel.js?v=2.32.0"></script>
-<script src="js/traffic.js?v=2.32.0"></script>
-<script src="js/area.js?v=2.32.0"></script>
-<script src="js/ui.js?v=2.32.0"></script>
-<script src="js/screens.js?v=2.32.0"></script>
-<script src="js/maus.js?v=2.32.0"></script>
-<script src="js/profile.js?v=2.32.0"></script>
-<script src="js/rolo.js?v=2.32.0"></script>
-<script src="js/wx.js?v=2.32.0"></script>
-<script src="js/cal.js?v=2.32.0"></script>
-<script src="js/fit.js?v=2.32.0"></script>
-<script src="js/sfx.js?v=2.32.0"></script>
-<script src="js/aux.js?v=2.32.0"></script>
-<script src="js/main.js?v=2.32.0"></script>
+<script>window.RX = window.RX || {}; RX.VERSION = '2.33.0';</script>
+<script src="js/font.js?v=2.33.0"></script>
+<script src="js/matrix.js?v=2.33.0"></script>
+<script src="js/geo.js?v=2.33.0"></script>
+<script src="js/store.js?v=2.33.0"></script>
+<script src="js/map.js?v=2.33.0"></script>
+<script src="js/parcel.js?v=2.33.0"></script>
+<script src="js/traffic.js?v=2.33.0"></script>
+<script src="js/area.js?v=2.33.0"></script>
+<script src="js/ui.js?v=2.33.0"></script>
+<script src="js/screens.js?v=2.33.0"></script>
+<script src="js/maus.js?v=2.33.0"></script>
+<script src="js/profile.js?v=2.33.0"></script>
+<script src="js/rolo.js?v=2.33.0"></script>
+<script src="js/wx.js?v=2.33.0"></script>
+<script src="js/cal.js?v=2.33.0"></script>
+<script src="js/fit.js?v=2.33.0"></script>
+<script src="js/sfx.js?v=2.33.0"></script>
+<script src="js/aux.js?v=2.33.0"></script>
+<script src="js/main.js?v=2.33.0"></script>
 <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>
 </body>
 </html>
