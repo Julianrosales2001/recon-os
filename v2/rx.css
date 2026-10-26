@@ -58,6 +58,9 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 /* ---------- top: grille, nameplate, lamps ---------- */
 /* speaker vents between two screws */
 .grille { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 20px; margin: 0 0 6px; }
+/* the lamps behind the slots (js/grille.js): a canvas over the plate, a little taller so loud hits can bleed onto the metal */
+.grille { position: relative; }
+.grille-lamps { position: absolute; left: 0; top: -6px; width: 100%; height: calc(100% + 12px); pointer-events: none; z-index: 1; }
 /* three long slots milled across the top plate (a field of thin vertical slits would be weak and slow to make) */
 .vents { flex: 1 1 auto; height: 18px; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 2px; }
 .vents i { display: block; height: 3px; border-radius: 1.5px;

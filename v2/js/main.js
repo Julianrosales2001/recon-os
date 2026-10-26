@@ -191,6 +191,7 @@ window.RX = window.RX || {};
   wireSwitch('swMute', w => {
     const sound = side(w, !!S.v2.sound); if (sound === !!S.v2.sound) return;
     if (!sound) A.beep('sw'); S.saveV2({ sound }); if (sound) A.beep('sw');
+    if (RX.grille) RX.grille.event(sound ? 'unmute' : 'mute');
     A.syncSwitches(); A.say(sound ? 'SOUND ON' : 'MUTED · KEY SOUNDS OFF', 2000);
   });
   A.syncSwitches();
@@ -1374,6 +1375,7 @@ window.RX = window.RX || {};
     { const unlock = () => { RX.sfx.unlock(); document.removeEventListener('pointerdown', unlock, true); document.removeEventListener('keydown', unlock, true); };
       document.addEventListener('pointerdown', unlock, true); document.addEventListener('keydown', unlock, true); }
     RX.aux.wire(A, { closeTray: () => setTray(false) });
+    if (RX.grille) RX.grille.wire(A);
     requestAnimationFrame(loop);
     startGps();
     document.addEventListener('pointerdown', () => { if (!A.gps && A.gpsErr) retryGps(); }, { once: true });

@@ -31,8 +31,10 @@ window.RX = window.RX || {};
     ['cmp', 'A8-compass', 'key', 'COMPASS DIAL TAPPED', 'AUX'],
     ['park.set', 'A9-park', 'ok', 'PARK SAVES WHERE THE CAR IS', 'AUX'], ['park.clear', 'A10-park-clear', 'key', 'PARKING SPOT CLEARED', 'AUX'],
     ['park.back', 'A11-at-car', 'ok', 'BACK AT YOUR CAR', 'AUX'], ['meter', 'A12-meter', 'err', 'PARKING METER RUNNING OUT', 'AUX'],
+    ['detect', 'A13-detect', 'jog', 'RETURN DETECTOR TICK (FASTER AS YOU NEAR THE CAR)', 'AUX'],
     ['ring.pick', 'R1-ring-pick', 'jog', 'RING MOVES TO A KIND OR COLOR', 'RING'], ['ring.file', 'R2-ring-file', 'file', 'RING FILES THE MARK', 'RING'],
     ['gps.lock', 'G1-gps-lock', 'ok', 'FIRST GPS LOCK', 'GPS'], ['visit', 'G2-visit', 'ok', 'VISIT LOGGED AT A MARK', 'GPS'],
+    ['fast.stage', 'H1-fast-stage', 'file', 'A FAST REACHES A NEW STAGE', 'HLTH'],
     ['fit.set', 'T1-train-set', 'ok', 'ONE SET LOGGED', 'TRAIN'], ['fit.done', 'T2-train-done', 'file', 'EXERCISE DONE FOR THE DAY', 'TRAIN'], ['fit.down', 'T3-train-down', 'jog', 'SET COUNTED DOWN', 'TRAIN'],
     // the three slide switches on the panel's top edge (HOLD, VIS, MUTE) share one sound
     ['sw', 'W1-switches', 'key', 'A SLIDE SWITCH CLICKS OVER (HOLD · VIS · MUTE)', 'SWITCHES'],
@@ -53,6 +55,9 @@ window.RX = window.RX || {};
     if (!ac) {
       if (navigator.audioSession) { try { navigator.audioSession.type = 'ambient'; } catch (e) {} }   // follows the silent switch
       ac = new (window.AudioContext || window.webkitAudioContext)();
+      // one output bus for every sound, so the speaker grille can listen to all of them (js/grille.js)
+      X.bus = ac.createGain(); X.bus.connect(ac.destination);
+      if (RX.grille && RX.grille.attach) RX.grille.attach(ac, X.bus);
     }
     if (ac.state === 'suspended') ac.resume();
     return ac;
@@ -66,7 +71,7 @@ window.RX = window.RX || {};
       o.type = type || 'square'; o.frequency.setValueAtTime(f, t + (at || 0));
       g.gain.setValueAtTime(0, t + (at || 0)); g.gain.linearRampToValueAtTime(v, t + (at || 0) + 0.003);
       g.gain.exponentialRampToValueAtTime(0.0001, t + (at || 0) + d);
-      o.connect(g); g.connect(c.destination); o.start(t + (at || 0)); o.stop(t + (at || 0) + d + 0.02);
+      o.connect(g); g.connect(X.bus); o.start(t + (at || 0)); o.stop(t + (at || 0) + d + 0.02);
     };
     if (kind === 'key') tone(1900, 0.018, 0.035);
     else if (kind === 'jog') tone(2600, 0.008, 0.02);
@@ -74,19 +79,19 @@ window.RX = window.RX || {};
     else if (kind === 'file') { tone(880, 0.04, 0.045); tone(1320, 0.04, 0.045, 0.045); tone(1760, 0.06, 0.04, 0.09); }
     else if (kind === 'err') tone(220, 0.14, 0.05, 0, 'sawtooth');
     else if (kind === 'ok') tone(1480, 0.05, 0.04);
-    else if (kind === 'morse') { const d = arg || 0.08, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = 680; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.004); g.gain.setValueAtTime(0.06, t + d - 0.004); g.gain.linearRampToValueAtTime(0, t + d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + d + 0.01); }
+    else if (kind === 'morse') { const d = arg || 0.08, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = 680; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.004); g.gain.setValueAtTime(0.06, t + d - 0.004); g.gain.linearRampToValueAtTime(0, t + d); o.connect(g); g.connect(X.bus); o.start(t); o.stop(t + d + 0.01); }
     else if (kind === 'thunk') {
       // low, heavy thud: a falling sine plus a muffled knock — no tick
       const v = 0.2 * (arg || 1);
       const o = c.createOscillator(), g = c.createGain();
       o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.18);
+      o.connect(g); g.connect(X.bus); o.start(t); o.stop(t + 0.18);
       const len = Math.floor(c.sampleRate * 0.03), buf = c.createBuffer(1, len, c.sampleRate), dd = buf.getChannelData(0);
       for (let i = 0; i < len; i++) dd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
       const n = c.createBufferSource(), lp = c.createBiquadFilter(), ng = c.createGain();
       lp.type = 'lowpass'; lp.frequency.value = 380; ng.gain.value = v * 0.9;
-      n.buffer = buf; n.connect(lp); lp.connect(ng); ng.connect(c.destination); n.start(t);
+      n.buffer = buf; n.connect(lp); lp.connect(ng); ng.connect(X.bus); n.start(t);
     } else return false;
     return true;
   };
@@ -151,12 +156,13 @@ window.RX = window.RX || {};
   X.unlock = function () { X.ctx(); decodeAll(); };
 
   X.play = function (slot, arg) {
+    try { if (RX.grille) RX.grille.heard(slot); } catch (e) {}
     if (slot === 'morse') return X.synth('morse', arg);
     const r = X.resolve(slot), buf = r && X.bufs[r.url];
     if (!buf) { X.synth(rootOf(r ? r.from : slot), arg); return; }   // not loaded yet, or nothing up the chain
     // yours plays exactly as it is; the originals keep the levels the RP asks for (a softer thud and so on)
     const c = X.ctx(), src = c.createBufferSource(), g = c.createGain();
     src.buffer = buf; g.gain.value = r.kind === 'YOURS' ? 1 : (arg || 1);
-    src.connect(g); g.connect(c.destination); src.start(0, X.lead[r.url] || 0);
+    src.connect(g); g.connect(X.bus); src.start(0, X.lead[r.url] || 0);
   };
 })();
