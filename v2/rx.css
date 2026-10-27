@@ -258,7 +258,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .bay, .tray { transform: translateY(var(--fn-dy, 0px)) scale(var(--cs, 1)); transform-origin: 100% calc(50% - 8px); }
 .tray { position: absolute; z-index: 20; right: 0; top: 50%; width: 124px; height: 358px; margin-top: -171px; perspective: 520px; perspective-origin: 60px 50%; pointer-events: none; }
 .cart { position: absolute; left: 38px; top: 0; width: 62px; height: 358px; transform-style: preserve-3d; transform-origin: 100% 50%; transform: rotateY(-90deg); will-change: transform; }
-.cover { position: absolute; inset: 0; box-sizing: border-box; padding: 7px 7px 7px 6px; display: flex; flex-direction: column; gap: 4px; visibility: hidden;
+.cover { position: absolute; inset: 0; box-sizing: border-box; padding: 7px 7px 7px 6px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; visibility: hidden;
   border-radius: 6px 2px 2px 6px; backface-visibility: hidden; -webkit-backface-visibility: hidden;
   background: var(--tex-fine) 0 0 / 120px 120px, linear-gradient(90deg, #2f4445 0%, #384f50 55%, #2e4243 100%); background-blend-mode: overlay, normal;
   box-shadow: inset 1px 1px 0 rgba(255,255,255,.13), inset -2px 0 3px rgba(0,0,0,.45); }
@@ -292,7 +292,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tshadow { position: absolute; left: 30px; top: 6px; width: 70px; height: 352px; border-radius: 8px; background: rgba(0,0,0,.55); filter: blur(7px); transform-origin: 100% 50%; opacity: 0; }
 .sshadow { position: absolute; left: 96px; top: 2px; width: 26px; height: 356px; border-radius: 6px; background: rgba(0,0,0,.7); filter: blur(5px); opacity: 0; }
 .tray-head { display: flex; justify-content: space-between; font-size: 9px; font-weight: 600; letter-spacing: 0.14em; color: var(--sage); height: 11px; }
-.tool { position: relative; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; }
+.tool { position: relative; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; }
 .tool svg { width: 16px; height: 16px; fill: none; stroke: var(--silk); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .tool svg .fill { fill: var(--silk); }
 .tool .led { position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; }
@@ -541,7 +541,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 /* FN tab + tray tools: matte silicone, etched; alerts glow through the letters */
 .tray-tab { background: url(keys/fn.png?v=2) 0 0 / 24px 96px no-repeat !important; box-shadow: none !important; border-radius: 0; filter: drop-shadow(1px 1.6px 1.2px rgba(0,0,0,0.5)); }
 .tray.open .tray-tab { background-image: url(keys/fn-open.png?v=2) !important; }
-.tool { background: url(keys/tool-search.png?v=2) center / 45px 36px no-repeat !important; box-shadow: none !important; filter: drop-shadow(1.1px 1.6px 1.2px rgba(0,0,0,0.55)); }
+.tool { background: url(keys/tool-search.png?v=2) center / 49px 39px no-repeat !important; box-shadow: none !important; filter: drop-shadow(1.1px 1.6px 1.2px rgba(0,0,0,0.55)); }
 .tool[data-tool=log] { background-image: url(keys/tool-log.png?v=2) !important; }
 .tool[data-tool=log]:has(.led.on) { background-image: url(keys/tool-log-lit.png?v=2) !important; }
 .tool[data-tool=fast] { background-image: url(keys/tool-health.png?v=1) !important; }
