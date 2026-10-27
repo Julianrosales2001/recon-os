@@ -134,6 +134,24 @@ window.RX = window.RX || {};
     while (A.stack.length > 1) { const e = A.stack.pop(); const sc = RX.screens[e.name]; if (sc.leave) sc.leave(e.st, A); }
     applyMode(); A.dirty = true;
   };
+  // MODULE SWAP: opening a tool from the FN tray swaps the module in the window like a cartridge. The picture on the glass
+  // drops out the bottom, darkening; the new one drops in from the top a beat later, overshoots and seats with a thunk (F13-swap)
+  A.swapModule = function () {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const scr = $('screen'), wrap = scr && scr.querySelector('.mx-wrap'); if (!wrap || !wrap.animate) return;
+    scr.querySelectorAll('.swap-old').forEach(o => o.remove());
+    const old = wrap.cloneNode(false); old.classList.add('swap-old'); old.style.zIndex = 2;
+    wrap.querySelectorAll('.mx-ghost, canvas').forEach(c => { const k = c.cloneNode(false); if (c.tagName === 'CANVAS') k.getContext('2d').drawImage(c, 0, 0); old.appendChild(k); });
+    scr.appendChild(old);
+    const H = scr.clientHeight;
+    old.animate([{ transform: 'translateY(0)', filter: 'brightness(1)' }, { transform: 'translateY(' + H * 0.95 + 'px)', filter: 'brightness(.35)' }], { duration: 220, easing: 'cubic-bezier(.5,0,.9,.6)', fill: 'forwards' });
+    setTimeout(() => old.remove(), 240);
+    wrap.animate([
+      { transform: 'translateY(' + -H + 'px)', offset: 0 }, { transform: 'translateY(' + -H + 'px)', offset: 0.33 },
+      { transform: 'translateY(6px)', offset: 0.78 }, { transform: 'translateY(-2px)', offset: 0.89 }, { transform: 'translateY(0)', offset: 1 }
+    ], { duration: 540, easing: 'cubic-bezier(.3,.7,.4,1)' });
+    setTimeout(() => A.beep('swap'), 420);
+  };
   // the main screen is a VFD: changing screens leaves the old picture glowing for a moment under the new one
   ['go', 'replace', 'back', 'home'].forEach(k => { const f = A[k]; A[k] = function () { if (A.booted) A.mx.keepGlow(); return f.apply(this, arguments); }; });
   // waking up (boot, coming back to the app, out of idle dim) the tube warms: dark, a flicker, then full
@@ -419,6 +437,7 @@ window.RX = window.RX || {};
     if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false, true); return; }
     setTray(false, true);
     if (A.top().name === t) { const sc = RX.screens[t]; if (sc.retap) sc.retap(A.top().st, A); return; }   // RADIO again on the radio: off
+    A.swapModule();
     if (A.stack.length > 1) A.home();
     A.go(t);
   }, null, () => 'tool.' + b.dataset.tool));   // each tray key has its folder (F4-F11), else F3-tools, else the K1-key click
