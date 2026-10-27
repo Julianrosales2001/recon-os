@@ -250,7 +250,7 @@ window.RX = window.RX || {};
       if (f === 'NEAR') { A.nearStep(d); return; }
       const v = A.view(), z0 = M.zoom;
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
-      if (M.zoom !== z0 && RX.esper) RX.esper.zoomed(d > 0 ? 1 : -1, z0, M.zoom, M.lat, M.lng);   // every other click: the ESPER sequence
+      if (M.zoom !== z0 && RX.esper) RX.esper.zoomed(d > 0 ? 1 : -1, z0, M.zoom, M.lat, M.lng);   // first click of a zoom gesture: the ESPER brackets
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
     push(st, A) { if (A.assign) { A.ringPush(); return; } if (RX.aux.mapPush(A)) return; A.locate(); },
