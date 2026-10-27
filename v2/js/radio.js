@@ -151,7 +151,10 @@ window.RX = window.RX || {};
       if (ac.state !== 'running') ac.resume();
       tuneIn(false); unlock();
     } else {
-      R.on = false; mixer();
+      // off means off: stop, and let go of the stream so nothing keeps downloading
+      R.on = false; clearInterval(R.scanT); mixer();
+      P.forEach(p => { try { p.el.pause(); p.el.removeAttribute('src'); p.el.load(); } catch (e) {} });
+      cur.el = null; cur.st = null; cur.src = null;
       try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (e) {}
     }
   };
@@ -309,6 +312,7 @@ window.RX = window.RX || {};
       gt(hms(at), W - 16, ny, "11px 'Share Tech Mono'", rgba(AMB, 0.7), 3, 'right');
       ox.fillStyle = rgba(AMB, 0.15); ox.fillRect(16, ny + 41, W - 32, 1); ox.fillStyle = rgba(c, 1); ox.fillRect(16, ny + 40, (W - 32) * clamp(at / tr.len, 0, 1), 2);
     } else gt(R.ready ? 'NO CARRIER' : 'NO LINEUP · CHECK SIGNAL', W / 2, ny + 12, "300 20px 'Barlow Condensed'", rgba(AMB, 0.5), 4, 'center');
+    gt('RADIO KEY AGAIN ▸ OFF', 16, H - 6, "9px 'Share Tech Mono'", rgba(AMB, 0.35), 0);
     if (toastMsg && performance.now() < toastMsg.until) gt(toastMsg.t, W / 2, 48, "11px 'Share Tech Mono'", '#FF6B5E', 6, 'center');
     // CRT: scanlines and a slow roll
     const roll = (t / 18) % (H + 80) - 40, g = ox.createLinearGradient(0, roll - 40, 0, roll + 40);
@@ -353,12 +357,12 @@ window.RX = window.RX || {};
     jogLabels: () => ['◂ DOWN', 'UP ▸', 'PUSH ▸ NEXT'],
     enter(st, params, A) { if (!R.ready) R.load(); R.power(true); show(); A.lcdRadio = false; A.lcdDirty = true; },
     resume() { show(); },
-    leave(st, A) { hide(); A.lcdRadio = R.on; A.lcdDirty = true; },
+    leave(st, A) { hide(); A.lcdRadio = R.on; A.lcdDirty = true; if (R.on) A.say('RADIO STILL ON AIR · FN › RADIO, THEN RADIO AGAIN ▸ OFF', 4000); },
     jog(d) { clearInterval(R.scanT); R.tune(d * 0.1); },
     push() { R.scan(); },
     onMarkKey() { toggleFav(); },
     // the RADIO key, pressed again while you're on the radio, switches it off
-    retap(st, A) { R.power(false); A.lcdRadio = false; A.say('RADIO ▸ OFF', 1500); A.home(); },
+    retap(st, A) { R.power(false); A.lcdRadio = false; A.say('RADIO ▸ OFF · STREAM STOPPED', 2000); A.beep('key'); A.home(); },
     lcd: () => R.lcd(),
     render(g, st, A) {
       document.getElementById('jogVal').textContent = freq.toFixed(1);

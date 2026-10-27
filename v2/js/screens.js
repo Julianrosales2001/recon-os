@@ -848,8 +848,10 @@ window.RX = window.RX || {};
   // A fast past 24 hours starts a new lap: the bar resets, the count reads ×2, ×3 … and each lap has its colour.
   const LAP_COL = ['#FF8C2A', '#3D8BFF', '#A46BFF', '#FF4D4D', '#F2F4EC'];
   const LAP_NAME = ['ORANGE', 'BLUE', 'VIOLET', 'RED', 'WHITE'];
-  const lapOf = ms => { ms = Math.max(0, ms); const n = Math.floor(ms / 864e5) + 1; return { n, frac: (ms % 864e5) / 864e5, col: LAP_COL[Math.min(n, LAP_COL.length) - 1] }; };
-  RX.fastLap = lapOf; RX.fastLapCol = LAP_COL;
+  // lap k's colour: the five go round again after WHITE (lap 6 is ORANGE again), so every lap still differs from the one before
+  const lapCol = k => LAP_COL[(Math.max(1, k) - 1) % LAP_COL.length];
+  const lapOf = ms => { ms = Math.max(0, ms); const n = Math.floor(ms / 864e5) + 1; return { n, frac: (ms % 864e5) / 864e5, col: lapCol(n) }; };
+  RX.fastLap = lapOf; RX.fastLapCol = LAP_COL; RX.fastLapColOf = lapCol;
   // next goal to count down to: 18, 24, 36, 48, then every 24
   const nextGoal = h => h < 18 ? 18 : h < 24 ? 24 : h < 36 ? 36 : (Math.floor(h / 24) + 1) * 24;
   // typed start time: "8:30P", "2030", "7P", "YEST 9P", "SUN 6:15A", "10/11 21:00". A bare time means its last occurrence.
@@ -883,7 +885,7 @@ window.RX = window.RX || {};
 
   function fastBar(g, y, el) {
     const W = g.W, mx = g.mx, x0 = 1, w = W - 4, L = lapOf(el);
-    const prev = L.n > 1 ? LAP_COL[Math.min(L.n - 1, LAP_COL.length) - 1] : null;
+    const prev = L.n > 1 ? lapCol(L.n - 1) : null;
     const off = (L.n - 1) * 24, TK = L.n === 1 ? [12, 16, 18] : L.n === 2 ? [12, 18] : [12];
     TK.forEach(h => { const l = String(off + h); g.mx.text(l, x0 + Math.round(w * h / 24) - Math.round(RX.font.measure(l, 'mini') / 2), y, { face: 'mini', c: g.ink, a: 0.7 }); });
     // the lap count, in the lap's colour
@@ -899,15 +901,15 @@ window.RX = window.RX || {};
     y += 9;
     ['0', '6', '12', '18', '24H'].forEach((l, i) => { const v = off + i * 6, lab = i === 4 ? (off + 24) + 'H' : String(v); mx.text(lab, Math.min(W - RX.font.measure(lab, 'mini') - 1, x0 + Math.round(w * i / 4) - (i ? 3 : 0)), y, { face: 'mini', c: g.ink, a: 0.5 }); });
     // finished laps as pips
-    if (L.n > 1) { let px = x0; for (let k = 1; k < L.n; k++) { mx.rect(px, y + 7, 9, 3, LAP_COL[Math.min(k, LAP_COL.length) - 1], 0.95); px += 11; } y += 4; }
+    if (L.n > 1) { let px = x0; for (let k = 1; k < L.n; k++) { mx.rect(px, y + 7, 9, 3, lapCol(k), 0.95); px += 11; } y += 4; }
     return y + 8;
   }
   // a finished fast's bar in the history: whole laps under, the last lap's share over
   function lapBar(mx, x, y, w, h, hours) {
     const n = Math.floor(hours / 24), rem = hours % 24;
     mx.rect(x, y, w, h, LAP_COL[0], 0.12);
-    for (let k = 0; k < n; k++) mx.rect(x, y, w, h, LAP_COL[Math.min(k, LAP_COL.length - 1)], 0.95);
-    if (rem > 0) mx.rect(x, y, Math.round(w * rem / 24), h, LAP_COL[Math.min(n, LAP_COL.length - 1)], 0.95);
+    for (let k = 0; k < n; k++) mx.rect(x, y, w, h, lapCol(k + 1), 0.95);
+    if (rem > 0) mx.rect(x, y, Math.round(w * rem / 24), h, lapCol(n + 1), 0.95);
   }
 
   // ---- what the body is doing, hour by hour (approximate; people vary) ----

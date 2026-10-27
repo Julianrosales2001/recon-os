@@ -1260,7 +1260,7 @@ window.RX = window.RX || {};
       m.text('FAST', 2, y2 + 1, { face: 'mini', c: amber, a: 0.6 });
       if (L.n > 1) m.text('×' + L.n, 20, y2 + 1, { face: 'mini', c: L.col, a: 1 });
       busy = RX.readout.flipText(m, 'fast', U.F.durHM(Date.now() - f.startTs), m.cols - 2, y2, { c: amber }, t, 'r') || busy;
-      frac = L.frac; barCol = L.col; if (L.n > 1) under = RX.fastLapCol[Math.min(L.n - 1, RX.fastLapCol.length) - 1];
+      frac = L.frac; barCol = L.col; if (L.n > 1) under = RX.fastLapColOf(L.n - 1);
     } else {
       // plain clock: the date under the time, the bar sweeps the minute
       const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'], MONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
