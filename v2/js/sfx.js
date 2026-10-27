@@ -42,6 +42,8 @@ window.RX = window.RX || {};
     ['game.paddle', 'P1-game-paddle', 'key', 'BALL OFF THE PADDLE (AND THE SERVE)', 'GAME'], ['game.wall', 'P2-game-wall', 'jog', 'BALL OFF A WALL OR A TOUGH BRICK', 'GAME'],
     ['game.brick', 'P3-game-brick', 'ok', 'A BRICK BREAKS', 'GAME'], ['game.clear', 'P4-game-clear', 'file', 'WALL CLEARED', 'GAME'],
     ['game.miss', 'P5-game-miss', 'err', 'BALL LOST', 'GAME'], ['game.over', 'P6-game-over', 'err', 'GAME OVER', 'GAME'],
+    ['game.power', 'P7-game-power', 'ok', 'POWER CAPSULE CAUGHT (AND THE SNAKE\'S BONUS)', 'GAME'], ['game.laser', 'P8-game-laser', 'key', 'LASER FIRED', 'GAME'],
+    ['snake.eat', 'P9-snake-eat', 'ok', 'THE SNAKE EATS', 'GAME'],
     ['boot', 'B1-boot', null, 'STARTUP', 'BOOT']
   ];
   const ROOTS = ['key', 'jog', 'mark', 'file', 'ok', 'err', 'thunk'];   // these folders hold original.wav
