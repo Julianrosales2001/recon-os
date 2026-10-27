@@ -758,11 +758,12 @@ window.RX = window.RX || {};
     }
     tex.onload = paint;
     if (window.ResizeObserver) new ResizeObserver(paint).observe(jog);
-    // a screen with drum() (the game's paddle) takes the raw travel instead of detents
-    const raw = () => { const sc = A.stack.length && A.screen(); return sc && sc.drum ? sc : null; };
+    // a screen with a paddle() (the game) takes the drum's raw travel instead of detents.
+    // (not .drum: that name already means "this screen's pages on the function drum")
+    const raw = () => { const sc = A.stack.length && A.screen(); return sc && typeof sc.paddle === 'function' ? sc : null; };
     function move(d) {
       const r = raw();
-      if (r) { pos += d; acc = 0; r.drum(d, A.top().st, A); A.dirty = true; paint(); return; }
+      if (r) { pos += d; acc = 0; r.paddle(d, A.top().st, A); A.dirty = true; paint(); return; }
       pos += d; acc += d;
       while (acc >= DET) { acc -= DET; A.jog(1); }
       while (acc <= -DET) { acc += DET; A.jog(-1); }

@@ -177,7 +177,7 @@ window.RX = window.RX || {};
     animating: () => true,
     jogLabels: () => ['◂ LEFT', 'RIGHT ▸', B.state === 'paused' ? 'PUSH ▸ RESUME' : 'PUSH ▸ PAUSE'],
     leave() { if (B.state === 'play') B.state = 'paused'; },
-    drum(dx) { if (!B.W || B.state === 'paused' || B.state === 'over' || B.state === 'new') return; B.px = clamp(B.px + dx * 0.9, 0, B.W - pw()); },
+    paddle(dx) { if (!B.W || B.state === 'paused' || B.state === 'over' || B.state === 'new') return; B.px = clamp(B.px + dx * 0.9, 0, B.W - pw()); },
     jog(d) { if (!B.W || B.state === 'paused' || B.state === 'new') return; B.px = clamp(B.px + d * 10, 0, B.W - pw()); },
     push(st, A) {
       if (B.state === 'play') { B.state = 'paused'; }
