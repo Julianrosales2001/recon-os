@@ -5,7 +5,7 @@
    - sfx/ (one folder per sound): network first, so a sound you push replaces the old one; stored copy when offline
    - map tiles and place search: never touched here (they need the network anyway)
    Bump VERSION with every release; activating a new version clears the old store. */
-const VERSION = '2.38.0';
+const VERSION = '2.38.2';
 const CACHE = 'ros-' + VERSION;
 const CORE = [
   './', 'index.html', 'rx.css?v=' + VERSION,
@@ -46,7 +46,8 @@ self.addEventListener('fetch', e => {
   }
 
   if (req.mode === 'navigate') {                    // the page: fresh when online
-    e.respondWith(fetch(req).then(res => {
+    // no-cache: always ask GitHub whether the page changed (its 10-minute cache otherwise hands back the old version after a push)
+    e.respondWith(fetch(url.href, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
       const copy = res.clone(); caches.open(CACHE).then(c => c.put('index.html', copy)); return res;
     }).catch(() => caches.match('index.html').then(r => r || caches.match('./'))));
     return;

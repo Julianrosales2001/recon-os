@@ -125,7 +125,7 @@ window.RX = window.RX || {};
     function write(html) { writing = true; el.innerHTML = html; mo.takeRecords(); writing = false; }
     function draw(t) {
       if (!roll) return false;
-      const p = Math.min(1, (t - roll.t0) / 180), e = 1 - Math.pow(1 - p, 3), h = 11, dy = roll.dir;
+      const p = Math.min(1, (t - roll.t0) / 180), e = 1 - Math.pow(1 - p, 3), h = 13, dy = roll.dir;
       if (p >= 1) { roll = null; write(esc(shown)); return false; }
       write('<span class="rl-in" style="transform:translateY(' + ((1 - e) * dy * h).toFixed(1) + 'px)">' + esc(shown) + '</span>' +
             '<span class="rl-out" style="transform:translateY(' + (-e * dy * h).toFixed(1) + 'px)">' + esc(roll.from) + '</span>');
