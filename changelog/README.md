@@ -6,7 +6,8 @@ Rebuilt from git by `python3 tools/changelog/build.py`. Run it after a release (
 
 | release | shipped | headline | lines | commits |
 |---|---|---|---:|---:|
-| [v2.42](v2.42.md) | 2026-10-26 | FN › RADIO - a Blade Runner CRT module over the window: four always-on-air FM stations of public-domain… | +846 / −36 | 4 |
+| [v2.43](v2.43.md) | 2026-10-26 | radio favourites - tap the LCD on the radio for your saved pieces, when each is next on air, push tunes,… | +97 / −33 | 1 |
+| [v2.42](v2.42.md) | 2026-10-26 | FN › RADIO - a Blade Runner CRT module over the window: four always-on-air FM stations of public-domain… | +2264 / −47 | 8 |
 | [v2.41](v2.41.md) | 2026-10-26 | GAME is a cartridge picker - BREAKOUT gets power capsules (multi, wide, laser, fire, catch, slow, extra… | +328 / −133 | 1 |
 | [v2.40](v2.40.md) | 2026-10-26 | FN › GAME - breakout on the main screen, the drum is the paddle (with its momentum), MARK serves, tap… | +263 / −29 | 1 |
 | [v2.39](v2.39.md) | 2026-10-26 | VIS key leaves the FN tray (the switch strip has it) - seven bigger keys spread down the cartridge | +29 / −30 | 1 |
@@ -45,4 +46,4 @@ Rebuilt from git by `python3 tools/changelog/build.py`. Run it after a release (
 | [v2 early](v2-early.md) | 2026-10-06 | The rebuild as a physical device: the dot-matrix VFD, the STN LCD and the amber clock, before releases… | +5554 / −0 | 17 |
 | [v1](v1.md) | 2026-06-14 | The first RECON.OS: a Leaflet map PWA with fog of war, marks, regions, objectives and the Y2K skin. | +12038 / −0 | 92 |
 
-_178 commits in all._
+_183 commits in all._
