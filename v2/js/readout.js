@@ -114,6 +114,37 @@ window.RX = window.RX || {};
     });
     return busy;
   };
+  // ---------- ODOMETER ----------
+  // el's text is set from all over (the map, the compass, the meter …). Whenever it changes, the old value rolls
+  // out and the new one rolls in: up when the number grew, down when it shrank, like a printed number band.
+  R.rollText = function (el) {
+    if (!el || !window.MutationObserver) return;
+    let shown = el.textContent, roll = null, raf = 0, writing = false;
+    const num = t => { const m = String(t).match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+    const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    function write(html) { writing = true; el.innerHTML = html; mo.takeRecords(); writing = false; }
+    function draw(t) {
+      if (!roll) return false;
+      const p = Math.min(1, (t - roll.t0) / 180), e = 1 - Math.pow(1 - p, 3), h = 11, dy = roll.dir;
+      if (p >= 1) { roll = null; write(esc(shown)); return false; }
+      write('<span class="rl-in" style="transform:translateY(' + ((1 - e) * dy * h).toFixed(1) + 'px)">' + esc(shown) + '</span>' +
+            '<span class="rl-out" style="transform:translateY(' + (-e * dy * h).toFixed(1) + 'px)">' + esc(roll.from) + '</span>');
+      return true;
+    }
+    function loop(t) { raf = 0; if (draw(t)) raf = requestAnimationFrame(loop); }
+    const mo = new MutationObserver(() => {
+      if (writing) return;
+      const txt = el.textContent;
+      if (txt !== shown) {
+        const a = num(shown), b = num(txt);
+        roll = { from: shown, t0: performance.now(), dir: a != null && b != null && b < a ? -1 : 1 };
+        shown = txt;
+      }
+      if (roll && draw(performance.now()) && !raf) raf = requestAnimationFrame(loop);
+    });
+    mo.observe(el, { childList: true, characterData: true, subtree: true });
+  };
+
   // the colon: 0.3 → 1 → 0.3 over two seconds, brightest on the even second
   R.colon = now => { const ms = Date.now() % 2000; return 0.3 + 0.7 * (0.5 + 0.5 * Math.cos(ms / 2000 * Math.PI * 2)); };
 })();

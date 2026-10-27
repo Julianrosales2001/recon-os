@@ -728,13 +728,66 @@ window.RX = window.RX || {};
   }
 
   // ---------- jog dial ----------
+  // A real roller: drawn round (the knurl bunches up and darkens as it turns away), it coasts after a flick,
+  // clicking through detents as it slows, and always comes to rest in a notch. One detent = one jog step.
   (function () {
-    const jog = $('jog'), knurl = $('jogKnurl');
-    let st = null, pos = 0;
+    const jog = $('jog'), knurl = $('jogKnurl'), DET = 16;
+    let st = null, pos = 0, acc = 0, vel = 0, coast = false, settle = null, raf = 0;
     let holdTimer = null, lastTap = 0;
+    // the round face: each column of the canvas looks up the knurl texture where a cylinder would show it
+    const cyl = document.createElement('canvas'); cyl.className = 'jog-cyl'; cyl.setAttribute('aria-hidden', 'true');
+    knurl.after(cyl);
+    const cc = cyl.getContext('2d'), tex = new Image(); tex.src = 'keys/jog-knurl.jpg?v=2';
+    const TW = 42;                        // the texture's width on the jog, in CSS px (it's drawn 42×38)
+    let cw = 0, ch = 0, dpr = 1;
+    function paint() {
+      const r = cyl.getBoundingClientRect();
+      if (r.width < 4) return;
+      dpr = window.devicePixelRatio || 1;
+      if (cw !== Math.round(r.width * dpr) || ch !== Math.round(r.height * dpr)) { cw = cyl.width = Math.round(r.width * dpr); ch = cyl.height = Math.round(r.height * dpr); }
+      if (!tex.complete || !tex.naturalWidth) return;
+      const W = cw / dpr, R = W / 2 * 1.06, c = W / 2, k = tex.naturalWidth / TW;
+      cc.clearRect(0, 0, cw, ch);
+      for (let x = 0; x < cw; x++) {
+        const xc = (x + 0.5) / dpr - c;
+        const u = R * Math.asin(Math.max(-1, Math.min(1, xc / R))) - pos;
+        const su = (((u % TW) + TW) % TW) * k;
+        cc.drawImage(tex, Math.min(tex.naturalWidth - 1, su), 0, 1, tex.naturalHeight, x, 0, 1, ch);
+      }
+    }
+    tex.onload = paint;
+    if (window.ResizeObserver) new ResizeObserver(paint).observe(jog);
+    function move(d) {
+      pos += d; acc += d;
+      while (acc >= DET) { acc -= DET; A.jog(1); }
+      while (acc <= -DET) { acc += DET; A.jog(-1); }
+      paint();
+    }
+    // after a release: coast (vel px/frame, slowing), then ease into the nearest notch
+    let lastT = 0;
+    function run(t) {
+      raf = 0;
+      const dt = lastT ? Math.min(50, t - lastT) : 16; lastT = t;
+      if (coast) {
+        move(vel * dt / 16); vel *= Math.pow(0.94, dt / 16);
+        if (Math.abs(vel) < 1.1) { coast = false; vel = 0; toNotch(); }
+      } else if (settle) {
+        const p = Math.min(1, (t - settle.t0) / 150), e = 1 - Math.pow(1 - p, 3);
+        move(settle.from + settle.dist * e - settle.done); settle.done = settle.dist * e;
+        if (p >= 1) settle = null;
+      }
+      if (coast || settle) raf = requestAnimationFrame(run); else lastT = 0;
+    }
+    function toNotch() {
+      const d = Math.abs(acc) < DET / 2 ? -acc : (acc > 0 ? DET - acc : -DET - acc);
+      if (Math.abs(d) < 0.5) { if (d) move(d); return; }
+      settle = { from: 0, dist: d, done: 0, t0: performance.now() };
+      if (!raf) raf = requestAnimationFrame(run);
+    }
+    function stop() { coast = false; settle = null; vel = 0; if (raf) cancelAnimationFrame(raf); raf = 0; lastT = 0; }
     jog.addEventListener('pointerdown', e => {
-      e.preventDefault(); A.wake();
-      st = { x: e.clientX, acc: 0, moved: 0, held: false };
+      e.preventDefault(); A.wake(); stop();
+      st = { x: e.clientX, t: performance.now(), moved: 0, held: false, v: 0 };
       jog.classList.add('down');
       try { jog.setPointerCapture(e.pointerId); } catch (err) {}
       // hold = recenter on you and reset the zoom, from any screen
@@ -748,11 +801,11 @@ window.RX = window.RX || {};
     });
     jog.addEventListener('pointermove', e => {
       if (!st) return;
-      const dx = e.clientX - st.x; st.x = e.clientX;
-      st.moved += Math.abs(dx); st.acc += dx; pos += dx;
-      knurl.style.backgroundPosition = pos + 'px 0';
-      while (st.acc >= 16) { st.acc -= 16; A.jog(1); }
-      while (st.acc <= -16) { st.acc += 16; A.jog(-1); }
+      const now = performance.now(), dx = e.clientX - st.x, dt = Math.max(1, now - st.t);
+      st.x = e.clientX; st.t = now;
+      st.moved += Math.abs(dx);
+      st.v = st.v * 0.6 + (dx / dt * 16) * 0.4;
+      move(dx);
     });
     let tapAt = 0;
     // tap = push (on the map: locate). Two quick taps on the map = recenter + reset zoom.
@@ -766,13 +819,19 @@ window.RX = window.RX || {};
     const end = e => {
       if (!st) return;
       clearTimeout(holdTimer);
-      const tap = st.moved < 6 && !st.held && e.type === 'pointerup'; st = null;
+      const tap = st.moved < 6 && !st.held && e.type === 'pointerup';
+      const fling = !tap && !st.held && e.type === 'pointerup' && performance.now() - st.t < 80 && Math.abs(st.v) > 2;
+      const v = st.v; st = null;
       jog.classList.remove('down'); jog.classList.remove('held');
-      if (tap) { tapAt = Date.now(); setTimeout(() => { if (tapAt) { tapAt = 0; tapped(); } }, 350); }
+      if (tap) { tapAt = Date.now(); setTimeout(() => { if (tapAt) { tapAt = 0; tapped(); } }, 350); return; }
+      if (fling) { vel = Math.max(-14, Math.min(14, v)); coast = true; if (!raf) raf = requestAnimationFrame(run); }   // capped: one flick is about a dozen notches at most
+      else toNotch();
     };
     jog.addEventListener('pointerup', end); jog.addEventListener('pointercancel', end);
     jog.addEventListener('click', e => { e.preventDefault(); if (tapAt && Date.now() - tapAt < 600) { tapAt = 0; tapped(); } });
-    jog.addEventListener('wheel', e => { e.preventDefault(); A.jog(e.deltaY > 0 ? -1 : 1); pos += e.deltaY > 0 ? -8 : 8; knurl.style.backgroundPosition = pos + 'px 0'; }, { passive: false });
+    jog.addEventListener('wheel', e => { e.preventDefault(); stop(); A.jog(e.deltaY > 0 ? -1 : 1); pos += e.deltaY > 0 ? -DET : DET; paint(); }, { passive: false });
+    // the readout above the drum rolls like an odometer: up when the number goes up, down when it goes down
+    RX.readout.rollText($('jogVal'));
   })();
   A.jog = function (d) {
     A.wake(); A.beep(A.assign && A.screen().map ? 'ring.pick' : 'jog');
