@@ -757,7 +757,11 @@ window.RX = window.RX || {};
     }
     tex.onload = paint;
     if (window.ResizeObserver) new ResizeObserver(paint).observe(jog);
+    // a screen with drum() (the game's paddle) takes the raw travel instead of detents
+    const raw = () => { const sc = A.stack.length && A.screen(); return sc && sc.drum ? sc : null; };
     function move(d) {
+      const r = raw();
+      if (r) { pos += d; acc = 0; r.drum(d, A.top().st, A); A.dirty = true; paint(); return; }
       pos += d; acc += d;
       while (acc >= DET) { acc -= DET; A.jog(1); }
       while (acc <= -DET) { acc += DET; A.jog(-1); }
@@ -779,6 +783,7 @@ window.RX = window.RX || {};
       if (coast || settle) raf = requestAnimationFrame(run); else lastT = 0;
     }
     function toNotch() {
+      if (raw()) return;
       const d = Math.abs(acc) < DET / 2 ? -acc : (acc > 0 ? DET - acc : -DET - acc);
       if (Math.abs(d) < 0.5) { if (d) move(d); return; }
       settle = { from: 0, dist: d, done: 0, t0: performance.now() };

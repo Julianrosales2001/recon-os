@@ -23,7 +23,7 @@ window.RX = window.RX || {};
     ['tool', 'F3-tools', 'key', 'ANY KEY IN THE FN TRAY', 'TOOLS'],
     ['tool.search', 'F4-tool-srch', 'tool', 'SRCH KEY', 'TOOLS'], ['tool.log', 'F5-tool-log', 'tool', 'LOG KEY', 'TOOLS'], ['tool.fast', 'F6-tool-hlth', 'tool', 'HLTH KEY', 'TOOLS'],
     ['tool.legend', 'F7-tool-lgnd', 'tool', 'LGND KEY', 'TOOLS'], ['tool.cal', 'F8-tool-cal', 'tool', 'CAL KEY', 'TOOLS'], ['tool.ref', 'F9-tool-ref', 'tool', 'REF KEY', 'TOOLS'],
-    ['tool.profile', 'F11-tool-prfl', 'tool', 'PRFL KEY', 'TOOLS'],
+    ['tool.profile', 'F11-tool-prfl', 'tool', 'PRFL KEY', 'TOOLS'], ['tool.game', 'F12-tool-game', 'tool', 'GAME KEY', 'TOOLS'],
     ['aux.latch', 'A1-aux-grip', 'key', 'AUX GRIP PRESSED', 'AUX'], ['aux.open', 'A2-aux-open', 'thunk', 'AUX PANEL LANDS UP', 'AUX'], ['aux.close', 'A3-aux-close', 'thunk', 'AUX PANEL LANDS HOME', 'AUX'],
     ['aux.keyup', 'A4-aux-keyup', 'key', 'AUX KEYS SPRING UP', 'AUX'], ['aux.lamp', 'A5-aux-lamp', null, 'AUX LAMPS FLICKER ON', 'AUX'],
     // the deck's tools: REC, the compass, PARK / RETURN
@@ -38,6 +38,10 @@ window.RX = window.RX || {};
     ['fit.set', 'T1-train-set', 'ok', 'ONE SET LOGGED', 'TRAIN'], ['fit.done', 'T2-train-done', 'file', 'EXERCISE DONE FOR THE DAY', 'TRAIN'], ['fit.down', 'T3-train-down', 'jog', 'SET COUNTED DOWN', 'TRAIN'],
     // the three slide switches on the panel's top edge (HOLD, VIS, MUTE) share one sound
     ['sw', 'W1-switches', 'key', 'A SLIDE SWITCH CLICKS OVER (HOLD · VIS · MUTE)', 'SWITCHES'],
+    // FN › GAME (breakout)
+    ['game.paddle', 'P1-game-paddle', 'key', 'BALL OFF THE PADDLE (AND THE SERVE)', 'GAME'], ['game.wall', 'P2-game-wall', 'jog', 'BALL OFF A WALL OR A TOUGH BRICK', 'GAME'],
+    ['game.brick', 'P3-game-brick', 'ok', 'A BRICK BREAKS', 'GAME'], ['game.clear', 'P4-game-clear', 'file', 'WALL CLEARED', 'GAME'],
+    ['game.miss', 'P5-game-miss', 'err', 'BALL LOST', 'GAME'], ['game.over', 'P6-game-over', 'err', 'GAME OVER', 'GAME'],
     ['boot', 'B1-boot', null, 'STARTUP', 'BOOT']
   ];
   const ROOTS = ['key', 'jog', 'mark', 'file', 'ok', 'err', 'thunk'];   // these folders hold original.wav
