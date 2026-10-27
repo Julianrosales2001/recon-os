@@ -248,8 +248,9 @@ window.RX = window.RX || {};
       if (RX.aux.mapJog(d, A)) return;
       const f = A.drumFace();
       if (f === 'NEAR') { A.nearStep(d); return; }
-      const v = A.view();
+      const v = A.view(), z0 = M.zoom;
       M.zoomBy(d * 0.5, v.cx, v.cy, v);
+      if (M.zoom !== z0 && RX.esper) RX.esper.zoomed(d > 0 ? 1 : -1, z0, M.zoom, M.lat, M.lng);   // every other click: the ESPER sequence
       A.say('ZOOM ▸ Z' + (Math.round(M.zoom * 2) / 2), 1500);
     },
     push(st, A) { if (A.assign) { A.ringPush(); return; } if (RX.aux.mapPush(A)) return; A.locate(); },

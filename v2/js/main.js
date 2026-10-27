@@ -1314,6 +1314,8 @@ window.RX = window.RX || {};
     // while the AUX panel moves, the picture is redrawn lower/higher on the glass so it holds still on the device
     const sh = RX.aux && RX.aux.shift ? RX.aux.shift() : 0;
     if (sh) A.mx.shiftRows(sh);
+    // ESPER: for half a second after a zoom the map resolves from coarse blocks to full detail
+    { const k = RX.esper && sc.map ? RX.esper.coarse() : 1; if (k > 1) RX.esper.blockify(A.mx, k); }
     A.mx.present();
     if (U.activeField) U.placeField();
   }
