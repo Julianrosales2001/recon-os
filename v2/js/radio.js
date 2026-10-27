@@ -105,9 +105,11 @@ window.RX = window.RX || {};
     cur.el = nxt.el; cur.st = n.st; cur.src = now.tr.src; cur.err = 0;
     const el = nxt.el, seek = now.at;
     el.src = now.tr.src;
-    const go = () => { try { if (seek > 1 && isFinite(el.duration)) el.currentTime = Math.min(seek, el.duration - 1); } catch (e) {} el.play().catch(() => {}); };
+    // play straight away (on an iPhone this has to happen inside the tap that turned the radio on);
+    // jump to the right spot on the station's clock as soon as the length is known
+    const go = () => { try { if (seek > 1 && isFinite(el.duration)) el.currentTime = Math.min(seek, el.duration - 1); } catch (e) {} };
     el.addEventListener('loadedmetadata', go, { once: true });
-    el.load();
+    el.play().catch(() => { cur.err = Date.now(); cur.src = null; });
     if (old) { const po = pOf(old); po.g.gain.setTargetAtTime(0, ac.currentTime, 0.08); setTimeout(() => { if (cur.el !== old) old.pause(); }, 400); }
     nxt.g.gain.setTargetAtTime(1, ac.currentTime + 0.05, 0.1);
   }
@@ -116,7 +118,7 @@ window.RX = window.RX || {};
     if (!ac) return;
     const n = near(freq), audible = R.on && S.v2.sound;
     out.gain.setTargetAtTime(audible ? 0.9 : 0, ac.currentTime, 0.05);
-    noise.gain.setTargetAtTime(R.on && !n.lock ? Math.pow(1 - n.lvl, 0.8) * 0.16 : 0, ac.currentTime, n.lock ? 0.02 : 0.05);
+    noise.gain.setTargetAtTime(R.on && !n.lock ? Math.pow(1 - n.lvl, 0.8) * 0.05 : 0, ac.currentTime, n.lock ? 0.02 : 0.05);
     music.gain.setTargetAtTime(n.lock ? 1 : n.lvl * 0.75, ac.currentTime, 0.05);
     if (!R.on) { P.forEach(p => { if (!p.el.paused) p.el.pause(); }); cur.el = null; cur.src = null; return; }
     if (n.lvl > 0 && n.st) {
@@ -125,9 +127,33 @@ window.RX = window.RX || {};
     } else if (cur.el && !cur.el.paused) { cur.el.pause(); cur.st = null; cur.src = null; }
     if (audible && n.lvl > 0) { try { if (RX.grille) RX.grille.heard('radio'); } catch (e) {} }
   }
+  // the first tap unlocks both players: iOS only lets a player start by itself once it has played from a tap
+  // a tenth of a second of silence, made here, so the unlock doesn't wait on the network or the lineup
+  let hush = null;
+  function silence() {
+    if (hush) return hush;
+    const n = 4410, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 44100, true); v.setUint32(28, 88200, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    return (hush = URL.createObjectURL(new Blob([b], { type: 'audio/wav' })));
+  }
+  function unlock() {
+    P.forEach(p => {
+      if (p.ok) return; p.ok = true;
+      if (p.el === cur.el && cur.src) return;   // already started from this tap
+      p.el.src = silence(); p.el.play().then(() => { if (p.el !== cur.el || !cur.src) p.el.pause(); }).catch(() => { p.ok = false; });
+    });
+  }
   R.power = function (on) {
-    if (on) { if (!graph()) return; R.on = true; if (ac.state === 'suspended') ac.resume(); tuneIn(false); }
-    else { R.on = false; mixer(); }
+    if (on) {
+      if (!graph()) return; R.on = true;
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // music: plays through the ringer switch, like any music app
+      if (ac.state !== 'running') ac.resume();
+      tuneIn(false); unlock();
+    } else {
+      R.on = false; mixer();
+      try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (e) {}
+    }
   };
   R.tune = function (d) { freq = Math.round(clamp(freq + d, 87.5, 108) * 10) / 10; S.saveV2({ radioFreq: freq }); if (A) A.lcdDirty = true; };
   R.scan = function () {
@@ -167,17 +193,30 @@ window.RX = window.RX || {};
     oc = document.createElement('canvas'); ox = oc.getContext('2d');
   }
   function size() {
-    const r = cv.getBoundingClientRect(); D = window.devicePixelRatio || 1;
+    const r = cv.getBoundingClientRect(); D = Math.min(2, window.devicePixelRatio || 1);   // 2× is plenty for a CRT, and half the pixels of 3×
     if (Math.round(r.width * D) !== cv.width || Math.round(r.height * D) !== cv.height) {
       W = r.width; H = r.height;
       cv.width = oc.width = Math.round(W * D); cv.height = oc.height = Math.round(H * D);
       ox.setTransform(D, 0, 0, D, 0, 0);
+      glass = null;
     }
+  }
+  // scanlines and the curved-tube corners never change: drawn once per size
+  let glass = null;
+  function glassLayer() {
+    if (glass) return glass;
+    glass = document.createElement('canvas'); glass.width = cv.width; glass.height = cv.height;
+    const g = glass.getContext('2d'); g.setTransform(D, 0, 0, D, 0, 0);
+    g.fillStyle = 'rgba(0,0,0,.28)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const v = g.createRadialGradient(glass.width / 2, glass.height / 2, glass.height * 0.28, glass.width / 2, glass.height / 2, glass.height * 0.72);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.75, 'rgba(0,0,0,.25)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); g.fillStyle = v; g.fillRect(0, 0, glass.width, glass.height);
+    return glass;
   }
   const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
   const mix = (a, b, k) => [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * k));
   const hms = s => { s = Math.floor(s); return String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
-  function gt(txt, x, y, font, color, blur, align) { ox.font = font; ox.textAlign = align || 'left'; ox.shadowColor = color; ox.shadowBlur = blur; ox.fillStyle = color; ox.fillText(txt, x, y); ox.shadowBlur = 0; }
+  function gt(txt, x, y, font, color, blur, align) { ox.font = font; ox.textAlign = align || 'left'; ox.fillStyle = color; if (blur >= 6) { ox.shadowColor = color; ox.shadowBlur = blur; } ox.fillText(txt, x, y); ox.shadowBlur = 0; }
   function fitText(txt, font, maxW) { ox.font = font; if (ox.measureText(txt).width <= maxW) return txt; while (txt.length > 3 && ox.measureText(txt + '…').width > maxW) txt = txt.slice(0, -1); return txt + '…'; }
   function pushRow(t, n, sty) {
     const r = new Float32Array(BINS), live = ac && R.on;
@@ -231,12 +270,12 @@ window.RX = window.RX || {};
       const path = () => { ox.beginPath(); for (let i = 0; i < BINS; i++) { const u = i / (BINS - 1), x = cxm - half + u * half * 2, h = row.v[i] * amp * pz; i ? ox.lineTo(x, y - h) : ox.moveTo(x, y - h); } };
       path(); ox.lineTo(cxm + half, y + 40); ox.lineTo(cxm - half, y + 40); ox.closePath(); ox.fillStyle = '#030201'; ox.fill();
       path(); const a = 0.13 + 0.87 * (1 - z), rc = row.noise > 0.5 ? AMB : c;
-      ox.strokeStyle = r === 0 ? rgba(n.lock ? c : AMB, 1) : rgba(rc, a.toFixed(3)); ox.lineWidth = r === 0 ? 1.4 : 1; ox.shadowColor = rgba(rc, 1); ox.shadowBlur = r < 3 ? 7 : 0; ox.stroke(); ox.shadowBlur = 0;
+      ox.strokeStyle = r === 0 ? rgba(n.lock ? c : AMB, 1) : rgba(rc, a.toFixed(3)); ox.lineWidth = r === 0 ? 1.4 : 1; if (r === 0) { ox.shadowColor = rgba(rc, 1); ox.shadowBlur = 6; } ox.stroke(); ox.shadowBlur = 0;
     }
     ox.restore();
     // oscilloscope: the waveform itself
     ox.beginPath(); for (let i = 0; i < 256; i += 2) { const x = 16 + (W - 32) * i / 255, y = ty1 + 12 + ((td[i] - 128) / 128) * 10; i ? ox.lineTo(x, y) : ox.moveTo(x, y); }
-    ox.strokeStyle = rgba(c, 0.7); ox.lineWidth = 1; ox.shadowColor = rgba(c, 1); ox.shadowBlur = 4; ox.stroke(); ox.shadowBlur = 0;
+    ox.strokeStyle = rgba(c, 0.7); ox.lineWidth = 1; ox.stroke();
     // the tuning scale slides behind a fixed hairline; station names printed above their marks
     const sy = H - 100, mid = W / 2, sp = 10;
     ox.fillStyle = rgba(AMB, 0.22); ox.fillRect(16, sy + 12, W - 32, 1);
@@ -251,7 +290,7 @@ window.RX = window.RX || {};
     R.stations.forEach(q => {
       const xx = mid + (q.f - shown) * 10 * sp; if (xx < -60 || xx > W + 60) return;
       const fade = Math.max(0, 1 - Math.pow(Math.abs(xx - mid) / mid, 2) * 0.85), on = n.lock && q === n.st, qc = (STYLE[q.id] || FALLBACK).col;
-      ox.font = "500 11px 'Barlow Condensed'"; ox.textAlign = 'center'; ox.fillStyle = on ? CY : rgba(qc, fade.toFixed(3)); ox.shadowColor = on ? CY : rgba(qc, 1); ox.shadowBlur = on ? 8 : 2;
+      ox.font = "500 11px 'Barlow Condensed'"; ox.textAlign = 'center'; ox.fillStyle = on ? CY : rgba(qc, fade.toFixed(3)); if (on) { ox.shadowColor = CY; ox.shadowBlur = 8; }
       ox.fillText(q.id, xx, sy - 8); ox.fillRect(Math.round(xx) - 2, sy - 3, 5, 2); ox.shadowBlur = 0;
     });
     ox.fillStyle = CY; ox.shadowColor = CY; ox.shadowBlur = 8; ox.fillRect(Math.round(mid), sy - 18, 1, 32); ox.shadowBlur = 0;
@@ -272,7 +311,6 @@ window.RX = window.RX || {};
     } else gt(R.ready ? 'NO CARRIER' : 'NO LINEUP · CHECK SIGNAL', W / 2, ny + 12, "300 20px 'Barlow Condensed'", rgba(AMB, 0.5), 4, 'center');
     if (toastMsg && performance.now() < toastMsg.until) gt(toastMsg.t, W / 2, 48, "11px 'Share Tech Mono'", '#FF6B5E', 6, 'center');
     // CRT: scanlines and a slow roll
-    ox.fillStyle = 'rgba(0,0,0,.28)'; for (let y = 0; y < H; y += 3) ox.fillRect(0, y, W, 1);
     const roll = (t / 18) % (H + 80) - 40, g = ox.createLinearGradient(0, roll - 40, 0, roll + 40);
     g.addColorStop(0, 'rgba(255,179,71,0)'); g.addColorStop(0.5, 'rgba(255,179,71,.035)'); g.addColorStop(1, 'rgba(255,179,71,0)'); ox.fillStyle = g; ox.fillRect(0, roll - 40, W, 80);
     return n;
@@ -290,9 +328,8 @@ window.RX = window.RX || {};
     // between stations the picture tears now and then, like a tube losing sync
     if (!n.lock && n.lvl < 0.85 && Math.random() < 0.12) for (let k = 0; k < 3; k++) { const sy = Math.random() * cv.height, sh = (2 + Math.random() * 10) * D, dx = (Math.random() - 0.5) * 28 * D; cx.drawImage(oc, 0, sy, cv.width, sh, dx, sy, cv.width, sh); }
     // glass: a soft fringe on everything bright, then the curved-tube corners
-    cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.1; cx.drawImage(oc, 1.2 * D, 0); cx.drawImage(oc, -1.2 * D, 0); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
-    const v = cx.createRadialGradient(cv.width / 2, cv.height / 2, cv.height * 0.28, cv.width / 2, cv.height / 2, cv.height * 0.72);
-    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.75, 'rgba(0,0,0,.25)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); cx.fillStyle = v; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.14; cx.drawImage(oc, 1.2 * D, 0); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
+    cx.drawImage(glassLayer(), 0, 0);
     cx.restore();
   }
   function frame(t) {
