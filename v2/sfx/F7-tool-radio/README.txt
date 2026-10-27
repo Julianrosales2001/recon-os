@@ -1,6 +1,6 @@
-F7-tool-lgnd
+F7-tool-radio
 
-Plays when: you press the LGND key in the FN tray.
+Plays when: you press the RADIO key in the FN tray.
 
 Drop your sound here (.mp3, .wav or .m4a).
 RP Sound Push renames it and sends it to the phone by itself.

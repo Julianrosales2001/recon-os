@@ -22,7 +22,7 @@ window.RX = window.RX || {};
     // the eight keys in the FN tray: one sound for all of them (F3), or one per key (F4-F11)
     ['tool', 'F3-tools', 'key', 'ANY KEY IN THE FN TRAY', 'TOOLS'],
     ['tool.search', 'F4-tool-srch', 'tool', 'SRCH KEY', 'TOOLS'], ['tool.log', 'F5-tool-log', 'tool', 'LOG KEY', 'TOOLS'], ['tool.fast', 'F6-tool-hlth', 'tool', 'HLTH KEY', 'TOOLS'],
-    ['tool.legend', 'F7-tool-lgnd', 'tool', 'LGND KEY', 'TOOLS'], ['tool.cal', 'F8-tool-cal', 'tool', 'CAL KEY', 'TOOLS'], ['tool.ref', 'F9-tool-ref', 'tool', 'REF KEY', 'TOOLS'],
+    ['tool.radio', 'F7-tool-radio', 'tool', 'RADIO KEY', 'TOOLS'], ['tool.cal', 'F8-tool-cal', 'tool', 'CAL KEY', 'TOOLS'], ['tool.ref', 'F9-tool-ref', 'tool', 'REF KEY', 'TOOLS'],
     ['tool.profile', 'F11-tool-prfl', 'tool', 'PRFL KEY', 'TOOLS'], ['tool.game', 'F12-tool-game', 'tool', 'GAME KEY', 'TOOLS'],
     ['aux.latch', 'A1-aux-grip', 'key', 'AUX GRIP PRESSED', 'AUX'], ['aux.open', 'A2-aux-open', 'thunk', 'AUX PANEL LANDS UP', 'AUX'], ['aux.close', 'A3-aux-close', 'thunk', 'AUX PANEL LANDS HOME', 'AUX'],
     ['aux.keyup', 'A4-aux-keyup', 'key', 'AUX KEYS SPRING UP', 'AUX'], ['aux.lamp', 'A5-aux-lamp', null, 'AUX LAMPS FLICKER ON', 'AUX'],

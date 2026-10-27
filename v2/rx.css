@@ -60,6 +60,8 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .grille { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 20px; margin: 0 0 6px; }
 /* the lamps behind the slots (js/grille.js): a canvas over the plate, a little taller so loud hits can bleed onto the metal */
 .grille { position: relative; }
+/* the radio's CRT module: a full-resolution picture laid over the dot-matrix window (js/radio.js) */
+.radio-crt { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; display: none; pointer-events: none; border-radius: inherit; }
 .grille-lamps { position: absolute; left: 0; top: -6px; width: 100%; height: calc(100% + 12px); pointer-events: none; z-index: 1; }
 /* three long slots milled across the top plate (a field of thin vertical slits would be weak and slow to make) */
 .vents { flex: 1 1 auto; height: 18px; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 2px; }
@@ -546,7 +548,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .tool[data-tool=log]:has(.led.on) { background-image: url(keys/tool-log-lit.png?v=2) !important; }
 .tool[data-tool=fast] { background-image: url(keys/tool-health.png?v=1) !important; }
 .tool[data-tool=fast]:has(.led.on) { background-image: url(keys/tool-health-lit.png?v=1) !important; }
-.tool[data-tool=legend] { background-image: url(keys/tool-legend.png?v=2) !important; }
+.tool[data-tool=radio] { background-image: url(keys/tool-radio.png?v=1) !important; }
 .tool[data-tool=cal] { background-image: url(keys/tool-cal.png?v=1) !important; }
 .tool[data-tool=lot] { background-image: url(keys/tool-lot.png?v=2) !important; }
 .tool[data-tool=ref] { background-image: url(keys/tool-ref.png?v=2) !important; }

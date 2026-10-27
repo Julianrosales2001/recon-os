@@ -569,7 +569,8 @@ window.RX = window.RX || {};
       g.seg(0, y, W, 13, [
         { label: pend.length ? 'ASSETS ' + pend.length : 'ASSETS', on: st.tab === 'assets', fn: setTab('assets'), c: pend.length ? C.amber : null },
         { label: S.rolo.length ? 'ROLO ' + S.rolo.length : 'ROLO', on: st.tab === 'rolo', fn: setTab('rolo') },
-        { label: 'JOURNAL', on: st.tab === 'journal', fn: setTab('journal') }
+        { label: 'JOURNAL', on: st.tab === 'journal', fn: setTab('journal') },
+        { label: 'LEGEND', on: false, fn: () => A.go('legend') }   // the legend lives here now (its FN key became RADIO)
       ]);
       y += 16;
       const bottom = footTop(g);

@@ -1,0 +1,331 @@
+{
+ "v": 1,
+ "epoch": 1790812800000,
+ "note": "Public-domain (and CC0) recordings streamed from Wikimedia Commons, mostly from Musopen. Each station plays its list on a loop from epoch, so tuning in joins mid-piece.",
+ "stations": [
+  {
+   "id": "BAROQUE",
+   "f": 88.1,
+   "tracks": [
+    {
+     "c": "J. S. Bach",
+     "d": "1685–1750",
+     "w": "Goldberg Variations, BWV 988",
+     "y": "1741",
+     "m": "Aria",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/a/af/Bach%2C_Goldberg_Variations%2C_Aria_%28Musopen_version%29.ogg/Bach%2C_Goldberg_Variations%2C_Aria_%28Musopen_version%29.ogg.mp3",
+     "len": 287,
+     "lic": "CC0",
+     "file": "Bach, Goldberg Variations, Aria (Musopen version).ogg"
+    },
+    {
+     "c": "J. S. Bach",
+     "d": "1685–1750",
+     "w": "Jesu, Joy of Man’s Desiring, BWV 147",
+     "y": "1723",
+     "m": "Chorale",
+     "p": "Orchestra Gli Armonici",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/2/27/Bach%2C_BWV_147%2C_10._Jesus_bleibet_meine_Freude.ogg/Bach%2C_BWV_147%2C_10._Jesus_bleibet_meine_Freude.ogg.mp3",
+     "len": 202,
+     "lic": "CC0",
+     "file": "Bach, BWV 147, 10. Jesus bleibet meine Freude.ogg"
+    },
+    {
+     "c": "J. S. Bach",
+     "d": "1685–1750",
+     "w": "Orchestral Suite No. 2, BWV 1067",
+     "y": "1739",
+     "m": "Badinerie",
+     "p": "European Archive",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/9/97/Bach%2C_Johann_Sebastian_-_Suite_No.2_in_B_Minor_-_X._Badinerie.ogg/Bach%2C_Johann_Sebastian_-_Suite_No.2_in_B_Minor_-_X._Badinerie.ogg.mp3",
+     "len": 83,
+     "lic": "CC0",
+     "file": "Bach, Johann Sebastian - Suite No.2 in B Minor - X. Badinerie.ogg"
+    },
+    {
+     "c": "A. Vivaldi",
+     "d": "1678–1741",
+     "w": "The Four Seasons · Autumn, RV 293",
+     "y": "1725",
+     "m": "I. Allegro",
+     "p": "The Modena Chamber Orchestra",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c4/The_Modena_Chamber_Orchestra_-_Vivaldi%27s_Autumn%2C_RV_293_-_I._Allegro.ogg/The_Modena_Chamber_Orchestra_-_Vivaldi%27s_Autumn%2C_RV_293_-_I._Allegro.ogg.mp3",
+     "len": 329,
+     "lic": "PDM-owner",
+     "file": "The Modena Chamber Orchestra - Vivaldi's Autumn, RV 293 - I. Allegro.ogg"
+    },
+    {
+     "c": "J. S. Bach",
+     "d": "1685–1750",
+     "w": "Italian Concerto, BWV 971",
+     "y": "1735",
+     "m": "III. Presto",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/1/1c/J._S._Bach_-_Italian_Concerto%2C_BWV._971_-_3._Presto.ogg/J._S._Bach_-_Italian_Concerto%2C_BWV._971_-_3._Presto.ogg.mp3",
+     "len": 218,
+     "lic": "CC0",
+     "file": "J. S. Bach - Italian Concerto, BWV. 971 - 3. Presto.ogg"
+    },
+    {
+     "c": "J. S. Bach",
+     "d": "1685–1750",
+     "w": "Violin Partita No. 3, BWV 1006",
+     "y": "1720",
+     "m": "I. Preludio",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/9/97/Johann_Sebastian_Bach_-_partita_no._3_in_e_major%2C_bwv_1006_-_1._preludio.ogg/Johann_Sebastian_Bach_-_partita_no._3_in_e_major%2C_bwv_1006_-_1._preludio.ogg.mp3",
+     "len": 263,
+     "lic": "Public domain",
+     "file": "Johann Sebastian Bach - partita no. 3 in e major, bwv 1006 - 1. preludio.ogg"
+    }
+   ]
+  },
+  {
+   "id": "ROMANTIC",
+   "f": 92.7,
+   "tracks": [
+    {
+     "c": "F. Chopin",
+     "d": "1810–1849",
+     "w": "Fantaisie-Impromptu, Op. 66",
+     "y": "1834",
+     "m": "Allegro agitato",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/2/2b/Fantaisie_Impromptu_Op._66.mp3",
+     "len": 327,
+     "lic": "CC0",
+     "file": "Fantaisie Impromptu Op. 66.mp3"
+    },
+    {
+     "c": "F. Chopin",
+     "d": "1810–1849",
+     "w": "Ballade No. 1, Op. 23",
+     "y": "1835",
+     "m": "G minor",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/3/33/Frederic_Chopin_-_ballade_no._1_in_g_minor%2C_op._23.ogg/Frederic_Chopin_-_ballade_no._1_in_g_minor%2C_op._23.ogg.mp3",
+     "len": 679,
+     "lic": "Public domain",
+     "file": "Frederic Chopin - ballade no. 1 in g minor, op. 23.ogg"
+    },
+    {
+     "c": "F. Chopin",
+     "d": "1810–1849",
+     "w": "Polonaise Op. 40 No. 1 “Military”",
+     "y": "1838",
+     "m": "A major",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/9/9c/Chopin_-_Polonaise_op._40_no_1.ogg/Chopin_-_Polonaise_op._40_no_1.ogg.mp3",
+     "len": 338,
+     "lic": "CC0",
+     "file": "Chopin - Polonaise op. 40 no 1.ogg"
+    },
+    {
+     "c": "P. I. Tchaikovsky",
+     "d": "1840–1893",
+     "w": "Swan Lake, Op. 20",
+     "y": "1876",
+     "m": "Act II",
+     "p": "European Archive",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/8/82/Tchaikovsky_-_Swan_Lake_Op.20_-_Act_II_Pt.1.ogg/Tchaikovsky_-_Swan_Lake_Op.20_-_Act_II_Pt.1.ogg.mp3",
+     "len": 250,
+     "lic": "Public domain",
+     "file": "Tchaikovsky - Swan Lake Op.20 - Act II Pt.1.ogg"
+    },
+    {
+     "c": "E. Grieg",
+     "d": "1843–1907",
+     "w": "Peer Gynt Suite No. 1, Op. 46",
+     "y": "1888",
+     "m": "IV. In the Hall of the Mountain King",
+     "p": "Musopen Symphony",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/8/84/Grieg_-_Peer_Gynt_Suite_No._1%2C_Op._46_-_IV._In_the_Hall_of_the_Mountain_King_%28Musopen_Symphony%29.flac/Grieg_-_Peer_Gynt_Suite_No._1%2C_Op._46_-_IV._In_the_Hall_of_the_Mountain_King_%28Musopen_Symphony%29.flac.mp3",
+     "len": 154,
+     "lic": "Public domain",
+     "file": "Grieg - Peer Gynt Suite No. 1, Op. 46 - IV. In the Hall of the Mountain King (Musopen Symphony).flac"
+    },
+    {
+     "c": "F. Mendelssohn",
+     "d": "1809–1847",
+     "w": "A Midsummer Night’s Dream, Op. 61",
+     "y": "1842",
+     "m": "Wedding March",
+     "p": "European Archive",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/cb/A_Midsummer_Night%27s_Dream_Op._61_Wedding_March_%28Mendelssohn%29_European_Archive.ogg/A_Midsummer_Night%27s_Dream_Op._61_Wedding_March_%28Mendelssohn%29_European_Archive.ogg.mp3",
+     "len": 294,
+     "lic": "Public domain",
+     "file": "A Midsummer Night's Dream Op. 61 Wedding March (Mendelssohn) European Archive.ogg"
+    }
+   ]
+  },
+  {
+   "id": "NOCTURNE",
+   "f": 97.3,
+   "tracks": [
+    {
+     "c": "F. Chopin",
+     "d": "1810–1849",
+     "w": "Nocturne, Op. 9 No. 2",
+     "y": "1832",
+     "m": "Andante",
+     "p": "Peter Johnston",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/0/04/Chopin_Nocturne_No._2_in_E_Flat_Major%2C_Op._9.ogg/Chopin_Nocturne_No._2_in_E_Flat_Major%2C_Op._9.ogg.mp3",
+     "len": 259,
+     "lic": "CC0",
+     "file": "Chopin Nocturne No. 2 in E Flat Major, Op. 9.ogg"
+    },
+    {
+     "c": "L. v. Beethoven",
+     "d": "1770–1827",
+     "w": "Piano Sonata No. 14 “Moonlight”, Op. 27 No. 2",
+     "y": "1801",
+     "m": "I. Adagio sostenuto",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/4/48/Ludwig_van_Beethoven_-_sonata_no._14_in_c_sharp_minor_%27moonlight%27%2C_op._27_no._2_-_i._adagio_sostenuto.ogg/Ludwig_van_Beethoven_-_sonata_no._14_in_c_sharp_minor_%27moonlight%27%2C_op._27_no._2_-_i._adagio_sostenuto.ogg.mp3",
+     "len": 336,
+     "lic": "Public domain",
+     "file": "Ludwig van Beethoven - sonata no. 14 in c sharp minor 'moonlight', op. 27 no. 2 - i. adagio sostenuto.ogg"
+    },
+    {
+     "c": "F. Chopin",
+     "d": "1810–1849",
+     "w": "Nocturne, Op. 27 No. 2",
+     "y": "1835",
+     "m": "D-flat major",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/3/3f/NocturneOp27No2.mp3",
+     "len": 378,
+     "lic": "CC0",
+     "file": "NocturneOp27No2.mp3"
+    },
+    {
+     "c": "E. Grieg",
+     "d": "1843–1907",
+     "w": "Peer Gynt Suite No. 1, Op. 46",
+     "y": "1888",
+     "m": "I. Morning Mood",
+     "p": "Musopen Symphony",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c2/Grieg_-_Peer_Gynt_Suite_No._1%2C_Op._46_-_I._Morning_Mood_%28Musopen_Symphony%29.flac/Grieg_-_Peer_Gynt_Suite_No._1%2C_Op._46_-_I._Morning_Mood_%28Musopen_Symphony%29.flac.mp3",
+     "len": 229,
+     "lic": "Public domain",
+     "file": "Grieg - Peer Gynt Suite No. 1, Op. 46 - I. Morning Mood (Musopen Symphony).flac"
+    },
+    {
+     "c": "L. v. Beethoven",
+     "d": "1770–1827",
+     "w": "Piano Sonata No. 8 “Pathétique”, Op. 13",
+     "y": "1798",
+     "m": "II. Adagio cantabile",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/6/63/Beethoven%2C_Sonata_No._8_in_C_Minor_Pathetique%2C_Op._13_-_II._Adagio_cantabile.ogg/Beethoven%2C_Sonata_No._8_in_C_Minor_Pathetique%2C_Op._13_-_II._Adagio_cantabile.ogg.mp3",
+     "len": 298,
+     "lic": "CC0",
+     "file": "Beethoven, Sonata No. 8 in C Minor Pathetique, Op. 13 - II. Adagio cantabile.ogg"
+    },
+    {
+     "c": "W. A. Mozart",
+     "d": "1756–1791",
+     "w": "Eine kleine Nachtmusik, K. 525",
+     "y": "1787",
+     "m": "II. Romanze",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/4/40/Mozart_-_Serenade_No._13_for_strings_in_G_major%2C_K._525_-_Romanze.ogg/Mozart_-_Serenade_No._13_for_strings_in_G_major%2C_K._525_-_Romanze.ogg.mp3",
+     "len": 266,
+     "lic": "Public domain",
+     "file": "Mozart - Serenade No. 13 for strings in G major, K. 525 - Romanze.ogg"
+    }
+   ]
+  },
+  {
+   "id": "SYMPHONY",
+   "f": 101.5,
+   "tracks": [
+    {
+     "c": "L. v. Beethoven",
+     "d": "1770–1827",
+     "w": "Symphony No. 5, Op. 67",
+     "y": "1808",
+     "m": "I. Allegro con brio",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/e/e6/Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor%2C_op._67_-_i._allegro_con_brio.ogg/Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor%2C_op._67_-_i._allegro_con_brio.ogg.mp3",
+     "len": 500,
+     "lic": "Public domain",
+     "file": "Ludwig van Beethoven - symphony no. 5 in c minor, op. 67 - i. allegro con brio.ogg"
+    },
+    {
+     "c": "W. A. Mozart",
+     "d": "1756–1791",
+     "w": "Symphony No. 40, K. 550",
+     "y": "1788",
+     "m": "I. Molto allegro",
+     "p": "Musopen Symphony",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/a/a8/Mozart_-_Symphony_No._40_in_G_minor%2C_K550_-_I._Molto_allegro_%28Musopen_Symphony%29.flac/Mozart_-_Symphony_No._40_in_G_minor%2C_K550_-_I._Molto_allegro_%28Musopen_Symphony%29.flac.mp3",
+     "len": 359,
+     "lic": "Public domain",
+     "file": "Mozart - Symphony No. 40 in G minor, K550 - I. Molto allegro (Musopen Symphony).flac"
+    },
+    {
+     "c": "A. Dvořák",
+     "d": "1841–1904",
+     "w": "Symphony No. 9 “From the New World”, Op. 95",
+     "y": "1893",
+     "m": "II. Largo",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c3/Antonin_Dvorak_-_symphony_no._9_in_e_minor_%27from_the_new_world%27%2C_op._95_-_ii._largo.ogg/Antonin_Dvorak_-_symphony_no._9_in_e_minor_%27from_the_new_world%27%2C_op._95_-_ii._largo.ogg.mp3",
+     "len": 694,
+     "lic": "Public domain",
+     "file": "Antonin Dvorak - symphony no. 9 in e minor 'from the new world', op. 95 - ii. largo.ogg"
+    },
+    {
+     "c": "A. Dvořák",
+     "d": "1841–1904",
+     "w": "Symphony No. 9 “From the New World”, Op. 95",
+     "y": "1893",
+     "m": "IV. Allegro con fuoco",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/1/17/Antonin_Dvorak_-_symphony_no._9_in_e_minor_%27from_the_new_world%27%2C_op._95_-_iv._allegro_con_fuoco.ogg/Antonin_Dvorak_-_symphony_no._9_in_e_minor_%27from_the_new_world%27%2C_op._95_-_iv._allegro_con_fuoco.ogg.mp3",
+     "len": 703,
+     "lic": "Public domain",
+     "file": "Antonin Dvorak - symphony no. 9 in e minor 'from the new world', op. 95 - iv. allegro con fuoco.ogg"
+    },
+    {
+     "c": "G. Holst",
+     "d": "1874–1934",
+     "w": "The Planets, Op. 32",
+     "y": "1916",
+     "m": "I. Mars, the Bringer of War",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/5/54/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg/Gustav_Holst_-_the_planets%2C_op._32_-_i._mars%2C_the_bringer_of_war.ogg.mp3",
+     "len": 498,
+     "lic": "Attribution",
+     "file": "Gustav Holst - the planets, op. 32 - i. mars, the bringer of war.ogg"
+    },
+    {
+     "c": "M. Mussorgsky",
+     "d": "1839–1881",
+     "w": "Night on Bald Mountain",
+     "y": "1867",
+     "m": "Symphonic poem",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/ca/Modest_Mussorgsky_-_night_on_bald_mountain.ogg/Modest_Mussorgsky_-_night_on_bald_mountain.ogg.mp3",
+     "len": 733,
+     "lic": "Public domain",
+     "file": "Modest Mussorgsky - night on bald mountain.ogg"
+    },
+    {
+     "c": "P. I. Tchaikovsky",
+     "d": "1840–1893",
+     "w": "1812 Overture, Op. 49",
+     "y": "1880",
+     "m": "Overture",
+     "p": "Musopen",
+     "src": "https://upload.wikimedia.org/wikipedia/commons/transcoded/0/04/Pyotr_Ilyich_Tchaikovsky_-_1812_overture.ogg/Pyotr_Ilyich_Tchaikovsky_-_1812_overture.ogg.mp3",
+     "len": 999,
+     "lic": "Public domain",
+     "file": "Pyotr Ilyich Tchaikovsky - 1812 overture.ogg"
+    }
+   ]
+  }
+ ]
+}

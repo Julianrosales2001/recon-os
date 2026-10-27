@@ -27,6 +27,9 @@ G="$REPO/.git"
 if [ -e "$G/index.lock" ] || [ -e "$G/MERGE_HEAD" ] || [ -d "$G/rebase-merge" ] || [ -d "$G/rebase-apply" ]; then exit 0; fi
 [ "$(git symbolic-ref --short -q HEAD)" = "main" ] || exit 0
 
+# the radio folders (v2/radio/<STATION>) have their own pass; it commits only v2/radio
+[ -f "$(dirname "$0")/radio.sh" ] && /bin/bash "$(dirname "$0")/radio.sh" "$REPO"
+
 SOUNDS=(':(glob)v2/sfx/*/sound.*' ':(glob)v2/sfx/*/original.wav')
 
 # ---- 1 · new drops: any audio file in a folder that isn't already its sound ----

@@ -21,6 +21,7 @@ pkill -f "$NAME.app/Contents/MacOS/" 2>/dev/null || true
 # the script, with this repo's path filled in (kept outside the Desktop so it can always report a problem)
 sed "s|__REPO__|$REPO|" "$HERE/push.sh" > "$SUP/push.sh"
 chmod +x "$SUP/push.sh"
+cp "$HERE/radio.sh" "$SUP/radio.sh"; chmod +x "$SUP/radio.sh"
 
 # the app: a stay-open AppleScript that runs the script every 10 seconds and shows what it says
 cat > "$SUP/app.applescript" <<EOS
@@ -55,6 +56,6 @@ EOP
 launchctl bootstrap "gui/$(id -u)" "$AGENT" 2>/dev/null || open -g -a "$APP"
 
 echo
-echo "ON. Drop a sound into any v2/sfx folder and it goes to the phone by itself."
+echo "ON. Drop a sound into any v2/sfx folder, or music into a v2/radio station folder, and it goes to the phone by itself."
 echo "If macOS asks whether \"$NAME\" can access files in your Desktop folder, click Allow."
 echo "Log: ~/Library/Logs/rp-sound-push.log   ·   Off: bash tools/sfx-autopush/uninstall.sh"

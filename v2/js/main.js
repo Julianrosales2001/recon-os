@@ -418,7 +418,7 @@ window.RX = window.RX || {};
     A._toolQuiet = performance.now() + 800;
     if (t === 'vis') { A.setHicon(!S.v2.hicon); setTray(false, true); return; }
     setTray(false, true);
-    if (A.top().name === t) return;
+    if (A.top().name === t) { const sc = RX.screens[t]; if (sc.retap) sc.retap(A.top().st, A); return; }   // RADIO again on the radio: off
     if (A.stack.length > 1) A.home();
     A.go(t);
   }, null, () => 'tool.' + b.dataset.tool));   // each tray key has its folder (F4-F11), else F3-tools, else the K1-key click
@@ -426,6 +426,7 @@ window.RX = window.RX || {};
     A.wake(); A.beep('key');
     const sc = A.screen();
     if (sc.lcdTap) { sc.lcdTap(A.top().st, A); A.lcdMsg = null; A.lcdDirty = true; A.dirty = true; return; }
+    if (A.lcdRadio && RX.radio && RX.radio.on) { A.lcdRadio = false; A.lcdMsg = null; A.lcdDirty = true; A.say('LCD ▸ ' + RX.wx.NAMES[A.disp] + ' · RADIO STILL ON AIR', 2000); return; }
     const order = RX.wx.ORDER;
     A.disp = order[(order.indexOf(A.disp) + 1) % order.length];
     S.saveV2({ disp: A.disp });
@@ -1209,6 +1210,7 @@ window.RX = window.RX || {};
     else if (!A.booted) rows = [['SYS', 'SELF TEST'], ['MEM', S.pois.length + ' MARKS'], ['FOG', U.F.num(S.fog.size) + ' CELLS']];
     else if (A.screen().lcd && (scLcd = A.screen().lcd(A.top().st, A))) { rows = scLcd.rows; }
     else if (S.v2.hicon && A.stack.length <= 1 && RX.vis && (scLcd = RX.vis.lcd(A))) { rows = scLcd.rows; }
+    else if (RX.radio && RX.radio.lcdOnAir()) { scLcd = RX.radio.lcd(); rows = scLcd.rows; }   // the radio is on air somewhere else: what's playing (tap the LCD for the usual readout)
     else if (A.stack.length <= 1 && A.drumFace() === 'NEAR' && A.nearItem()) {
       const it = A.nearItem(), from = A.gps || { lat: M.lat, lng: M.lng };
       const m = Geo.meters(from.lat, from.lng, it.lat, it.lng), b = Geo.bearing(from.lat, from.lng, it.lat, it.lng);
@@ -1453,6 +1455,7 @@ window.RX = window.RX || {};
       document.addEventListener('pointerdown', unlock, true); document.addEventListener('keydown', unlock, true); }
     RX.aux.wire(A, { closeTray: () => setTray(false) });
     if (RX.grille) RX.grille.wire(A);
+    if (RX.radio) RX.radio.wire(A);
     requestAnimationFrame(loop);
     startGps();
     document.addEventListener('pointerdown', () => { if (!A.gps && A.gpsErr) retryGps(); }, { once: true });
