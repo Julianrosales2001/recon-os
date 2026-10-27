@@ -204,13 +204,12 @@ window.RX = window.RX || {};
       glass = null;
     }
   }
-  // scanlines and the curved-tube corners never change: drawn once per size
+  // the curved-tube corners never change: drawn once per size (no scanlines, no rolling bar)
   let glass = null;
   function glassLayer() {
     if (glass) return glass;
     glass = document.createElement('canvas'); glass.width = cv.width; glass.height = cv.height;
     const g = glass.getContext('2d'); g.setTransform(D, 0, 0, D, 0, 0);
-    g.fillStyle = 'rgba(0,0,0,.28)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
     g.setTransform(1, 0, 0, 1, 0, 0);
     const v = g.createRadialGradient(glass.width / 2, glass.height / 2, glass.height * 0.28, glass.width / 2, glass.height / 2, glass.height * 0.72);
     v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.75, 'rgba(0,0,0,.25)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); g.fillStyle = v; g.fillRect(0, 0, glass.width, glass.height);
@@ -315,8 +314,6 @@ window.RX = window.RX || {};
     gt('RADIO KEY AGAIN ▸ OFF', 16, H - 6, "9px 'Share Tech Mono'", rgba(AMB, 0.35), 0);
     if (toastMsg && performance.now() < toastMsg.until) gt(toastMsg.t, W / 2, 48, "11px 'Share Tech Mono'", '#FF6B5E', 6, 'center');
     // CRT: scanlines and a slow roll
-    const roll = (t / 18) % (H + 80) - 40, g = ox.createLinearGradient(0, roll - 40, 0, roll + 40);
-    g.addColorStop(0, 'rgba(255,179,71,0)'); g.addColorStop(0.5, 'rgba(255,179,71,.035)'); g.addColorStop(1, 'rgba(255,179,71,0)'); ox.fillStyle = g; ox.fillRect(0, roll - 40, W, 80);
     return n;
   }
   function present(t, n) {
