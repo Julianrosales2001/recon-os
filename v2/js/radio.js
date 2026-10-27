@@ -165,6 +165,7 @@ window.RX = window.RX || {};
   };
   R.lcdOnAir = () => R.on && A && A.top().name !== 'radio' && A.lcdRadio;
   R.lcd = function () {
+    if (R.view === 'favs' && A && A.top().name === 'radio') { const f = favs[R.sel]; return { rows: [['FAV', favs.length ? (R.sel + 1) + ' OF ' + favs.length : 'NONE'], ['', f ? (f.c || '').toUpperCase() : 'MARK SAVES A PIECE'], ['', f ? f.st : 'TAP ▸ DIAL']], tag: 'FAV' }; }
     const n = near(freq), np = R.now();
     if (!n.lvl || !np) return { rows: [['FM', freq.toFixed(1) + ' ' + (R.on ? 'SEEK' : 'OFF')], ['', R.ready ? 'NO STATION' : 'NO LINEUP'], ['', '']], tag: 'FM' };
     const tr = np.tr;
@@ -180,6 +181,34 @@ window.RX = window.RX || {};
     try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); } catch (e) {}
   }
   R.favs = () => favs.slice();
+  // ---------- FAVOURITES: the pieces you saved, and when each is next on air ----------
+  R.view = 'dial'; R.sel = 0;
+  // where a saved piece is in its station's loop right now: playing (and how far in), or how long until it starts
+  function airs(f) {
+    const st = R.stations.find(s => s.id === f.st); if (!st) return null;
+    const i = st.tracks.findIndex(t => t.src === f.k); if (i < 0) return null;
+    const tot = st.tracks.reduce((a, t) => a + t.len, 0);
+    let t = ((Date.now() - epoch) / 1000 + st.f * 977) % tot; if (t < 0) t += tot;
+    let start = 0; for (let k = 0; k < i; k++) start += st.tracks[k].len;
+    const into = t - start;
+    if (into >= 0 && into < st.tracks[i].len) return { st, now: true, at: into, len: st.tracks[i].len };
+    return { st, now: false, wait: ((start - t) % tot + tot) % tot };
+  }
+  const mins = s => s < 60 ? 'UNDER A MIN' : s < 3600 ? Math.round(s / 60) + ' MIN' : (s / 3600).toFixed(1) + ' H';
+  function favsView(on) { R.view = on ? 'favs' : 'dial'; R.sel = clamp(R.sel, 0, Math.max(0, favs.length - 1)); if (A) { A.dirty = true; A.lcdDirty = true; } }
+  R.favJog = d => { R.sel = clamp(R.sel + d, 0, Math.max(0, favs.length - 1)); if (A) A.lcdDirty = true; };
+  R.favTune = function () {
+    const f = favs[R.sel], a = f && airs(f); if (!a) { toast(f ? 'THAT STATION IS GONE' : 'NO FAVOURITES YET'); if (A) A.beep('err'); return; }
+    freq = a.st.f; S.saveV2({ radioFreq: freq }); favsView(false);
+    toast(a.now ? 'ON AIR NOW ▸ ' + a.st.f.toFixed(1) : 'TUNED ▸ ' + a.st.f.toFixed(1) + ' · IT AIRS IN ' + mins(a.wait)); if (A) A.beep('ok');
+  };
+  R.favRemove = function () {
+    if (!favs.length) return;
+    favs.splice(R.sel, 1); R.sel = clamp(R.sel, 0, Math.max(0, favs.length - 1));
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); } catch (e) {}
+    toast('REMOVED FROM FAVOURITES'); if (A) A.beep('key');
+  };
+  R.favsView = favsView;
 
   // ======================================================================
   // THE CRT MODULE
@@ -233,6 +262,30 @@ window.RX = window.RX || {};
     for (let i = 0; i < BINS; i++) r[i] = r[i] * (1 - nz * 0.6) + Math.random() * nz * 0.6 * (R.on ? 1 : 0.3);
     hist.unshift({ v: r, noise: nz }); hist.pop();
   }
+  // the favourites list, where the landscape usually is
+  function drawFavs(t, c) {
+    const top = 132, rowH = 44, bottom = H - 24, vis = Math.max(1, Math.floor((bottom - top) / rowH));
+    gt('FAVOURITES · ' + String(favs.length).padStart(2, '0'), 16, top - 8, "500 13px 'Barlow Condensed'", rgba(AMB, 0.8), 0);
+    ox.fillStyle = rgba(AMB, 0.22); ox.fillRect(16, top - 2, W - 32, 1);
+    if (!favs.length) {
+      gt('NOTHING SAVED YET', W / 2, top + 50, "300 20px 'Barlow Condensed'", rgba(AMB, 0.5), 0, 'center');
+      gt('PRESS MARK WHILE A PIECE PLAYS TO SAVE IT', W / 2, top + 72, "10px 'Share Tech Mono'", rgba(AMB, 0.4), 0, 'center');
+    }
+    const first = clamp(R.sel - Math.floor(vis / 2), 0, Math.max(0, favs.length - vis));
+    for (let k = first; k < Math.min(favs.length, first + vis); k++) {
+      const f = favs[k], y = top + 6 + (k - first) * rowH, on = k === R.sel, a = airs(f), qc = (STYLE[f.st] || FALLBACK).col;
+      if (on) {
+        ox.strokeStyle = CY; ox.lineWidth = 1; ox.beginPath(); const x0 = 10, x1 = W - 10, y0 = y - 2, y1 = y + rowH - 8, L = 7;
+        [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]].forEach(([x, yy, sx, sy]) => { ox.moveTo(x + sx * L, yy); ox.lineTo(x, yy); ox.lineTo(x, yy + sy * L); }); ox.stroke();
+      }
+      gt(fitText((f.c || 'ON AIR').toUpperCase(), "500 15px 'Barlow Condensed'", W * 0.55), 18, y + 13, "500 15px 'Barlow Condensed'", on ? '#FFE6BE' : rgba(AMB, 0.85), on ? 6 : 0);
+      gt(fitText(f.w + (f.m ? ' · ' + f.m : ''), "300 13px 'Barlow Condensed'", W - 40), 18, y + 29, "300 13px 'Barlow Condensed'", rgba(on ? c : AMB, on ? 0.9 : 0.6), 0);
+      const st = R.stations.find(s => s.id === f.st);
+      gt((st ? st.f.toFixed(1) + ' ' : '') + f.st, W - 18, y + 13, "10px 'Share Tech Mono'", rgba(qc, on ? 1 : 0.7), 0, 'right');
+      gt(!a ? 'OFF THE LINEUP' : a.now ? 'ON AIR NOW' : 'AIRS IN ' + mins(a.wait), W - 18, y + 29, "10px 'Share Tech Mono'", a && a.now ? CY : rgba(AMB, 0.55), 0, 'right');
+    }
+    gt('JOG ▸ PICK · PUSH ▸ TUNE · MARK ▸ REMOVE · TAP LCD ▸ DIAL', 16, H - 6, "9px 'Share Tech Mono'", rgba(AMB, 0.4), 0);
+  }
   function scene(t) {
     const n = near(freq), sty = (n.st && STYLE[n.st.id]) || FALLBACK, c = n.lvl > 0.5 ? mix(AMB, sty.col, Math.min(1, (n.lvl - 0.5) * 2)) : AMB;
     shown += (freq - shown) * 0.2;
@@ -263,6 +316,7 @@ window.RX = window.RX || {};
     let sum = 0; for (let i = 0; i < 256; i++) { const v = (td[i] - 128) / 128; sum += v * v; }
     const rms = Math.min(1, Math.sqrt(sum / 256) * 4); lvlL += (rms - lvlL) * 0.3; lvlR += (rms * (0.9 + Math.random() * 0.15) - lvlR) * 0.3;
     [['L', lvlL, 112], ['R', lvlR, 118]].forEach(([k, v, y]) => { gt(k, rx - 86, y + 3, "9px 'Share Tech Mono'", rgba(AMB, 0.5), 0, 'right'); ox.fillStyle = rgba(AMB, 0.15); ox.fillRect(rx - 80, y, 80, 1); ox.fillStyle = rgba(c, 0.9); ox.fillRect(rx - 80, y, 80 * v, 1); });
+    if (R.view === 'favs') { drawFavs(t, c); return n; }
     // the terrain: a history of the music's spectrum, rolling toward you, drawn in the station's own character
     if (t - lastRow > (n.lock ? sty.rate : 55)) { lastRow = t; pushRow(t, n, sty); }
     const tx0 = 16, tx1 = W - 16, ty0 = 128, ty1 = H - 140, cxm = W / 2, rows = n.lock ? sty.rows : 28, amp = (n.lvl > 0.5 ? sty.amp : 70) * (ty1 - ty0) / 172;
@@ -311,7 +365,7 @@ window.RX = window.RX || {};
       gt(hms(at), W - 16, ny, "11px 'Share Tech Mono'", rgba(AMB, 0.7), 3, 'right');
       ox.fillStyle = rgba(AMB, 0.15); ox.fillRect(16, ny + 41, W - 32, 1); ox.fillStyle = rgba(c, 1); ox.fillRect(16, ny + 40, (W - 32) * clamp(at / tr.len, 0, 1), 2);
     } else gt(R.ready ? 'NO CARRIER' : 'NO LINEUP · CHECK SIGNAL', W / 2, ny + 12, "300 20px 'Barlow Condensed'", rgba(AMB, 0.5), 4, 'center');
-    gt('RADIO KEY AGAIN ▸ OFF', 16, H - 6, "9px 'Share Tech Mono'", rgba(AMB, 0.35), 0);
+    gt('TAP LCD ▸ FAVOURITES · RADIO KEY AGAIN ▸ OFF', 16, H - 6, "9px 'Share Tech Mono'", rgba(AMB, 0.35), 0);
     if (toastMsg && performance.now() < toastMsg.until) gt(toastMsg.t, W / 2, 48, "11px 'Share Tech Mono'", '#FF6B5E', 6, 'center');
     // CRT: scanlines and a slow roll
     return n;
@@ -351,13 +405,15 @@ window.RX = window.RX || {};
 
   RX.screens.radio = {
     animating: () => false,   // the CRT draws itself; the dot matrix underneath can rest
-    jogLabels: () => ['◂ DOWN', 'UP ▸', 'PUSH ▸ NEXT'],
+    jogLabels: () => R.view === 'favs' ? ['◂ UP', 'DOWN ▸', 'PUSH ▸ TUNE'] : ['◂ DOWN', 'UP ▸', 'PUSH ▸ NEXT'],
+    // the LCD is the favourites button while you're on the radio
+    lcdTap(st, A) { favsView(R.view !== 'favs'); A.beep('key'); },
     enter(st, params, A) { if (!R.ready) R.load(); R.power(true); show(); A.lcdRadio = false; A.lcdDirty = true; },
     resume() { show(); },
-    leave(st, A) { hide(); A.lcdRadio = R.on; A.lcdDirty = true; if (R.on) A.say('RADIO STILL ON AIR · FN › RADIO, THEN RADIO AGAIN ▸ OFF', 4000); },
-    jog(d) { clearInterval(R.scanT); R.tune(d * 0.1); },
-    push() { R.scan(); },
-    onMarkKey() { toggleFav(); },
+    leave(st, A) { R.view = 'dial'; hide(); A.lcdRadio = R.on; A.lcdDirty = true; if (R.on) A.say('RADIO STILL ON AIR · FN › RADIO, THEN RADIO AGAIN ▸ OFF', 4000); },
+    jog(d) { if (R.view === 'favs') { R.favJog(d); return; } clearInterval(R.scanT); R.tune(d * 0.1); },
+    push() { if (R.view === 'favs') { R.favTune(); return; } R.scan(); },
+    onMarkKey() { if (R.view === 'favs') { R.favRemove(); return; } toggleFav(); },
     // the RADIO key, pressed again while you're on the radio, switches it off
     retap(st, A) { R.power(false); A.lcdRadio = false; A.say('RADIO ▸ OFF · STREAM STOPPED', 2000); A.beep('key'); A.home(); },
     lcd: () => R.lcd(),

@@ -1268,8 +1268,16 @@ window.RX = window.RX || {};
       m.textC(DAYS[d.getDay()] + ' ' + U.F.pad2(d.getDate()) + ' ' + MONS[d.getMonth()], m.cols / 2, y2, { c: amber });
       frac = (d.getSeconds() + 1) / 60;
     }
+    // fasting: whole blocks are lit, and the block filling now glows up over its 72 minutes, breathing a little,
+    // so the bar never looks stopped (even right after a new lap starts)
+    const done = f ? Math.floor(frac * segs) : Math.round(frac * segs), part = f ? frac * segs - done : 0;
     for (let i = 0; i < segs; i++) {
-      const lit = i < Math.round(frac * segs);
+      const lit = i < done;
+      if (f && i === done && done < segs) {
+        const glow = 0.22 + 0.55 * part + 0.12 * (0.5 + 0.5 * Math.sin(Date.now() / 700));
+        m.rect(2 + i * segW, yb, segW - 1, 3, barCol, Math.min(1, glow));
+        continue;
+      }
       m.rect(2 + i * segW, yb, segW - 1, 3, lit ? barCol : (under || barCol), lit ? 1 : (under ? 0.22 : 0.1));
     }
     m.present();
