@@ -255,7 +255,7 @@ window.RX = window.RX || {};
   }
   RX.screens.snake = {
     animating: () => true,
-    jogLabels: () => ['◂ TURN LEFT', 'TURN RIGHT ▸', N.state === 'paused' ? 'PUSH ▸ RESUME' : 'PUSH ▸ PAUSE'],
+    jogLabels: () => ['◂ LEFT', 'RIGHT ▸', N.state === 'paused' ? 'PUSH ▸ RESUME' : 'PUSH ▸ PAUSE'],
     leave() { if (N.state === 'play') N.state = 'paused'; },
     // a drum click turns a quarter: right is clockwise. Turns queue (two at most) so quick double turns land.
     jog(d, st, A) {

@@ -340,6 +340,7 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 #auxRec { left: 21%; } #auxPark { left: 79%; }
 #auxRec .halo { background: radial-gradient(closest-side, rgba(255,45,31,0.5) 0%, rgba(0,0,0,0) 100%); }
 #auxPark .halo { background: radial-gradient(closest-side, rgba(255,148,20,0.5) 0%, rgba(0,0,0,0) 100%); }
+#auxPark.blue .halo { background: radial-gradient(closest-side, rgba(70,150,255,0.55) 0%, rgba(0,0,0,0) 100%); }   /* parked: the RETURN key glows blue */
 .aux-key:focus-visible, .aux-cmp:focus-visible { outline: 2px solid var(--phosphor); outline-offset: -4px; border-radius: 6px; }
 /* the compass: the card, the car pip and the needle turn (aux.js); the chrome ring and its glass sit over them */
 .aux-cmp { position: absolute; left: 50%; top: 50%; width: 77px; height: 77px; margin: -38.5px 0 0 -38.5px; padding: 0; border: 0; background: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s; }
@@ -387,6 +388,16 @@ button { font: inherit; color: inherit; border: 0; padding: 0; background: none;
 .jog-foot { justify-content: center; white-space: nowrap; overflow: hidden; }
 .jog.held { box-shadow: inset 0 2px 3px rgba(0,0,0,0.8), 0 0 0 2px var(--phosphor); }
 .jog-head b { font-family: 'DotGothic16', monospace; font-weight: 400; font-size: 10px; letter-spacing: 0.04em; color: var(--phosphor); }
+/* 2.53: the jog's value on a small white OLED set into the well (js/oled.js draws it; #jogVal stays as its text) */
+.jog-head b.oled-src { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.jog-head > span { white-space: nowrap; }
+.jog-head.tight > span { letter-spacing: 0.08em; }
+.oled-win { position: relative; flex: 0 0 auto; display: block; width: 51px; height: 15px; margin: -2px 0; border-radius: 2.5px; background: #000; overflow: hidden;
+  box-shadow: inset 0 1px 1.5px rgba(0,0,0,.9), 0 0.6px 0 rgba(255,255,255,.10), 0 -0.6px 0 rgba(0,0,0,.5); }
+.oled-win canvas { position: absolute; left: 3px; top: 2.5px; width: 45px; height: 10px; transition: opacity .6s; }
+.oled-win::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(170deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.03) 38%, rgba(255,255,255,0) 40%); }
+#device.dim .oled-win canvas { opacity: 0.4; }
 .jog { position: relative; display: block; width: 100%; height: 46px; border-radius: 6px; overflow: hidden; background: #0E1617; box-shadow: inset 0 2px 3px rgba(0,0,0,0.8); touch-action: none; cursor: ew-resize; }
 .jog-knurl {
   position: absolute; left: 3px; right: 3px; top: 4px; bottom: 4px; border-radius: 4px;

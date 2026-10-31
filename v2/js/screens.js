@@ -23,7 +23,7 @@ window.RX = window.RX || {};
     o = o || {};
     const v = A.view(), mx = g.mx, W = g.W, H = g.H, t = g.t;
     M.drawBase(mx, v, { ink: C.ink, water: C.water, fog: C.fog });
-    if (S.v2.hicon) { const tw = RX.font.measure('HI-CON', 'mini') + 4; mx.rect(W - tw - 2, 13, tw, 7, '#FFFFFF', 1); g.miniR('HI-CON', W - 4, 14, { c: '#000000', a: 1 }); }
+    if (S.v2.hicon) { const vf = RX.vis ? RX.vis.active() : 'ALL', bt = 'HI-CON' + (vf === 'ALL' ? '' : ' · ' + (vf === 'OFF' ? 'NO MARKS' : vf)), tw = RX.font.measure(bt, 'mini') + 4; mx.rect(W - tw - 2, 13, tw, 7, '#FFFFFF', 1); g.miniR(bt, W - 4, 14, { c: '#000000', a: 1 }); }
 
     // tracks: the one REC is laying down, and a saved one you asked to see
     if (RX.aux && RX.aux.drawUnder) RX.aux.drawUnder(g, A, v);
@@ -45,8 +45,8 @@ window.RX = window.RX || {};
     const scanIt = !o.noHits && A.stack.length <= 1 && A.drumFace() === 'NEAR' ? A.nearItem() : null;
     const shown = [];
     for (const p of S.pois) {
-      if (p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))) continue;
       const live = (A.assign && A.assign.id === p.id) || (A.filed && A.filed.id === p.id) || (scanIt && scanIt.id === p.id);
+      if (!live && !(RX.vis ? RX.vis.shows(p, hidden, hiddenK) : !(p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))))) continue;
       if (M.zoom < (TIER_MIN[p.tier || 2] || 0) && !live) continue;
       const d = M.latLngToDot(p.lat, p.lng, v), x = Math.floor(d.x), y = Math.floor(d.y);
       if (x < -8 || y < -8 || x > W + 8 || y > H + 8) continue;
@@ -239,7 +239,7 @@ window.RX = window.RX || {};
       if (A.assign) return A.assign.step === 'color' ? ['◂ COLOR', 'COLOR ▸', 'PUSH ▸ FILE · DRUM ▸ UNDO'] : ['◂ KIND', 'KIND ▸', 'PUSH ▸ PICK · DRUM ▸ UNDO'];
       const al = RX.aux.mapLabels(A); if (al) return al;
       const f = A.drumFace();
-      if (f === 'NEAR') return ['◂ NEARER', 'FARTHER ▸', 'DRUM ▸ OPEN · HOLD RESET'];
+      if (f === 'NEAR') return ['◂ NEAR', 'FAR ▸', 'DRUM ▸ OPEN · HOLD RESET'];
       if (f === 'LOT') return ['◂ OUT', 'IN ▸', 'DRUM ▸ READ LOT · HOLD RESET'];
       return ['◂ OUT', 'IN ▸', 'TAP LOCATE · HOLD RESET'];
     },
@@ -273,8 +273,9 @@ window.RX = window.RX || {};
       {
         const f = A.drumFace(), it = f === 'NEAR' ? A.nearItem() : null;
         const av = !A.assign && RX.aux.mapJogVal(A);
-        document.getElementById('jogVal').textContent = A.assign ? ((A.assign.step === 'color' ? A.assign.csel : A.assign.sel) + 1) + '/6' : av ? av : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
+        const jv = A.assign ? ((A.assign.step === 'color' ? A.assign.csel : A.assign.sel) + 1) + '/6' : av ? av : f === 'NEAR' ? (it ? (A.near.i + 1) + '/' + A.near.list.length : '0/0')
           : 'Z' + (Math.round(M.zoom * 2) / 2);
+        { const je = document.getElementById('jogVal'); if (je.textContent !== jv) je.textContent = jv; }   // only touch the page when it changes
         // the jog's labels follow the ring coming and going
         const jl = this.jogLabels(st, A), key = jl.join('|');
         if (st._jl !== key) { st._jl = key; document.getElementById('jogL').textContent = jl[0]; document.getElementById('jogR').textContent = jl[1]; document.getElementById('jogFoot').textContent = jl[2]; }
@@ -1363,20 +1364,37 @@ window.RX = window.RX || {};
         mx.hline(3, y + 19, W - 6, C.ink, 0.1, 2);
         y += 20;
       };
-      const tog = (on, labels) => yy => {
-        const L = labels || ['ON', 'OFF'];
-        const s = on ? L[0] : L[1];
-        const w = RX.font.measure(s, 'std') + 12;
-        mx.frame(W - 5 - w, yy + 4, w, 11, C.ink, on ? 0.9 : 0.35);
-        mx.disc(W - 5 - w + 5, yy + 9, 1.5, labels && labels[2] ? labels[2] : C.ink, on ? 1 : 0.2);
-        g.text(s, W - 5 - w + 9, yy + 6, { a: on ? 1 : 0.5 });
+      // 2.53: front-panel controls: a slide switch for on/off, stepped bars for levels, a selector for choices,
+      // a keycap for pages, a recessed counter for read-outs
+      const tog = on => yy => {
+        const tw = 17, th = 9, x = W - 5 - tw, y0 = yy + 5;
+        mx.frame(x, y0, tw, th, C.ink, on ? 0.85 : 0.35);
+        if (on) mx.rect(x + tw - 8, y0 + 2, 6, 5, C.ink, 1); else mx.frame(x + 2, y0 + 2, 6, 5, C.ink, 0.5);
+        g.miniR(on ? 'ON' : 'OFF', x - 3, yy + 7, { a: on ? 0.9 : 0.45 });
       };
+      const level = (i, n, label) => yy => {
+        const bx = W - 5 - (n * 4 - 1);
+        for (let k = 0; k < n; k++) { const h = 3 + k * 2, x = bx + k * 4; mx.rect(x, yy + 14 - h, 3, h, C.ink, k <= i ? 1 : 0.18); }
+        g.miniR(label, bx - 4, yy + 7, { a: 0.85 });
+      };
+      const choice = (opts, i) => yy => {
+        const ws = opts.map(o => RX.font.measure(o, 'mini') + 4), tot = ws.reduce((a, b) => a + b, 0) + opts.length + 1;
+        let x = W - 5 - tot; const y0 = yy + 5;
+        mx.frame(x, y0, tot, 9, C.ink, 0.5); x += 1;
+        opts.forEach((o, k) => {
+          if (k === i) { mx.rect(x, y0 + 1, ws[k], 7, C.ink, 1); g.mini(o, x + 2, y0 + 2, { punch: true }); }
+          else g.mini(o, x + 2, y0 + 2, { a: 0.45 });
+          x += ws[k]; if (k < opts.length - 1) mx.vline(x, y0 + 1, 7, C.ink, 0.35); x += 1;
+        });
+      };
+      const chW = opts => opts.reduce((a, o) => a + RX.font.measure(o, 'mini') + 5, 1) + 4;
+      const counter = s => yy => { const w = RX.font.measure(s, 'std') + 6, x = W - 5 - w; mx.frame(x, yy + 4, w, 11, C.ink, 0.3); g.text(s, x + 3, yy + 6, { c: C.hot }); };
       const val = (s, c) => yy => g.textR(s, W - 5, yy + 6, { c: c || C.ink });
-      const arrow = yy => g.textR('▸', W - 5, yy + 6);
+      const arrow = yy => { const x = W - 5 - 9; mx.frame(x, yy + 5, 9, 9, C.ink, 0.55); g.text('▸', x + 2, yy + 6, { a: 0.9 }); };
 
       y = g.section('01 · DISPLAY', y);
-      row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', val(S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
-      row('SHELL', 'TEAL PLASTIC · BLACK TITANIUM', val(S.v2.shell === 'black' ? 'BLACK TI' : 'TEAL'), () => { S.saveV2({ shell: S.v2.shell === 'black' ? 'teal' : 'black' }); RX.applyShell(); A.beep('key'); A.say('SHELL ▸ ' + (S.v2.shell === 'black' ? 'BLACK TITANIUM' : 'TEAL PLASTIC'), 2200); });
+      row('BRIGHTNESS', 'SCREEN LEVEL · BLOOM', level(['LOW', 'MED', 'HIGH'].indexOf(S.v2.brightness || 'MED'), 3, S.v2.brightness || 'MED'), () => { const k = ['LOW', 'MED', 'HIGH']; S.saveV2({ brightness: k[(k.indexOf(S.v2.brightness || 'MED') + 1) % 3] }); RX.applyBrightness(); });
+      row('SHELL', 'THE CASE FINISH', choice(['TEAL', 'BLACK TI'], S.v2.shell === 'black' ? 1 : 0), () => { S.saveV2({ shell: S.v2.shell === 'black' ? 'teal' : 'black' }); RX.applyShell(); A.beep('key'); A.say('SHELL ▸ ' + (S.v2.shell === 'black' ? 'BLACK TITANIUM' : 'TEAL PLASTIC'), 2200); }, { ctrlW: chW(['TEAL', 'BLACK TI']) });
       row('IDLE DIM', 'DIMS AFTER 60 S UNTOUCHED', tog(S.v2.idleDim), () => S.saveV2({ idleDim: !S.v2.idleDim }));
       row('KEY SOUNDS', 'CLICKS · THE MUTE SWITCH, TOO', tog(S.v2.sound), () => { S.saveV2({ sound: !S.v2.sound }); A.beep('key'); if (A.syncSwitches) A.syncSwitches(); });
       row('SOUND TEST', 'EVERY SOUND FOLDER · TAP ONE TO HEAR IT', arrow, () => A.go('sound'));
@@ -1386,17 +1404,17 @@ window.RX = window.RX || {};
       row('AUTO-NAME MARKS', 'STREET ADDRESS AS DEFAULT NAME', tog(S.v2.autoName !== false), () => S.saveV2({ autoName: S.v2.autoName === false }));
       row('MARK RING', 'THE SIX KINDS AROUND A NEW MARK', arrow, () => A.go('ringkinds'));
       row('NOW', A.place ? A.place.area + ' · ' + A.place.city + ' · ' + A.place.metro : (A.gps ? 'LOOKING UP' : 'NO FIX YET'), null, () => { if (A.gps) A.placeLookup(A.gps.lat, A.gps.lng); });
-      row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', val(String(new Set(S.regions.map(r => r.name)).size)), null);
+      row('PLACES VISITED', 'CITIES AND TOWNS ON RECORD', counter(String(new Set(S.regions.map(r => r.name)).size)), null);
 
       y = g.section('03 · MAP, TRACKS & FOG', y + 2);
       const SRC = ['AUTO', 'ESRI', 'OSM'];
-      row('MAP SOURCE', 'NOW ' + M.sourceName() + (M.loaded ? ' · OK' : '') + Object.keys(M.why).map(k => ' · ' + k + ' ' + M.why[k]).join(''), val(S.v2.mapSrc || 'AUTO'), () => {
+      row('MAP SOURCE', 'NOW ' + M.sourceName() + (M.loaded ? ' · OK' : '') + Object.keys(M.why).map(k => ' · ' + k + ' ' + M.why[k]).join(''), choice(SRC, SRC.indexOf(S.v2.mapSrc || 'AUTO')), () => {
         const nx = SRC[(SRC.indexOf(S.v2.mapSrc || 'AUTO') + 1) % SRC.length];
         S.saveV2({ mapSrc: nx }); M.setSource(nx); A.say('MAP SOURCE ▸ ' + (nx === 'AUTO' ? 'AUTO · ' + M.sourceName() : M.sourceName()), 2500);
-      });
+      }, { ctrlW: chW(SRC) });
       row('TRACKS', S.tracks.length + ' KEPT · ' + (S.tracks.reduce((m, t) => m + (t.m || 0), 0) / 1609.344).toFixed(1) + ' MI' + (S.rec ? ' · RECORDING' : ' · REC ON THE AUX DECK'), arrow, () => A.go('tracks'));
       const mi2 = S.fog.size * 150 * 150 / 2589988;
-      row('FOG DENSITY', F.num(S.fog.size) + ' CELLS · ' + mi2.toFixed(0) + ' SQ MI EXPLORED', val(S.prefsV1.fogOpacity || 'HEAVY'), () => { S.savePrefsV1({ fogOpacity: FOGS[(FOGS.indexOf(S.prefsV1.fogOpacity || 'HEAVY') + 1) % 4] }); M.dirty = true; });
+      row('FOG DENSITY', F.num(S.fog.size) + ' CELLS · ' + mi2.toFixed(0) + ' SQ MI EXPLORED', level(FOGS.indexOf(S.prefsV1.fogOpacity || 'HEAVY'), 4, S.prefsV1.fogOpacity || 'HEAVY'), () => { S.savePrefsV1({ fogOpacity: FOGS[(FOGS.indexOf(S.prefsV1.fogOpacity || 'HEAVY') + 1) % 4] }); M.dirty = true; });
       row('CLEAR FOG', 'RESET ALL REVEALED TERRAIN', arrow, () => A.go('confirm', { title: 'CLEAR FOG', danger: true, confirm: 'CLEAR FOG', lines: ['RESET ' + F.num(S.fog.size) + ' REVEALED CELLS?', 'MARKS ARE NOT AFFECTED.', 'EXPORT A BACKUP FIRST.'], onConfirm: () => { S.fog.clear(); S.saveFog(); M.dirty = true; A.say('FOG CLEARED', 2500); } }), { red: true });
 
       y = g.section('04 · DATA', y + 2);
@@ -2794,9 +2812,37 @@ window.RX = window.RX || {};
   };
 
   // ---------- VIS: explored-ground totals for the LCD while HI-CON is on ----------
+  // and the mark filter: tap the LCD to step ALL → OFF → each kind you have marks for (most used first);
+  // hold it for ALL. Lives only inside VIS; LEGEND's hides are left alone. Starts at ALL every time VIS goes on.
   RX.vis = (function () {
     const CELL_SQMI = 22500 / 2589988;   // same 150 m square the rest of the RP counts
-    let city = null, cityKey = null, busy = false, pct = null, pctKey = null;
+    let city = null, cityKey = null, busy = false, pct = null, pctKey = null, filt = 'ALL';
+    function counts() { const c = {}; S.pois.forEach(p => { const k = U.kindOf(p); if (k) c[k] = (c[k] || 0) + 1; }); return c; }
+    function options() { const c = counts(); return ['ALL', 'OFF', ...U.KINDS.map(k => k.id).filter(id => c[id]).sort((a, b) => c[b] - c[a])]; }
+    const active = () => S.v2.hicon ? filt : 'ALL';
+    // ALL: LEGEND's rules · OFF: no marks · a kind: only that kind, even if LEGEND hides it
+    function shows(p, hidden, hiddenK) {
+      const f = active();
+      if (f === 'OFF') return false;
+      if (f !== 'ALL') return U.kindOf(p) === f;
+      return !(p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p))));
+    }
+    function label() {
+      if (filt === 'ALL') return 'ALL ×' + S.pois.length;
+      if (filt === 'OFF') return 'NO MARKS';
+      return filt + ' ×' + (counts()[filt] || 0);
+    }
+    function step(A, toAll) {
+      const o = options();
+      if (!o.includes(filt)) filt = 'ALL';   // the kind ran out of marks
+      const next = toAll ? 'ALL' : o[(o.indexOf(filt) + 1) % o.length];
+      if (next === filt && toAll) { A.beep('key'); return; }
+      filt = next;
+      A.beep('sw');
+      if (A.stack.length <= 1 && A.drumFace() === 'NEAR' && A.buildNear) A.buildNear();
+      M.dirty = true; A.dirty = true; A.lcdMsg = null; A.lcdDirty = true;
+    }
+    function reset() { filt = 'ALL'; }
     function cityPct(p) {
       const D = S.FOG_CELL_DEG, b = p.box; let n = 0;
       for (const k of S.fog) {
@@ -2820,8 +2866,8 @@ window.RX = window.RX || {};
         cityRow = ['CITY', p.name.toUpperCase() + ' ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%'];
       }
       const mi = S.fog.size * CELL_SQMI;
-      return { rows: [['EXPL', (mi < 100 ? mi.toFixed(1) : Math.round(mi)) + ' SQ MI'], cityRow, ['CELL', F.num(S.fog.size)]], tag: 'VIS' };
+      return { rows: [['SHOW', label()], ['EXPL', (mi < 100 ? mi.toFixed(1) : Math.round(mi)) + ' SQ MI'], cityRow], tag: 'VIS' };
     }
-    return { lcd, cityPct };
+    return { lcd, cityPct, shows, active, step, reset };
   })();
 })();

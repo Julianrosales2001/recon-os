@@ -175,9 +175,27 @@ window.RX = window.RX || {};
   // Normalise any incoming text to the ROM's character set.
   const SUBS = { '–': '-', '—': '-', '‘': "'", '’': "'", '“': '"', '”': '"', '…': '...', '{': '(', '}': ')',
     '`': "'", '■': '■', '▶': '▸', '◀': '◂', '►': '▸', '◄': '◂', '⚠': '!', '\t': ' ' };
+  // the same labels are drawn and measured every frame: normalise each once, and remember its length in characters
+  const NORM = new Map(), NLEN = new Map();
   function norm(str) {
     if (str == null) return '';
-    let s = String(str);
+    const key = typeof str === 'string' ? str : String(str), hit = NORM.get(key);
+    if (hit !== undefined) return hit;
+    const out = norm1(key);
+    if (NORM.size > 4000) { NORM.clear(); NLEN.clear(); }
+    NORM.set(key, out);
+    return out;
+  }
+  function normLen(str) {
+    if (str == null) return 0;
+    const key = typeof str === 'string' ? str : String(str), hit = NLEN.get(key);
+    if (hit !== undefined) return hit;
+    const n = [...norm(key)].length;
+    NLEN.set(key, n);
+    return n;
+  }
+  function norm1(str) {
+    let s = str;
     try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
     s = s.toUpperCase();
     let out = '';
@@ -193,7 +211,7 @@ window.RX = window.RX || {};
     // Width in dots of a string in a given face at a given scale.
     measure(str, face, scale) {
       const f = face === 'mini' ? this.mini : this.std;
-      const n = [...norm(str)].length;
+      const n = normLen(str);
       if (!n) return 0;
       return (n * f.adv - (f.adv - f.w)) * (scale || 1);
     },

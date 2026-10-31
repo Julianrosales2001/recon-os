@@ -102,6 +102,7 @@ window.RX = window.RX || {};
       this.ghostEl.style.backgroundSize = p;
       this.img = this.ctx.createImageData(cols, rows);
       this.buf = this.img.data;
+      this.b32 = new Uint32Array(this.buf.buffer); this.shown = null;   // what's on the glass now, to skip re-sending an unchanged picture
       return true;
     }
 
@@ -273,6 +274,14 @@ window.RX = window.RX || {};
         }
         this.settling = moving;
       }
+      // nothing changed since the last frame: leave the glass (and its bloom and shadow layers) as they are
+      const b32 = this.b32;
+      if (this.shown && this.shown.length === b32.length) {
+        const s = this.shown; let same = true;
+        for (let i = 0; i < b32.length; i++) if (b32[i] !== s[i]) { same = false; break; }
+        if (same) return;
+        s.set(b32);
+      } else this.shown = new Uint32Array(b32);
       this.ctx.putImageData(this.img, 0, 0);
       if (this.bloomCtx) {
         this.bloomCtx.clearRect(0, 0, this.cols, this.rows);

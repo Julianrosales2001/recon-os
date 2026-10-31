@@ -20,6 +20,7 @@ window.RX = window.RX || {};
   const easeOut = p => 1 - Math.pow(1 - clamp(p, 0, 1), 3);
   const eio = p => { p = clamp(p, 0, 1); return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; };
   const LOC = /^(CITY|ROAD|CNTY|TRCT|LOT|SPOT|TGT|OWNR|PARK|AREA|ZIP|ST)$/;
+  const FLIPL = /^(SHOW)$/;   // a selector: every step flips over
   const DIG = '0123456789', ALL = 'ABCDEFGHKMNPRSTXZ0123456789';
   const ADV = 6, GH = 7;
   const R = RX.readout = {};
@@ -56,6 +57,7 @@ window.RX = window.RX || {};
     if (!r) { r = rows[i] = { to: str, from: str, fx: null, t0: 0 }; }
     if (str !== r.to) {
       const fx = R.pageChanged ? (R.isMsg ? 'rain' : 'slide')
+        : FLIPL.test(label || '') ? 'flip'
         : LOC.test(label || '') ? 'slide'
         : (onlyDigits(r.to, str) || (digitish(str) && digitish(r.to))) ? 'flip' : 'rain';
       r.from = r.to; r.to = str; r.fx = fx; r.t0 = now;

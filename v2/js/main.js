@@ -183,12 +183,14 @@ window.RX = window.RX || {};
   // VIS: the high-contrast explored map, on until switched off
   A.setHicon = function (on, o) {
     S.saveV2({ hicon: !!on });
+    if (RX.vis) RX.vis.reset();   // the mark filter starts at ALL every time
+    if (A.stack.length <= 1 && A.drumFace() === 'NEAR') buildNear();
     const l = $('visLed'); if (l) l.classList.toggle('on', !!on);
     if (on && A.stack.length > 1) A.home();
     applyMode();
     M.dirty = true; A.dirty = true; A.lcdDirty = true;
     if (!(o && o.quiet)) A.beep(on ? 'ok' : 'key');
-    A.say(on ? 'HI-CON ON · WHITE = EXPLORED · VIS AGAIN TO EXIT' : 'HI-CON OFF', 3000);
+    A.say(on ? 'HI-CON ON · TAP LCD TO FILTER MARKS' : 'HI-CON OFF', 3000);
   };
 
   // ---------- the switch strip: HOLD · VIS · MUTE ----------
@@ -441,7 +443,17 @@ window.RX = window.RX || {};
     if (A.stack.length > 1) A.home();
     A.go(t);
   }, null, () => 'tool.' + b.dataset.tool));   // each tray key has its folder (F4-F11), else F3-tools, else the K1-key click
+  // VIS: while the LCD shows the explored readout, a tap steps the mark filter and a hold goes back to ALL
+  const visLcd = () => { if (!S.v2.hicon || A.stack.length > 1 || !RX.vis) return false; const sc = A.screen(); return !(sc.lcd && sc.lcd(A.top().st, A)); };   // same test the readout uses
+  let lcdHoldT = null, lcdHeld = false;
+  $('lcdBtn').addEventListener('pointerdown', () => {
+    lcdHeld = false; clearTimeout(lcdHoldT);
+    if (visLcd()) lcdHoldT = setTimeout(() => { lcdHeld = true; A.wake(); RX.vis.step(A, true); }, 550);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => $('lcdBtn').addEventListener(t, () => clearTimeout(lcdHoldT)));
   $('lcdBtn').addEventListener('click', () => {
+    if (lcdHeld) { lcdHeld = false; return; }
+    if (visLcd()) { A.wake(); RX.vis.step(A); return; }
     A.wake(); A.beep('key');
     const sc = A.screen();
     if (sc.lcdTap) { sc.lcdTap(A.top().st, A); A.lcdMsg = null; A.lcdDirty = true; A.dirty = true; return; }
@@ -697,13 +709,15 @@ window.RX = window.RX || {};
   function buildNear() {
     const from = A.gps || { lat: M.lat, lng: M.lng };
     const hidden = new Set(S.v2.hiddenCats || []), hiddenK = new Set(S.v2.hiddenKinds || []);
-    const list = S.pois.filter(p => !(p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))))
+    // NEAR scans what the map shows: LEGEND's hides, or the VIS filter while it's on
+    const list = S.pois.filter(p => RX.vis ? RX.vis.shows(p, hidden, hiddenK) : !(p.category && (hidden.has(p.category) || hiddenK.has(U.kindOf(p)))))
       .map(p => ({ id: p.id, m: Geo.meters(from.lat, from.lng, p.lat, p.lng) }))
       .sort((a, b) => a.m - b.m).map(o => o.id);
     A.near = { list, i: 0 };
     const it = A.nearItem();
     if (it) A.glide(it.lat, it.lng);
   }
+  A.buildNear = buildNear;
   A.nearItem = function () {
     const sc = A.near;
     if (!sc || !sc.list.length) return null;

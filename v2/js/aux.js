@@ -32,7 +32,19 @@ window.RX = window.RX || {};
   // ======================================================================
   // HARDWARE
   // ======================================================================
-  const STANDBY = 0.1;
+  // 2.50: the keys sit lit while the panel is open. A key's glow g runs 0 → REST (lit, no halo) → TOP (lit + full halo).
+  // REC rests at full red and, while recording, blinks: lit with its halo, then dim. PARK rests at full orange; parked,
+  // it turns into a blue RETURN with a blue halo. Lamp = min(1, g); halo = how far g sits above REST, toward TOP.
+  // A press flares to TOP.
+  const REST = { rec: 1, park: 1 }, TOP = { rec: 1.35, park: 1.35 };
+  const BLINK = { period: 1000, on: 550, ramp: 60, low: 0.22 };   // REC while recording: on 0.55 s, dim 0.45 s
+  function blinkGlow(t, t0) {
+    const ph = (t - t0) % BLINK.period, hi = TOP.rec, lo = BLINK.low, r = BLINK.ramp;
+    if (ph < r) return lo + (hi - lo) * ph / r;
+    if (ph < BLINK.on) return hi;
+    if (ph < BLINK.on + r) return hi - (hi - lo) * (ph - BLINK.on) / r;
+    return lo;
+  }
   const FLICK = { rec: [0, .55, .05, .2, .7, .15, .45, .25], park: [0, .35, .1, .6, .05, .5, .3, .2] };   // the lamps catching
   const HIT = [1, .45, 1, .7, 1];                                                                         // a press landing
   const KEYS = ['rec', 'park'];
@@ -100,9 +112,12 @@ window.RX = window.RX || {};
   X.lift = () => laid ? T : 0;
 
   // ---- the lamps ----
-  function glowTarget(k) { const c = cap[k]; if (!X.open || !c.up) return 0; return (k === 'rec' ? X.recording() : !!X.parked()) ? 1 : STANDBY; }
+  function glowTarget(k) { const c = cap[k]; if (!X.open || !c.up) return 0; return (k === 'rec' ? X.recording() : !!X.parked()) ? TOP[k] : REST[k]; }
   function glowSeq(k, steps, end, dt, delay) { cap[k].gl = { steps, end, dt: dt || 50, t0: now() + (delay || 0) }; kick(); }
   function glowFade(k, to, dur) { cap[k].gl = { from: cap[k].g, end: to, dur: dur || 220, t0: now() }; kick(); }
+  // a finger on the key: it flares to full; let go and, unless the press changed its state, it eases back to rest
+  function pressGlow(k) { if (!cap[k].up || !X.open) return; glowFade(k, TOP[k], 60); cap[k].gl.press = true; }
+  function releaseGlow(k) { setTimeout(() => { const c = cap[k]; if (!c.up || !X.open) return; if (!c.gl || c.gl.press) { glowFade(k, glowTarget(k), 450); c.gl.press = true; } }, 30); }
   function stepGlow(k, t) {
     const c = cap[k], gl = c.gl; if (!gl) return false;
     if (t < gl.t0) { if (gl.steps) c.g = gl.before != null ? gl.before : c.g; return true; }
@@ -119,7 +134,7 @@ window.RX = window.RX || {};
   function relamp(k) {
     const c = cap[k]; if (!c.up || !X.open) { kick(); return; }
     const to = glowTarget(k);
-    if (to >= 1) glowSeq(k, HIT, 1, 40); else glowFade(k, to, 220);
+    if (to >= TOP[k]) glowSeq(k, HIT.map(v => v * TOP[k]), TOP[k], 40); else glowFade(k, to, 220);
   }
 
   // ---- one frame of the mechanism ----
@@ -145,7 +160,7 @@ window.RX = window.RX || {};
       if (y >= cl) {
         if (!c.up) {
           c.up = true; c.popT = t;
-          if (A && A.booted) { A.beep('aux.keyup'); glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 220 + i * 60); if (!i) setTimeout(() => A.beep('aux.lamp'), 220); }
+          if (A && A.booted) { A.beep('aux.keyup'); glowSeq(k, FLICK[k], glowTarget(k) || REST[k], 50, 220 + i * 60); if (!i) setTimeout(() => A.beep('aux.lamp'), 220); }
         }
         const kk = t - c.popT; base = Math.max(kk < 75 ? 3 - Math.floor(kk / 25) : 0, rest(k));
         c.pop = kk >= 0 && kk < 200 ? 1 + 0.05 * Math.max(0, 1 - Math.abs(kk - 100) / 60) : 1;
@@ -158,15 +173,19 @@ window.RX = window.RX || {};
       const pd = pressDepth(t - c.press); if (t - c.press <= 370) busy = true;
       const d = Math.max(base, pd);
       if (stepGlow(k, t)) busy = true;
+      // recording: once the lamp has landed, it blinks for as long as REC runs
+      else if (k === 'rec' && c.up && X.open && X.recording()) { if (c.blink0 == null) c.blink0 = t - BLINK.ramp;   // picks up lit, where the landing left it
+        c.g = blinkGlow(t, c.blink0); busy = true; }
+      if (k === 'rec' && !(X.open && X.recording())) c.blink0 = null;
       paintKey(k, d, c.up ? 0 : 1);
     });
     return busy || !!drag;
   }
   function paintKey(k, d, flush) {
     const c = cap[k], b = el[k], a = art(k);
-    if (c.d !== d || c.art !== a) { c.d = d; c.art = a; b.off.src = SRC(a + '-' + d); b.on.src = SRC(a + '-lit-' + d); }
+    if (c.d !== d || c.art !== a) { c.d = d; c.art = a; b.off.src = SRC(a + '-' + d); b.on.src = SRC(a + (a === 'ret' ? '-blue' : '') + '-lit-' + d); b.btn.classList.toggle('blue', a === 'ret'); }   // parked: RETURN lights blue
     const g = +c.g.toFixed(3);
-    if (c.lit !== g) { c.lit = g; b.on.style.opacity = g; b.halo.style.opacity = (Math.max(0, (g - 0.3) / 0.7) * 0.9).toFixed(3); }
+    if (c.lit !== g) { c.lit = g; b.on.style.opacity = Math.min(1, g); b.halo.style.opacity = (Math.min(1, Math.max(0, (g - REST[k]) / (TOP[k] - REST[k]))) * 0.9).toFixed(3); }   // the halo only above the resting glow
     b.btn.style.transform = 'scale(' + ((1 - 0.012 * d) * c.pop).toFixed(4) + ') translateY(' + (0.5 * d).toFixed(2) + 'px)';
     const sh = Math.max(0.3, 3.5 - (flush ? 3 : d));
     b.btn.style.filter = 'brightness(' + (1 - 0.06 * d - (flush ? 0.12 : 0)).toFixed(3) + ') drop-shadow(0 ' + sh.toFixed(2) + 'px ' + sh.toFixed(2) + 'px rgba(0,0,0,.55))';
@@ -295,17 +314,18 @@ window.RX = window.RX || {};
     else { A.home(); A.beep('key'); }
   };
   function wireKeys() {
-    el.rec.btn.addEventListener('pointerdown', e => { e.preventDefault(); if (usable()) { cap.rec.press = now(); kick(); } });
+    el.rec.btn.addEventListener('pointerdown', e => { e.preventDefault(); if (usable()) { cap.rec.press = now(); pressGlow('rec'); kick(); } });
+    ['pointerup', 'pointercancel'].forEach(t => el.rec.btn.addEventListener(t, () => releaseGlow('rec')));
     el.rec.btn.addEventListener('click', e => { e.preventDefault(); if (usable()) { const t = cap.rec.press; X.key('rec'); cap.rec.press = t; } });
     // RETURN: tap = the way back; hold = clear the spot
     let holdT = 0, held = false;
     const pb = el.park.btn;
     pb.addEventListener('pointerdown', e => {
       e.preventDefault(); if (!usable()) return;
-      cap.park.press = now(); kick(); held = false; clearTimeout(holdT);
+      cap.park.press = now(); pressGlow('park'); kick(); held = false; clearTimeout(holdT);
       if (X.parked()) holdT = setTimeout(() => { held = true; cap.park.press = now(); kick(); X.parkClear('HOLD'); }, 700);
     });
-    const up = () => clearTimeout(holdT);
+    const up = e => { clearTimeout(holdT); if (e.type !== 'pointerleave') releaseGlow('park'); };
     pb.addEventListener('pointerup', up); pb.addEventListener('pointercancel', up); pb.addEventListener('pointerleave', up);
     pb.addEventListener('click', e => { e.preventDefault(); if (held) { held = false; return; } if (usable()) { const t = cap.park.press; X.key('park'); cap.park.press = t; } });
     // the compass dial
@@ -330,7 +350,7 @@ window.RX = window.RX || {};
     const cb = $('auxCmp');
     el.cmp = { btn: cb, card: cb.querySelector('.cmp-card'), pip: cb.querySelector('.cmp-pip'), nd: cb.querySelector('.cmp-ndi') };
     // keep the art warm so the first press doesn't flash
-    ['rec', 'park', 'ret'].forEach(k => [0, 1, 2, 3].forEach(d => { new Image().src = SRC(k + '-' + d); new Image().src = SRC(k + '-lit-' + d); }));
+    ['rec', 'park', 'ret', 'ret-blue'].forEach(k => [0, 1, 2, 3].forEach(d => { if (k !== 'ret-blue') new Image().src = SRC(k + '-' + d); new Image().src = SRC(k + '-lit-' + d); }));
     measure();
     el.hood.style.top = el.bezel.offsetTop + 'px';
     wireBar(); wireKeys();
@@ -349,7 +369,7 @@ window.RX = window.RX || {};
   };
   // after boot: if it was left open, the lamps catch
   X.booted = function () {
-    if (X.open) { KEYS.forEach((k, i) => { cap[k].up = true; glowSeq(k, FLICK[k], glowTarget(k) || STANDBY, 50, 300 + i * 60); }); setTimeout(() => A.beep('aux.lamp'), 300); }
+    if (X.open) { KEYS.forEach((k, i) => { cap[k].up = true; glowSeq(k, FLICK[k], glowTarget(k) || REST[k], 50, 300 + i * 60); }); setTimeout(() => A.beep('aux.lamp'), 300); }
     if (X.pendingKey) { const k = X.pendingKey; X.pendingKey = null; X.key(k); }
     X.kickCmp();
   };
@@ -677,7 +697,7 @@ window.RX = window.RX || {};
   }
   RX.screens.compass = {
     animating: () => true,
-    jogLabels: () => HD.hold != null ? ['◂ -1°', '+1° ▸', 'PUSH ▸ LET GO'] : ['◂ BEARING', 'BEARING ▸', 'PUSH ▸ HOLD IT'],
+    jogLabels: () => HD.hold != null ? ['◂ -1°', '+1° ▸', 'PUSH ▸ LET GO'] : ['◂ LEFT', 'RIGHT ▸', 'PUSH ▸ HOLD BEARING'],
     enter(st) { st.pick = null; X.kickCmp(); },
     jog(d, st, A) {
       if (HD.hold != null) { HD.hold = norm(HD.hold + d); return; }
